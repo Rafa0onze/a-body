@@ -1,0 +1,65 @@
+name: Supabase Finish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Env vars via CLI + redeploy
+        env:
+          SUPABASE_TOKEN: ${{ secrets.SUPABASE_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -uo pipefail
+          API="https://api.supabase.com/v1"
+          AUTH="Authorization: Bearer $SUPABASE_TOKEN"
+          REF=$(curl -s -H "$AUTH" "$API/projects" | jq -r '.[] | select(.name=="a-body") | .id' | head -1)
+          ANON=$(curl -s -H "$AUTH" "$API/projects/$REF/api-keys" | jq -r '.[] | select(.name=="anon") | .api_key')
+          SUPA_URL="https://$REF.supabase.co"
+
+          {
+            echo "## Supabase Finish — env vars + redeploy"
+            echo '```'
+            echo "ref: $REF"
+
+            npm ci > /dev/null 2>&1
+
+            echo "--- vercel link ---"
+            npx vercel@latest link --yes --project a-body --token="$VERCEL_TOKEN" 2>&1 | tail -2
+
+            echo "--- env add ---"
+            # remove se existir, depois adiciona (idempotente)
+            npx vercel@latest env rm VITE_SUPABASE_URL production --yes --token="$VERCEL_TOKEN" 2>/dev/null
+            npx vercel@latest env rm VITE_SUPABASE_ANON_KEY production --yes --token="$VERCEL_TOKEN" 2>/dev/null
+            printf '%s' "$SUPA_URL" | npx vercel@latest env add VITE_SUPABASE_URL production --token="$VERCEL_TOKEN" 2>&1 | tail -1
+            printf '%s' "$ANON"     | npx vercel@latest env add VITE_SUPABASE_ANON_KEY production --token="$VERCEL_TOKEN" 2>&1 | tail -1
+
+            echo "--- deploy ---"
+            npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" 2>&1 | tail -4
+
+            echo "--- smoke: frontend deve conter URL do Supabase no bundle ---"
+            sleep 8
+            BUNDLE=$(curl -s https://a-body.vercel.app/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1)
+            curl -s "https://a-body.vercel.app/$BUNDLE" | grep -c "$REF" || echo "0 (env NAO embutida)"
+            echo '```'
+          } | tee /tmp/report.md
+          true
+
+      - name: Publicar relatorio
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -F body=@/tmp/report.md
