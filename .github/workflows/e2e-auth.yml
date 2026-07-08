@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Teste de cadastro, login e sync de dados
+      - name: Teste de cadastro, login e sync
         env:
           SUPABASE_TOKEN: ${{ secrets.SUPABASE_TOKEN }}
         run: |
@@ -22,41 +22,45 @@ jobs:
           REF=$(curl -s -H "$AUTH" "$API/projects" | jq -r '.[] | select(.name=="a-body") | .id' | head -1)
           ANON=$(curl -s -H "$AUTH" "$API/projects/$REF/api-keys" | jq -r '.[] | select(.name=="anon") | .api_key')
           URL="https://$REF.supabase.co"
-          EMAIL="e2e-test-$(date +%s)@abody-ci.test"
+          EMAIL="abody.e2e.$(date +%s)@gmail.com"
           PASS="Teste$(openssl rand -hex 6)!"
 
           {
-            echo "## E2E Auth — cadastro, login e sync"
+            echo "## E2E Auth v2"
             echo '```'
+
+            echo "--- 0. habilitar autoconfirm de email ---"
+            AC=$(curl -s -X PATCH -H "$AUTH" -H "Content-Type: application/json" \
+              "$API/projects/$REF/config/auth" -d '{"mailer_autoconfirm":true}')
+            echo "autoconfirm: $(echo "$AC" | jq -r '.mailer_autoconfirm // "erro"')"
+            sleep 5
 
             echo "--- 1. signup ---"
             SIGNUP=$(curl -s -X POST "$URL/auth/v1/signup" -H "apikey: $ANON" -H "Content-Type: application/json" \
               -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
             TOKEN=$(echo "$SIGNUP" | jq -r '.access_token // empty')
-            if [ -n "$TOKEN" ]; then echo "signup: OK (sessao imediata)"; else echo "signup: $(echo $SIGNUP | jq -r '.msg // .error_description // "confirmacao de email exigida"' | head -c 120)"; fi
-
-            if [ -z "$TOKEN" ]; then
-              echo "--- 1b. login (caso confirmacao nao seja exigida) ---"
-              LOGIN=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" \
-                -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
-              TOKEN=$(echo "$LOGIN" | jq -r '.access_token // empty')
-              echo "login: $([ -n \"$TOKEN\" ] && echo OK || echo "$(echo $LOGIN | jq -r '.error_description // .msg' | head -c 120)")"
-            fi
+            if [ -n "$TOKEN" ]; then echo "signup: OK com sessao imediata"; else echo "signup falhou: $(echo "$SIGNUP" | jq -r '.msg // .error_description // .' | head -c 150)"; fi
 
             if [ -n "$TOKEN" ]; then
-              echo "--- 2. gravar dado (user_data) ---"
+              echo "--- 2. gravar user_data ---"
               W=$(curl -s -X POST "$URL/rest/v1/user_data" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN" \
                 -H "Content-Type: application/json" -H "Prefer: resolution=merge-duplicates,return=representation" \
                 -d '{"key":"e2e:test","value":{"ok":true}}')
-              echo "write: $(echo "$W" | jq -r 'if type=="array" then "OK" else (.message // "erro") end')"
+              if echo "$W" | jq -e 'type=="array"' >/dev/null 2>&1; then echo "write: OK"; else echo "write erro: $(echo "$W" | head -c 150)"; fi
 
-              echo "--- 3. ler dado de volta ---"
+              echo "--- 3. ler de volta ---"
               R=$(curl -s "$URL/rest/v1/user_data?key=eq.e2e:test&select=value" -H "apikey: $ANON" -H "Authorization: Bearer $TOKEN")
-              echo "read: $(echo "$R" | jq -c '.[0].value // "erro"')"
+              echo "read: $(echo "$R" | jq -c '.[0].value')"
 
-              echo "--- 4. RLS: leitura SEM token deve vir vazia ---"
+              echo "--- 4. RLS sem token (deve ser []) ---"
               N=$(curl -s "$URL/rest/v1/user_data?select=key" -H "apikey: $ANON")
               echo "sem auth: $(echo "$N" | jq -c '.')"
+
+              echo "--- 5. login com a mesma conta ---"
+              LOGIN=$(curl -s -X POST "$URL/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" \
+                -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+              T2=$(echo "$LOGIN" | jq -r '.access_token // empty')
+              if [ -n "$T2" ]; then echo "login: OK"; else echo "login erro: $(echo "$LOGIN" | jq -r '.error_description // .msg' | head -c 150)"; fi
             fi
             echo '```'
           } | tee /tmp/report.md
