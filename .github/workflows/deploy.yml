@@ -22,34 +22,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Diagnóstico + Deploy
-        id: deploy
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set +e
-          WHO=$(npx vercel@latest whoami --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
-          echo "WHOAMI: $WHO"
-          OUT=$(npx vercel@latest deploy --prod --yes --token=${{ secrets.VERCEL_TOKEN }} 2>&1)
-          CODE=$?
-          echo "$OUT"
-          URL=$(echo "$OUT" | grep -oE 'https://[a-z0-9.-]+\.vercel\.app' | tail -1)
           {
-            echo "REPORT<<EOD"
-            echo "exit_code: $CODE"
-            echo "whoami: $WHO"
-            echo "url: ${URL:-NENHUMA}"
-            echo "output_tail:"
-            echo "$OUT" | tail -15
-            echo "EOD"
-          } >> "$GITHUB_OUTPUT"
-          exit $CODE
+            echo "## Deploy Vercel — diagnostico"
+            echo '```'
+            echo "--- whoami ---"
+            npx vercel@latest whoami --token="$VERCEL_TOKEN" 2>&1
+            echo "--- deploy ---"
+            npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" 2>&1
+            echo "exit_code: $?"
+            echo '```'
+          } | tee /tmp/report.md
+          true
 
-      - name: Reportar resultado via commit comment
+      - name: Publicar diagnostico
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments \
-            -f body="## Deploy Vercel — diagnóstico
-\`\`\`
-${{ steps.deploy.outputs.REPORT }}
-\`\`\`"
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -F body=@/tmp/report.md
