@@ -161,7 +161,14 @@ const DURATION_OPTIONS = ["45 min","1 hora","1h30","2 horas"];
 const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
-async function loadStorage(key)   { try { const v=localStorage.getItem(key); return v?JSON.parse(v):null; } catch{return null;} }
+async function loadStorage(key) {
+  // Nuvem primeiro (se logado), fallback local
+  if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
+    const cloud = await cloudLoad(key);
+    if (cloud !== null) { localStorage.setItem(key, JSON.stringify(cloud)); return cloud; }
+  }
+  try { const v=localStorage.getItem(key); return v?JSON.parse(v):null; } catch{return null;}
+}
 
 const repairJSON = (str) => {
   // Remove markdown
@@ -211,7 +218,110 @@ const extractJSON = (text) => {
   }
   throw new Error("Could not parse JSON from response");
 };
-async function saveStorage(key,v) { try { localStorage.setItem(key,JSON.stringify(v)); } catch{} }
+async function saveStorage(key,v) {
+  try { localStorage.setItem(key,JSON.stringify(v)); } catch{}
+  if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) cloudSave(key, v);
+}
+
+// ─── SUPABASE AUTH (REST puro, sem SDK) ──────────────────────────────────────
+const SUPA_URL  = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPA_KEY  = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const AUTH_ENABLED = !!(SUPA_URL && SUPA_KEY);
+
+const getSession  = () => { try { return JSON.parse(localStorage.getItem("abody:session")) || null; } catch { return null; } };
+const saveSession = (s) => localStorage.setItem("abody:session", JSON.stringify(s));
+const clearSession= () => localStorage.removeItem("abody:session");
+
+async function supaFetch(path, opts={}) {
+  const res = await fetch(`${SUPA_URL}${path}`, {
+    ...opts,
+    headers: { "apikey": SUPA_KEY, "Content-Type": "application/json", ...(opts.headers||{}) },
+  });
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.error_description || data.msg || data.message || "Erro de autenticação");
+  return data;
+}
+
+async function authSignUp(email, password) {
+  const d = await supaFetch("/auth/v1/signup", { method:"POST", body: JSON.stringify({ email, password }) });
+  if (d.access_token) saveSession(d);
+  return d;
+}
+
+async function authSignIn(email, password) {
+  const d = await supaFetch("/auth/v1/token?grant_type=password", { method:"POST", body: JSON.stringify({ email, password }) });
+  saveSession(d);
+  return d;
+}
+
+function authSignInGoogle() {
+  const redirect = encodeURIComponent(window.location.origin);
+  window.location.href = `${SUPA_URL}/auth/v1/authorize?provider=google&redirect_to=${redirect}`;
+}
+
+// Captura tokens do hash após redirect OAuth (#access_token=...)
+function handleOAuthCallback() {
+  if (!window.location.hash.includes("access_token")) return false;
+  const p = new URLSearchParams(window.location.hash.slice(1));
+  const session = {
+    access_token:  p.get("access_token"),
+    refresh_token: p.get("refresh_token"),
+    expires_at: Math.floor(Date.now()/1000) + Number(p.get("expires_in")||3600),
+  };
+  saveSession(session);
+  history.replaceState(null, "", window.location.pathname);
+  return true;
+}
+
+async function refreshIfNeeded() {
+  const s = getSession();
+  if (!s) return null;
+  const expiresAt = s.expires_at || 0;
+  if (Date.now()/1000 < expiresAt - 60) return s;
+  try {
+    const d = await supaFetch("/auth/v1/token?grant_type=refresh_token", {
+      method:"POST", body: JSON.stringify({ refresh_token: s.refresh_token }),
+    });
+    d.expires_at = Math.floor(Date.now()/1000) + (d.expires_in||3600);
+    saveSession(d);
+    return d;
+  } catch { clearSession(); return null; }
+}
+
+async function authGetUser() {
+  const s = await refreshIfNeeded();
+  if (!s) return null;
+  try {
+    return await supaFetch("/auth/v1/user", { headers:{ Authorization:`Bearer ${s.access_token}` } });
+  } catch { return null; }
+}
+
+function authSignOut() { clearSession(); }
+
+// ─── SYNC DE DADOS (tabela user_data: user_id, key, value) ──────────────────
+async function cloudSave(key, value) {
+  const s = await refreshIfNeeded();
+  if (!s) return;
+  try {
+    await supaFetch("/rest/v1/user_data", {
+      method:"POST",
+      headers:{ Authorization:`Bearer ${s.access_token}`, "Prefer":"resolution=merge-duplicates" },
+      body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
+    });
+  } catch(e) { console.warn("cloudSave:", e.message); }
+}
+
+async function cloudLoad(key) {
+  const s = await refreshIfNeeded();
+  if (!s) return null;
+  try {
+    const rows = await supaFetch(`/rest/v1/user_data?key=eq.${encodeURIComponent(key)}&select=value`, {
+      headers:{ Authorization:`Bearer ${s.access_token}` },
+    });
+    return rows?.[0]?.value ?? null;
+  } catch { return null; }
+}
+
 
 const getApiKey = () => localStorage.getItem("abody:apikey") || "";
 const setApiKey = (k) => localStorage.setItem("abody:apikey", k);
@@ -394,12 +504,43 @@ export default function App() {
 
   const seriesRef=useRef(null), isoRef=useRef(null), restRef=useRef(null);
 
+  const [user, setUser] = useState(null);
+
   useEffect(()=>{
-    Promise.all([loadStorage("abody:plan"),loadStorage("abody:history")]).then(([p,h])=>{
-      if(h) setHistory(h);
-      if(p){ setPlan(p); setScreen("home"); } else setScreen("onboarding");
-    });
+    (async () => {
+      if (AUTH_ENABLED) {
+        handleOAuthCallback(); // captura tokens do Google se vier de redirect
+        const u = await authGetUser();
+        if (u) setUser(u);
+        else if (!localStorage.getItem("abody:skipauth")) { setScreen("auth"); return; }
+      }
+      const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
+      if (h) setHistory(h);
+      if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+    })();
   },[]);
+
+  const afterAuth = async () => {
+    const u = await authGetUser();
+    setUser(u);
+    const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
+    if (h) setHistory(h);
+    if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+  };
+
+  const skipAuth = async () => {
+    localStorage.setItem("abody:skipauth", "1");
+    const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
+    if (h) setHistory(h);
+    if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+  };
+
+  const doLogout = () => {
+    authSignOut();
+    localStorage.removeItem("abody:skipauth");
+    setUser(null);
+    setScreen("auth");
+  };
 
   useEffect(()=>{ if(seriesRunning){seriesRef.current=setInterval(()=>setSeriesElapsed(s=>s+1),1000);}else clearInterval(seriesRef.current); return()=>clearInterval(seriesRef.current); },[seriesRunning]);
   useEffect(()=>{ if(isoRunning&&isoSec>0){isoRef.current=setInterval(()=>{setIsoSec(s=>{if(s<=1){clearInterval(isoRef.current);setIsoRunning(false);setIsoDone(true);return 0;}return s-1;});},1000);}else clearInterval(isoRef.current); return()=>clearInterval(isoRef.current); },[isoRunning]);
@@ -545,6 +686,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
 
   return (
     <div style={S.page}><style>{CSS}</style>
+      {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
       {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
       {screen==="anamnesis"    && <AnamnesisScreen step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError}/>}
@@ -561,7 +703,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
       {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)}/>}
-      {showSettings && <SettingsModal onClose={()=>setShowSettings(false)}/>}
+      {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
         <WorkoutScreen day={currentDay} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
@@ -575,6 +717,77 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
 }
 
 // ─── ONBOARDING ───────────────────────────────────────────────────────────────
+
+
+// ─── AUTH SCREEN ─────────────────────────────────────────────────────────────
+
+function AuthScreen({ onDone, onSkip }) {
+  const [mode, setMode]   = useState("login"); // login | signup
+  const [email, setEmail] = useState("");
+  const [pass,  setPass]  = useState("");
+  const [busy,  setBusy]  = useState(false);
+  const [err,   setErr]   = useState(null);
+  const [info,  setInfo]  = useState(null);
+
+  const submit = async () => {
+    setErr(null); setInfo(null); setBusy(true);
+    try {
+      if (mode === "signup") {
+        const d = await authSignUp(email.trim(), pass);
+        if (d.access_token) { onDone(); }
+        else setInfo("Conta criada! Verifique seu e-mail para confirmar e depois faça login.");
+      } else {
+        await authSignIn(email.trim(), pass);
+        onDone();
+      }
+    } catch(e) { setErr(e.message); }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{...S.box, paddingTop: 40}}>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:32}}>
+        <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:16,marginBottom:14}}>A</div>
+        <div style={S.brand}>A-BODY</div>
+      </div>
+
+      <h1 style={{...S.h1,fontSize:24}}>{mode==="login" ? "Entrar" : "Criar conta"}</h1>
+      <p style={S.sub}>Seus treinos ficam salvos na nuvem e acessíveis de qualquer aparelho.</p>
+
+      <button style={{...S.card, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:10, marginBottom:16, fontWeight:600, fontSize:14, color:C.text}} onClick={authSignInGoogle}>
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.4-11.3-8H6.1l-6.5 5C6.9 39.6 14.8 44 24 44z" transform="translate(6.5,0) scale(0.87)"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41.4 35.3 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+        Continuar com Google
+      </button>
+
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+        <div style={{flex:1,height:1,background:C.border}}/>
+        <span style={{fontSize:11,color:C.muted}}>ou com e-mail</span>
+        <div style={{flex:1,height:1,background:C.border}}/>
+      </div>
+
+      <label style={S.fieldLabel}>E-MAIL</label>
+      <input style={S.field} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
+      <label style={S.fieldLabel}>SENHA</label>
+      <input style={S.field} type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
+
+      {err  && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {info && <div style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
+
+      <button style={{...S.btn,marginTop:18,opacity:(email&&pass.length>=6&&!busy)?1:0.4}} disabled={!email||pass.length<6||busy} onClick={submit}>
+        {busy ? "Aguarde…" : (mode==="login" ? "Entrar" : "Criar conta")}
+      </button>
+
+      <button style={{background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:600,marginTop:16,width:"100%",textAlign:"center"}}
+        onClick={()=>{setMode(mode==="login"?"signup":"login");setErr(null);setInfo(null);}}>
+        {mode==="login" ? "Não tem conta? Cadastre-se" : "Já tem conta? Entrar"}
+      </button>
+
+      <button style={{...S.btnOutline,marginTop:20,fontSize:13}} onClick={onSkip}>
+        Continuar sem conta (dados só neste aparelho)
+      </button>
+    </div>
+  );
+}
 
 function OnboardingScreen({ onStart }) {
   return (
@@ -1038,13 +1251,22 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 
-function SettingsModal({ onClose }) {
+function SettingsModal({ onClose, user, onLogout }) {
   const [key, setKey] = useState(getApiKey());
   const save = () => { setApiKey(key.trim()); onClose(); };
   return (
     <div style={S.modalOverlay}>
       <div style={S.modal}>
         <div style={S.eyebrow}>CONFIGURAÇÕES</div>
+        {AUTH_ENABLED && (
+          <div style={{...S.card,flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+            {user
+              ? (<><div><div style={{fontSize:11,color:C.muted}}>CONTA</div><div style={{fontSize:13,fontWeight:600}}>{user.email}</div></div>
+                 <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:12}} onClick={onLogout}>Sair</button></>)
+              : (<><div style={{fontSize:13,color:C.muted}}>Sem conta — dados apenas neste aparelho</div>
+                 <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:12}} onClick={onLogout}>Entrar</button></>)}
+          </div>
+        )}
         <h2 style={{...S.h1,fontSize:20}}>API Key da Anthropic</h2>
         <p style={S.sub}>Opcional — o app já funciona sem chave. Preencha apenas se quiser usar sua própria conta da Anthropic (console.anthropic.com → API Keys). A chave fica salva apenas neste dispositivo.</p>
         <input style={{...S.field,marginBottom:16}} type="password" value={key} onChange={e=>setKey(e.target.value)} placeholder="sk-ant-..."/>
