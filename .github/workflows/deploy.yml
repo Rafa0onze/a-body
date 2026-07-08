@@ -26,18 +26,23 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          set +e
+          npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" 2>&1 | tee /tmp/deploy.log
+
+      - name: Smoke test producao
+        run: |
+          sleep 10
           {
-            echo "## Deploy Vercel — diagnostico"
+            echo "## Smoke test — a-body.vercel.app"
             echo '```'
-            echo "--- whoami ---"
-            npx vercel@latest whoami --token="$VERCEL_TOKEN" 2>&1
-            echo "--- deploy ---"
-            npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" 2>&1
-            echo "exit_code: $?"
+            echo "--- GET / (frontend) ---"
+            curl -s -o /dev/null -w "HTTP %{http_code} | %{time_total}s\n" https://a-body.vercel.app/
+            echo "--- POST /api/claude (backend IA) ---"
+            curl -s -X POST https://a-body.vercel.app/api/claude \
+              -H "Content-Type: application/json" \
+              -d '{"max_tokens":50,"messages":[{"role":"user","content":"Responda apenas: OK"}]}' | head -c 600
+            echo ""
             echo '```'
           } | tee /tmp/report.md
-          true
 
       - name: Publicar diagnostico
         if: always()
