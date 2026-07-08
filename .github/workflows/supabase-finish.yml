@@ -17,10 +17,11 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Env vars via CLI + redeploy
+      - name: Env vars via REST (slug) + redeploy
         env:
           SUPABASE_TOKEN: ${{ secrets.SUPABASE_TOKEN }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SLUG: rafamacedolins-7646s-projects
         run: |
           set -uo pipefail
           API="https://api.supabase.com/v1"
@@ -30,29 +31,32 @@ jobs:
           SUPA_URL="https://$REF.supabase.co"
 
           {
-            echo "## Supabase Finish — env vars + redeploy"
+            echo "## Supabase Finish v2 — REST com slug"
             echo '```'
             echo "ref: $REF"
 
+            echo "--- teste de autorizacao (GET project) ---"
+            curl -s "https://api.vercel.com/v9/projects/a-body?slug=$SLUG" \
+              -H "Authorization: Bearer $VERCEL_TOKEN" | jq -r '.name // .error.message'
+
+            echo "--- env add via REST ---"
+            for PAIR in "VITE_SUPABASE_URL|$SUPA_URL" "VITE_SUPABASE_ANON_KEY|$ANON"; do
+              K="${PAIR%%|*}"; V="${PAIR#*|}"
+              R=$(curl -s -X POST "https://api.vercel.com/v10/projects/a-body/env?slug=$SLUG&upsert=true" \
+                -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
+                -d "{\"key\":\"$K\",\"value\":\"$V\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\"]}")
+              echo "$K: $(echo "$R" | jq -r 'if .error then .error.message else "ok" end')"
+            done
+
+            echo "--- redeploy ---"
             npm ci > /dev/null 2>&1
+            npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" 2>&1 | tail -3
 
-            echo "--- vercel link ---"
-            npx vercel@latest link --yes --project a-body --token="$VERCEL_TOKEN" 2>&1 | tail -2
-
-            echo "--- env add ---"
-            # remove se existir, depois adiciona (idempotente)
-            npx vercel@latest env rm VITE_SUPABASE_URL production --yes --token="$VERCEL_TOKEN" 2>/dev/null
-            npx vercel@latest env rm VITE_SUPABASE_ANON_KEY production --yes --token="$VERCEL_TOKEN" 2>/dev/null
-            printf '%s' "$SUPA_URL" | npx vercel@latest env add VITE_SUPABASE_URL production --token="$VERCEL_TOKEN" 2>&1 | tail -1
-            printf '%s' "$ANON"     | npx vercel@latest env add VITE_SUPABASE_ANON_KEY production --token="$VERCEL_TOKEN" 2>&1 | tail -1
-
-            echo "--- deploy ---"
-            npx vercel@latest deploy --prod --yes --token="$VERCEL_TOKEN" 2>&1 | tail -4
-
-            echo "--- smoke: frontend deve conter URL do Supabase no bundle ---"
+            echo "--- validacao: URL do Supabase embutida no bundle? ---"
             sleep 8
             BUNDLE=$(curl -s https://a-body.vercel.app/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1)
-            curl -s "https://a-body.vercel.app/$BUNDLE" | grep -c "$REF" || echo "0 (env NAO embutida)"
+            HITS=$(curl -s "https://a-body.vercel.app/$BUNDLE" | grep -c "$REF")
+            echo "ocorrencias do ref no bundle: $HITS"
             echo '```'
           } | tee /tmp/report.md
           true
