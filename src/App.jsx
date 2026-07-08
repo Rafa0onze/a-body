@@ -217,16 +217,27 @@ const getApiKey = () => localStorage.getItem("abody:apikey") || "";
 const setApiKey = (k) => localStorage.setItem("abody:apikey", k);
 
 async function callClaude(body) {
-  const key = getApiKey();
-  if (!key) throw new Error("Configure sua API key da Anthropic nas configurações (ícone ⚙ na tela inicial).");
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const ownKey = getApiKey();
+  if (ownKey) {
+    // Usuário avançado com chave própria: chamada direta
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ownKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data;
+  }
+  // Padrão: backend proxy (a chave fica no servidor — nenhuma configuração necessária)
+  const res = await fetch("/api/claude", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -1035,7 +1046,7 @@ function SettingsModal({ onClose }) {
       <div style={S.modal}>
         <div style={S.eyebrow}>CONFIGURAÇÕES</div>
         <h2 style={{...S.h1,fontSize:20}}>API Key da Anthropic</h2>
-        <p style={S.sub}>Necessária para gerar planos com IA. Obtenha em console.anthropic.com → API Keys. A chave fica salva apenas neste dispositivo.</p>
+        <p style={S.sub}>Opcional — o app já funciona sem chave. Preencha apenas se quiser usar sua própria conta da Anthropic (console.anthropic.com → API Keys). A chave fica salva apenas neste dispositivo.</p>
         <input style={{...S.field,marginBottom:16}} type="password" value={key} onChange={e=>setKey(e.target.value)} placeholder="sk-ant-..."/>
         <button style={{...S.btn,marginBottom:10}} onClick={save}>Salvar</button>
         <button style={S.btnOutline} onClick={onClose}>Cancelar</button>
