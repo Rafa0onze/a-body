@@ -327,24 +327,6 @@ const getApiKey = () => localStorage.getItem("abody:apikey") || "";
 const setApiKey = (k) => localStorage.setItem("abody:apikey", k);
 
 async function callClaude(body) {
-  const ownKey = getApiKey();
-  if (ownKey) {
-    // Usuário avançado com chave própria: chamada direta
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ownKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error.message);
-    return data;
-  }
-  // Padrão: backend proxy (a chave fica no servidor — nenhuma configuração necessária)
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -474,6 +456,10 @@ export default function App() {
   const [photos, setPhotos]       = useState(PHOTOS_INIT);
   const [bodyAnalysis, setBodyAnalysis] = useState(null);
   const [photoAnalyzing, setPhotoAnalyzing] = useState(false);
+  const [bodyHistory, setBodyHistory] = useState([]);
+  const [rePhotos, setRePhotos] = useState(PHOTOS_INIT);
+  const [reBusy, setReBusy] = useState(false);
+  const [reErr, setReErr] = useState(null);
 
   // construtor manual
   const [selectedSplit, setSelectedSplit]   = useState(null);  // chave de SPLITS
@@ -514,8 +500,9 @@ export default function App() {
         if (u) setUser(u);
         else if (!localStorage.getItem("abody:skipauth")) { setScreen("auth"); return; }
       }
-      const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
+      const [p, h, bh] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history"), loadStorage("abody:bodyhistory")]);
       if (h) setHistory(h);
+      if (bh) setBodyHistory(bh);
       if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
     })();
   },[]);
@@ -591,6 +578,11 @@ export default function App() {
         setPhotoAnalyzing(true);
         const analysis = await analyzeBodyPhotos(photos);
         setBodyAnalysis(analysis);
+        // Persistir no histórico de avaliações
+        const prevBody = (await loadStorage("abody:bodyhistory")) || [];
+        const newBodyHist = [...prevBody, { date: todayISO(), analysis }];
+        await saveStorage("abody:bodyhistory", newBodyHist);
+        setBodyHistory(newBodyHist);
         bodyAnalysisText = `\n\nANÁLISE CORPORAL POR FOTOS:\n- Pontos fortes: ${analysis.strongPoints?.join(", ")||"N/A"}\n- Pontos fracos: ${analysis.weakPoints?.join(", ")||"N/A"}\n- Postura: ${analysis.postureNotes?.join(", ")||"N/A"}\n- Desequilíbrios: ${analysis.muscleImbalances?.join(", ")||"N/A"}\n- Análise geral: ${analysis.overallAnalysis||""}\n\nCONSIDERE ESTA ANÁLISE NA PRIORIZAÇÃO DOS GRUPOS MUSCULARES DO PLANO.`;
         setPhotoAnalyzing(false);
       } catch(e) { setPhotoAnalyzing(false); bodyAnalysisText = ""; console.warn("Body analysis failed:", e.message); }
@@ -679,6 +671,36 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
 
   const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
 
+
+  // Reavaliação corporal comparativa (habilitada 30 dias após a última)
+  const runReassessment = async () => {
+    setReBusy(true); setReErr(null);
+    try {
+      const last = bodyHistory[bodyHistory.length - 1];
+      const imageBlocks = [];
+      if (rePhotos.front) { imageBlocks.push({type:"image",source:{type:"base64",media_type:rePhotos.front.type,data:rePhotos.front.data}}); imageBlocks.push({type:"text",text:"Imagem 1: FRENTE"}); }
+      if (rePhotos.back)  { imageBlocks.push({type:"image",source:{type:"base64",media_type:rePhotos.back.type,data:rePhotos.back.data}});  imageBlocks.push({type:"text",text:"Imagem 2: COSTAS"}); }
+      if (rePhotos.side)  { imageBlocks.push({type:"image",source:{type:"base64",media_type:rePhotos.side.type,data:rePhotos.side.data}});  imageBlocks.push({type:"text",text:"Imagem 3: LATERAL"}); }
+      const prevSummary = last ? JSON.stringify(last.analysis) : "nenhuma";
+      imageBlocks.push({type:"text", text:
+        "Você é uma API JSON. Analise a composição corporal nas fotos e COMPARE com a avaliação anterior de " +
+        (last ? new Date(last.date).toLocaleDateString("pt-BR") : "") + ": " + prevSummary + ". " +
+        "Responda SOMENTE com JSON de aspas duplas, sem markdown: " +
+        '{"strongPoints":["..."],"weakPoints":["..."],"postureNotes":["..."],"muscleImbalances":["..."],"overallAnalysis":"...",' +
+        '"comparison":{"improvements":["melhora observada"],"attentionPoints":["ponto que regrediu ou estagnou"],"summary":"resumo da evolução em 2 frases"}}'
+      });
+      const data = await callClaude({ model:"claude-sonnet-4-6", max_tokens:2000, messages:[{role:"user",content:imageBlocks}] });
+      const raw = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
+      const analysis = extractJSON(raw);
+      const newHist = [...bodyHistory, { date: todayISO(), analysis }];
+      setBodyHistory(newHist);
+      await saveStorage("abody:bodyhistory", newHist);
+      setRePhotos(PHOTOS_INIT);
+      setScreen("bodyReport");
+    } catch(e) { setReErr(e.message); }
+    setReBusy(false);
+  };
+
   const goHome=()=>{ setScreen("home");setCurrentDay(null);setReport(null);setSeriesRunning(false);setIsoRunning(false); };
   const current=queue[0]||null;
 
@@ -702,7 +724,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)}/>}
+      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
@@ -710,6 +732,9 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
         {showSubs&&<SubModal exercise={current} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed}/>}
+      {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}}/>}
+      {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} onBack={()=>setScreen("bodyReport")}/>}
+      {screen==="calendar"     && <CalendarScreen history={history} onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
       {screen==="report"       && report && <ReportScreen report={report} onHome={goHome}/>}
     </div>
@@ -1139,7 +1164,7 @@ function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, o
                 {exs.map((ex,i)=><span key={i} style={{fontSize:11,background:"#0d2218",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
               </div>
             )}
-            {!isEditing&&exs.length===0&&<div style={{fontSize:12,color:"#3a5a48",fontStyle:"italic"}}>Nenhum exercício adicionado ainda</div>}
+            {!isEditing&&exs.length===0&&<div style={{fontSize:12,color:"#8fb8a2",fontStyle:"italic"}}>Nenhum exercício adicionado ainda</div>}
           </div>
         );
       })}
@@ -1252,8 +1277,6 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 
 function SettingsModal({ onClose, user, onLogout }) {
-  const [key, setKey] = useState(getApiKey());
-  const save = () => { setApiKey(key.trim()); onClose(); };
   return (
     <div style={S.modalOverlay}>
       <div style={S.modal}>
@@ -1267,18 +1290,21 @@ function SettingsModal({ onClose, user, onLogout }) {
                  <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:12}} onClick={onLogout}>Entrar</button></>)}
           </div>
         )}
-        <h2 style={{...S.h1,fontSize:20}}>API Key da Anthropic</h2>
-        <p style={S.sub}>Opcional — o app já funciona sem chave. Preencha apenas se quiser usar sua própria conta da Anthropic (console.anthropic.com → API Keys). A chave fica salva apenas neste dispositivo.</p>
-        <input style={{...S.field,marginBottom:16}} type="password" value={key} onChange={e=>setKey(e.target.value)} placeholder="sk-ant-..."/>
-        <button style={{...S.btn,marginBottom:10}} onClick={save}>Salvar</button>
-        <button style={S.btnOutline} onClick={onClose}>Cancelar</button>
+        <div style={{...S.card,marginBottom:18}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:4}}>SOBRE</div>
+          <div style={{fontSize:13,color:C.text}}>A-BODY v1.1 — Personal AI Trainer</div>
+          <div style={{fontSize:12,color:C.muted,marginTop:4}}>Geração de treinos por IA incluída, sem custo para você.</div>
+        </div>
+        <button style={S.btnOutline} onClick={onClose}>Fechar</button>
       </div>
     </div>
   );
 }
 
-function HomeScreen({ plan, history, onStart, onReset, onSettings }) {
+function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport, onCalendar, hasBody }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
+  const now = new Date();
+  const monthCount = history.filter(s=>{const d=new Date(s.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}).length;
   return (
     <div style={S.box}>
       <div style={{...S.brandRow,justifyContent:"space-between"}}>
@@ -1288,10 +1314,24 @@ function HomeScreen({ plan, history, onStart, onReset, onSettings }) {
       <div style={S.eyebrow}>{plan.planName}</div>
       <h1 style={S.h1}>Olá, {plan.userName}!</h1>
       <p style={S.sub}>Escolha o treino do dia.</p>
+
+      <div style={{display:"flex",gap:10,marginBottom:18}}>
+        <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px"}} onClick={onCalendar}>
+          <div style={{fontSize:22,marginBottom:4}}>📅</div>
+          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Frequência</div>
+          <div style={{fontSize:11,color:C.acc,marginTop:2}}>{monthCount} treino{monthCount!==1?"s":""} este mês</div>
+        </button>
+        <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px",opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
+          <div style={{fontSize:22,marginBottom:4}}>📊</div>
+          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Avaliação corporal</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:2}}>{hasBody?"ver relatório":"sem avaliação"}</div>
+        </button>
+      </div>
+
       <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
         {plan.weekDays.map((d,i)=>{ const last=lastByDay[d.id]; return(
           <button key={i} style={S.dayCard} onClick={()=>onStart(d)}>
-            <div><div style={{fontSize:17,fontWeight:700}}>{d.label}</div><div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.sub}</div>{last&&<div style={{fontSize:11,color:"#3a5a48",marginTop:5}}>Último: {new Date(last).toLocaleDateString("pt-BR")}</div>}</div>
+            <div><div style={{fontSize:17,fontWeight:700}}>{d.label}</div><div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.sub}</div>{last&&<div style={{fontSize:11,color:"#8fb8a2",marginTop:5}}>Último: {new Date(last).toLocaleDateString("pt-BR")}</div>}</div>
             <span style={{color:C.acc,fontSize:20}}>→</span>
           </button>
         );})}
@@ -1343,7 +1383,7 @@ function WorkoutScreen({ day, exercise, setIdx, queue, completed, weightInput, s
       </div>
       {exercise._substitutedFor&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>↔ Substituiu: {exercise._substitutedFor}</div>}
       {exercise._skipped&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>⏩ Reagendado</div>}
-      <div style={{fontSize:11,color:"#3a5a48",marginBottom:4}}>{completed.length+1}º de {completed.length+queue.length} exercícios</div>
+      <div style={{fontSize:11,color:"#8fb8a2",marginBottom:4}}>{completed.length+1}º de {completed.length+queue.length} exercícios</div>
       <h2 style={{fontSize:20,fontWeight:800,margin:"0 0 4px 0"}}>{exercise.name}</h2>
       <p style={{...S.sub,marginBottom:10}}>{exercise.reps} {isIso?"· isométrico":"reps"} · descanso {exercise.rest}s</p>
       <div style={{display:"flex",gap:6,marginBottom:12}}>
@@ -1434,7 +1474,7 @@ function RestScreen({ seconds, total, onSkip, queue, completed }) {
       <div style={S.sectionLabel}>EXERCÍCIOS DO TREINO</div>
       <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
         {allItems.map((ex,i)=>{ const isDone=ex.status==="done",isCurrent=ex.status==="current",isSkipped=ex.status==="skipped"; return(
-          <div key={i} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,padding:"10px 14px",border:isCurrent?`1.5px solid #e8a23a`:isSkipped?`1px dashed #3a5a48`:`1px solid ${C.border}`,opacity:ex.status==="pending"?0.45:1}}>
+          <div key={i} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,padding:"10px 14px",border:isCurrent?`1.5px solid #e8a23a`:isSkipped?`1px dashed #8fb8a2`:`1px solid ${C.border}`,opacity:ex.status==="pending"?0.45:1}}>
             <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,background:isDone?C.acc:isCurrent?"#e8a23a":isSkipped?"#2a4a34":C.border,color:(isDone||isCurrent)?"#06140e":C.muted}}>
               {isDone?"✓":isCurrent?"▶":isSkipped?"⏩":"○"}
             </div>
@@ -1446,6 +1486,179 @@ function RestScreen({ seconds, total, onSkip, queue, completed }) {
         );})}
       </div>
       <button style={S.btnOutline} onClick={onSkip}>Pular descanso</button>
+    </div>
+  );
+}
+
+
+// ─── BODY REPORT ─────────────────────────────────────────────────────────────
+
+function BodyReportScreen({ bodyHistory, onBack, onReassess }) {
+  const last = bodyHistory[bodyHistory.length - 1];
+  if (!last) return null;
+  const a = last.analysis || {};
+  const daysSince = Math.floor((Date.now() - new Date(last.date).getTime()) / 86400000);
+  const canReassess = daysSince >= 30;
+  const comp = a.comparison;
+
+  return (
+    <div style={S.box}>
+      <div style={S.topRow}>
+        <button style={S.back} onClick={onBack}>← Voltar</button>
+        <div style={S.eyebrow}>AVALIAÇÃO CORPORAL</div>
+      </div>
+      <h1 style={S.h1}>Seu relatório</h1>
+      <p style={S.sub}>Avaliação de {new Date(last.date).toLocaleDateString("pt-BR")} · há {daysSince} dia{daysSince!==1?"s":""}{bodyHistory.length>1?` · ${bodyHistory.length}ª avaliação`:""}</p>
+
+      {comp && (
+        <div style={{...S.card,marginBottom:14,border:`1.5px solid ${C.acc}`}}>
+          <div style={{fontSize:11,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>EVOLUÇÃO vs AVALIAÇÃO ANTERIOR</div>
+          {comp.summary && <p style={{fontSize:13,color:C.text,margin:"0 0 10px 0",lineHeight:1.5}}>{comp.summary}</p>}
+          {(comp.improvements||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.acc,marginBottom:4}}>▲ {p}</div>)}
+          {(comp.attentionPoints||[]).map((p,i)=><div key={i} style={{fontSize:13,color:"#e8a23a",marginBottom:4}}>⚠ {p}</div>)}
+        </div>
+      )}
+
+      {a.overallAnalysis && (
+        <div style={{...S.card,marginBottom:14}}>
+          <div style={{fontSize:11,color:C.muted,letterSpacing:"0.08em",marginBottom:6}}>ANÁLISE GERAL</div>
+          <p style={{fontSize:13,color:C.text,margin:0,lineHeight:1.5}}>{a.overallAnalysis}</p>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:10,marginBottom:14}}>
+        <div style={{...S.card,flex:1}}>
+          <div style={{fontSize:10,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>PONTOS FORTES</div>
+          {(a.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}>✓ {p}</div>)}
+        </div>
+        <div style={{...S.card,flex:1}}>
+          <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
+          {(a.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}>→ {p}</div>)}
+        </div>
+      </div>
+
+      {(a.postureNotes||[]).length>0 && (
+        <div style={{...S.card,marginBottom:14}}>
+          <div style={{fontSize:11,color:C.muted,letterSpacing:"0.08em",marginBottom:6}}>POSTURA</div>
+          {a.postureNotes.map((p,i)=><div key={i} style={{fontSize:12,color:C.muted,marginBottom:4}}>• {p}</div>)}
+        </div>
+      )}
+
+      <button style={{...S.btn,opacity:canReassess?1:0.45,marginBottom:8}} disabled={!canReassess} onClick={onReassess}>
+        📸 Nova avaliação comparativa
+      </button>
+      {!canReassess && (
+        <p style={{fontSize:12,color:C.muted,textAlign:"center"}}>
+          Disponível em {30-daysSince} dia{(30-daysSince)!==1?"s":""} — o comparativo faz sentido após ~1 mês de treinos.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── REASSESS ────────────────────────────────────────────────────────────────
+
+function ReassessScreen({ photos, setPhotos, busy, err, onRun, onBack }) {
+  const hasAny = photos.front || photos.back || photos.side;
+  return (
+    <div style={S.box}>
+      <div style={S.topRow}>
+        <button style={S.back} onClick={onBack}>← Voltar</button>
+        <div style={S.eyebrow}>NOVA AVALIAÇÃO</div>
+      </div>
+      <h1 style={S.h1}>Avaliação comparativa</h1>
+      <p style={S.sub}>Envie fotos atuais nas mesmas posições. A IA compara com sua avaliação anterior e mostra sua evolução.</p>
+      <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
+      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:10}}>{err}</div>}
+      <button style={{...S.btn,marginTop:16,opacity:(hasAny&&!busy)?1:0.4}} disabled={!hasAny||busy} onClick={onRun}>
+        {busy ? "Analisando…" : "Gerar comparativo ✨"}
+      </button>
+    </div>
+  );
+}
+
+// ─── CALENDAR / CHECK-IN ─────────────────────────────────────────────────────
+
+function CalendarScreen({ history, onBack }) {
+  const [refDate, setRefDate] = useState(new Date());
+  const year = refDate.getFullYear(), month = refDate.getMonth();
+
+  // dias com treino neste mês (set de dia do mês → treinos)
+  const trainedDays = {};
+  history.forEach(s => {
+    const d = new Date(s.date);
+    if (d.getFullYear()===year && d.getMonth()===month) {
+      trainedDays[d.getDate()] = (trainedDays[d.getDate()]||[]).concat(s.dayLabel||"Treino");
+    }
+  });
+
+  const monthCount = Object.keys(trainedDays).length;
+  const totalCount = history.length;
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const today = new Date();
+  const isThisMonth = today.getFullYear()===year && today.getMonth()===month;
+  const monthName = refDate.toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
+
+  const cells = [];
+  for (let i=0;i<firstDow;i++) cells.push(null);
+  for (let d=1;d<=daysInMonth;d++) cells.push(d);
+
+  return (
+    <div style={S.box}>
+      <div style={S.topRow}>
+        <button style={S.back} onClick={onBack}>← Voltar</button>
+        <div style={S.eyebrow}>FREQUÊNCIA</div>
+      </div>
+      <h1 style={S.h1}>Check-in de treinos</h1>
+
+      <div style={{display:"flex",gap:10,marginBottom:18}}>
+        <div style={{...S.card,flex:1,alignItems:"center"}}>
+          <div style={{fontSize:24,fontWeight:800,color:C.acc}}>{monthCount}</div>
+          <div style={{fontSize:11,color:C.muted}}>dias no mês</div>
+        </div>
+        <div style={{...S.card,flex:1,alignItems:"center"}}>
+          <div style={{fontSize:24,fontWeight:800,color:C.text}}>{totalCount}</div>
+          <div style={{fontSize:11,color:C.muted}}>treinos totais</div>
+        </div>
+      </div>
+
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <button style={{...S.back,fontSize:18}} onClick={()=>setRefDate(new Date(year,month-1,1))}>‹</button>
+        <div style={{fontSize:15,fontWeight:700,textTransform:"capitalize"}}>{monthName}</div>
+        <button style={{...S.back,fontSize:18}} onClick={()=>setRefDate(new Date(year,month+1,1))}>›</button>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:6}}>
+        {["D","S","T","Q","Q","S","S"].map((d,i)=>(
+          <div key={i} style={{textAlign:"center",fontSize:10,color:C.muted,fontWeight:700}}>{d}</div>
+        ))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:20}}>
+        {cells.map((d,i)=>{
+          if (d===null) return <div key={i}/>;
+          const trained = trainedDays[d];
+          const isToday = isThisMonth && d===today.getDate();
+          return (
+            <div key={i} title={trained?trained.join(", "):""} style={{
+              aspectRatio:"1", borderRadius:10, display:"flex", flexDirection:"column",
+              alignItems:"center", justifyContent:"center",
+              background: trained ? C.acc : C.card,
+              border: isToday ? `1.5px solid ${C.acc}` : `1px solid ${C.border}`,
+              color: trained ? "#06140e" : C.muted,
+              fontSize:13, fontWeight: trained?800:500,
+            }}>
+              {d}
+              {trained && <div style={{fontSize:8,fontWeight:700}}>✓</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{...S.card,flexDirection:"row",gap:14,alignItems:"center"}}>
+        <div style={{width:16,height:16,borderRadius:5,background:C.acc}}/>
+        <span style={{fontSize:12,color:C.muted}}>Dia com treino concluído (check-in automático ao finalizar)</span>
+      </div>
     </div>
   );
 }
@@ -1488,8 +1701,8 @@ function ReportScreen({ report, onHome }) {
       </div>
       {report.strongest&&report.weakest&&(
         <div style={{display:"flex",gap:10,marginBottom:24}}>
-          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#3a5a48",letterSpacing:"0.08em",marginBottom:6}}>PONTO FORTE</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.strongest.name}</div><div style={{color:C.acc,fontSize:13,fontWeight:700}}>+{report.strongest.diffPct.toFixed(0)}%</div></div>
-          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#3a5a48",letterSpacing:"0.08em",marginBottom:6}}>A MELHORAR</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.weakest.name}</div><div style={{color:"#e8a23a",fontSize:13,fontWeight:700}}>{report.weakest.diffPct.toFixed(0)}%</div></div>
+          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#8fb8a2",letterSpacing:"0.08em",marginBottom:6}}>PONTO FORTE</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.strongest.name}</div><div style={{color:C.acc,fontSize:13,fontWeight:700}}>+{report.strongest.diffPct.toFixed(0)}%</div></div>
+          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#8fb8a2",letterSpacing:"0.08em",marginBottom:6}}>A MELHORAR</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.weakest.name}</div><div style={{color:"#e8a23a",fontSize:13,fontWeight:700}}>{report.weakest.diffPct.toFixed(0)}%</div></div>
         </div>
       )}
       <button style={S.btn} onClick={onHome}>Voltar ao início</button>
@@ -1499,8 +1712,8 @@ function ReportScreen({ report, onHome }) {
 
 // ─── DESIGN ──────────────────────────────────────────────────────────────────
 
-const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#7fa392",fig:"#bff0d4"};
-const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#3a5a48;}button{font-family:inherit;cursor:pointer;}textarea,select{font-family:inherit;}`;
+const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#9ec4b1",fig:"#bff0d4"};
+const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;}textarea,select{font-family:inherit;}`;
 const S={
   page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
   box:{width:"100%",maxWidth:480,color:C.text},
