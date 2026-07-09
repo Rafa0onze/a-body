@@ -724,7 +724,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} hasBody={bodyHistory.length>0}/>}
+      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>setScreen("library")} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
@@ -735,6 +735,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobili
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} onBack={goHome}/>}
+      {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
       {screen==="report"       && report && <ReportScreen report={report} onHome={goHome}/>}
     </div>
@@ -1301,7 +1302,7 @@ function SettingsModal({ onClose, user, onLogout }) {
   );
 }
 
-function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport, onCalendar, hasBody }) {
+function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, hasBody }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-ws.getDay());
@@ -1326,6 +1327,11 @@ function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport,
           <div style={{fontSize:22,marginBottom:4}}>📊</div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Avaliação corporal</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>{hasBody?"ver relatório":"sem avaliação"}</div>
+        </button>
+        <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px"}} onClick={onLibrary}>
+          <div style={{fontSize:22,marginBottom:4}}>📚</div>
+          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Biblioteca</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:2}}>146 exercícios</div>
         </button>
       </div>
 
@@ -1718,6 +1724,109 @@ function ReportScreen({ report, onHome }) {
 }
 
 // ─── DESIGN ──────────────────────────────────────────────────────────────────
+
+
+
+// ─── BIBLIOTECA DE EXERCÍCIOS (cards padrão A.Body) ──────────────────────────
+const AB = { verde:"#1B7A3C", verdeEsc:"#14602F", preto:"#0B0B0B", fundo:"#F4F4F6", texto:"#4A4A4A",
+  fonte:"'Roboto Condensed','Archivo Narrow','Arial Narrow',Arial,sans-serif" };
+
+const AB_REGIOES = {
+  triceps:[{cx:26,cy:64,rx:6,ry:14},{cx:74,cy:64,rx:6,ry:14}],
+  biceps:[{cx:27,cy:60,rx:6,ry:12},{cx:73,cy:60,rx:6,ry:12}],
+  peito:[{cx:50,cy:52,rx:16,ry:10}], costas:[{cx:50,cy:58,rx:17,ry:16}],
+  ombros:[{cx:31,cy:44,rx:8,ry:7},{cx:69,cy:44,rx:8,ry:7}],
+  abdomen:[{cx:50,cy:76,rx:11,ry:13}],
+  quadriceps:[{cx:41,cy:116,rx:8,ry:18},{cx:59,cy:116,rx:8,ry:18}],
+  posteriores:[{cx:41,cy:120,rx:8,ry:18},{cx:59,cy:120,rx:8,ry:18}],
+  gluteos:[{cx:50,cy:96,rx:14,ry:9}],
+  panturrilhas:[{cx:42,cy:152,rx:6,ry:13},{cx:58,cy:152,rx:6,ry:13}],
+};
+
+function ABSilhueta({ regiao }) {
+  const marcas = AB_REGIOES[regiao] || [];
+  const corpo = "M50 30 C36 30 30 38 29 48 L26 78 C25.5 84 30 85 31.5 80 L36 56 L36 92 L38 178 C38.2 183 46 183 46.4 178 L49 112 L51 112 L53.6 178 C54 183 61.8 183 62 178 L64 92 L64 56 L68.5 80 C70 85 74.5 84 74 78 L71 48 C70 38 64 30 50 30 Z";
+  const Fig = ({op}) => (
+    <svg viewBox="0 0 100 185" style={{height:72,width:"auto"}}>
+      <g fill="#161616"><circle cx="50" cy="18" r="11"/><path d={corpo}/></g>
+      {marcas.map((m,i)=><ellipse key={i} cx={m.cx} cy={m.cy} rx={m.rx} ry={m.ry} fill={AB.verde} opacity={op}/>)}
+    </svg>
+  );
+  return <div style={{display:"flex",gap:5,alignItems:"center"}}><Fig op="0.95"/><Fig op="0.6"/></div>;
+}
+
+function ABodyCard({ ex }) {
+  return (
+    <div style={{fontFamily:AB.fonte,background:AB.preto,borderRadius:18,padding:"0 8px 8px",width:"100%"}}>
+      <div style={{display:"flex",alignItems:"center",gap:9,padding:"11px 3px"}}>
+        <div style={{background:AB.verdeEsc,border:"2px solid #fff",borderRadius:10,color:"#fff",fontWeight:800,fontSize:19,lineHeight:1,padding:"7px 10px",minWidth:40,textAlign:"center"}}>{ex.numero}</div>
+        <div style={{border:`2px solid ${AB.verde}`,borderRadius:10,color:"#2ecc63",fontWeight:800,fontSize:14,letterSpacing:1,padding:"7px 10px"}}>{ex.categoria}</div>
+        <h2 style={{color:"#fff",fontWeight:800,fontSize:"clamp(15px,4vw,21px)",letterSpacing:0.4,textTransform:"uppercase",margin:0,flex:1,lineHeight:1.05}}>{ex.nome}</h2>
+      </div>
+      <div style={{background:AB.fundo,borderRadius:13,padding:"13px 14px 10px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
+          <ABSilhueta regiao={ex.regiao_destaque}/>
+          <div style={{width:2,alignSelf:"stretch",background:AB.verde,opacity:0.85}}/>
+          <div>
+            <div style={{color:AB.verde,fontWeight:800,fontSize:15}}>Grupo muscular:</div>
+            <div style={{color:AB.texto,fontWeight:700,fontSize:14}}>{ex.grupo_muscular}</div>
+          </div>
+        </div>
+        {ex.imagem_url && <div style={{display:"flex",justifyContent:"center",padding:"4px 0 10px"}}>
+          <img src={ex.imagem_url} alt={ex.nome} loading="lazy" style={{width:"100%",maxWidth:420,display:"block",mixBlendMode:"multiply"}}/>
+        </div>}
+        <div style={{borderTop:"1.5px solid #d8d8dc",paddingTop:9,display:"flex",alignItems:"center"}}>
+          <div style={{flex:1}}>
+            <div style={{color:AB.verde,fontWeight:800,fontSize:13}}>Equipamento:</div>
+            <div style={{color:AB.texto,fontWeight:700,fontSize:12.5}}>{ex.equipamento}</div>
+          </div>
+          <div style={{width:1.5,height:32,background:"#c9c9ce"}}/>
+          <div style={{flex:1,paddingLeft:14}}>
+            <div style={{color:AB.verde,fontWeight:800,fontSize:13}}>Acessório:</div>
+            <div style={{color:AB.texto,fontWeight:700,fontSize:12.5}}>{ex.acessorio}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LibraryScreen({ onBack }) {
+  const [exs, setExs] = useState(null);
+  const [err, setErr] = useState(null);
+  const [grupo, setGrupo] = useState("Todos");
+  useEffect(()=>{
+    (async()=>{
+      try{
+        const r = await fetch(`${SUPA_URL}/rest/v1/exercicios?select=*&order=numero`,
+          { headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}` } });
+        if(!r.ok) throw new Error(`HTTP ${r.status}`);
+        setExs(await r.json());
+      }catch(e){ setErr(e.message); }
+    })();
+  },[]);
+  const grupos = exs ? ["Todos", ...Array.from(new Set(exs.map(e=>e.grupo_muscular)))] : [];
+  const lista = exs ? (grupo==="Todos" ? exs : exs.filter(e=>e.grupo_muscular===grupo)) : [];
+  return (
+    <div style={S.box}>
+      <button onClick={onBack} style={S.back}>← Voltar</button>
+      <h1 style={S.h1}>Biblioteca</h1>
+      <p style={S.sub}>{exs ? `${lista.length} exercício${lista.length!==1?"s":""}` : "Carregando exercícios…"}</p>
+      {err && <p style={{color:"#ff8a8a",fontSize:13}}>Não foi possível carregar a biblioteca ({err}). Verifique sua conexão e tente novamente.</p>}
+      {exs && <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:10,marginBottom:12}}>
+        {grupos.map(g=>(
+          <button key={g} onClick={()=>setGrupo(g)}
+            style={{flexShrink:0,padding:"7px 13px",borderRadius:20,fontSize:12.5,fontWeight:700,cursor:"pointer",
+              border:`1.5px solid ${g===grupo?C.acc:C.border}`,
+              background:g===grupo?C.acc:"transparent",color:g===grupo?"#0b1f17":C.muted}}>{g}</button>
+        ))}
+      </div>}
+      <div style={{display:"flex",flexDirection:"column",gap:14,paddingBottom:30}}>
+        {lista.map(ex=><ABodyCard key={ex.id} ex={ex}/>)}
+      </div>
+    </div>
+  );
+}
 
 const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#9ec4b1",fig:"#bff0d4"};
 const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
