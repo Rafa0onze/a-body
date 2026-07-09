@@ -1713,7 +1713,7 @@ function ReportScreen({ report, onHome }) {
 // ─── DESIGN ──────────────────────────────────────────────────────────────────
 
 const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#9ec4b1",fig:"#bff0d4"};
-const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;}textarea,select{font-family:inherit;}`;
+const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
 const S={
   page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
   box:{width:"100%",maxWidth:480,color:C.text},
@@ -1728,7 +1728,7 @@ const S={
   sectionLabel:{fontSize:11,color:C.muted,letterSpacing:"0.1em",marginBottom:8,display:"block"},
   fieldLabel:{fontSize:11,color:C.muted,letterSpacing:"0.08em",display:"block",marginBottom:6,marginTop:14},
   field:{width:"100%",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 14px",color:C.text,fontSize:15,outline:"none"},
-  card:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column"},
+  card:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",color:C.text},
   dayCard:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",color:C.text,textAlign:"left"},
   figCard:{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"8px 4px 6px",textAlign:"center"},
   figLbl:{fontSize:10,color:C.muted,marginTop:2},
