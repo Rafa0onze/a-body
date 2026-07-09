@@ -1304,7 +1304,8 @@ function SettingsModal({ onClose, user, onLogout }) {
 function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport, onCalendar, hasBody }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
-  const monthCount = history.filter(s=>{const d=new Date(s.date);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}).length;
+  const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-ws.getDay());
+  const weekCount = history.filter(s=>new Date(s.date)>=ws).length;
   return (
     <div style={S.box}>
       <div style={{...S.brandRow,justifyContent:"space-between"}}>
@@ -1319,7 +1320,7 @@ function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport,
         <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px"}} onClick={onCalendar}>
           <div style={{fontSize:22,marginBottom:4}}>📅</div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Frequência</div>
-          <div style={{fontSize:11,color:C.acc,marginTop:2}}>{monthCount} treino{monthCount!==1?"s":""} este mês</div>
+          <div style={{fontSize:11,color:C.acc,marginTop:2}}>{weekCount} treino{weekCount!==1?"s":""} esta semana</div>
         </button>
         <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px",opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
           <div style={{fontSize:22,marginBottom:4}}>📊</div>
@@ -1580,29 +1581,28 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, onBack }) {
 // ─── CALENDAR / CHECK-IN ─────────────────────────────────────────────────────
 
 function CalendarScreen({ history, onBack }) {
-  const [refDate, setRefDate] = useState(new Date());
-  const year = refDate.getFullYear(), month = refDate.getMonth();
+  // Semana começando no domingo
+  const startOfWeek = (d) => { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - x.getDay()); return x; };
+  const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
 
-  // dias com treino neste mês (set de dia do mês → treinos)
-  const trainedDays = {};
-  history.forEach(s => {
-    const d = new Date(s.date);
-    if (d.getFullYear()===year && d.getMonth()===month) {
-      trainedDays[d.getDate()] = (trainedDays[d.getDate()]||[]).concat(s.dayLabel||"Treino");
-    }
-  });
+  const days = Array.from({length:7}, (_,i) => { const d = new Date(weekStart); d.setDate(d.getDate()+i); return d; });
+  const weekEnd = days[6];
+  const today = new Date(); today.setHours(0,0,0,0);
 
-  const monthCount = Object.keys(trainedDays).length;
+  const sameDay = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+
+  // treinos por dia desta semana
+  const workoutsOn = (d) => history.filter(s => sameDay(new Date(s.date), d));
+
+  const weekCount = days.filter(d => workoutsOn(d).length > 0).length;
   const totalCount = history.length;
-  const firstDow = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month+1, 0).getDate();
-  const today = new Date();
-  const isThisMonth = today.getFullYear()===year && today.getMonth()===month;
-  const monthName = refDate.toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
 
-  const cells = [];
-  for (let i=0;i<firstDow;i++) cells.push(null);
-  for (let d=1;d<=daysInMonth;d++) cells.push(d);
+  const fmtDay = (d) => d.toLocaleDateString("pt-BR",{day:"2-digit"});
+  const fmtRange = `${days[0].toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})} – ${weekEnd.toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})}`;
+  const DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  const isCurrentWeek = sameDay(startOfWeek(new Date()), weekStart);
+
+  const shiftWeek = (n) => { const d = new Date(weekStart); d.setDate(d.getDate() + n*7); setWeekStart(d); };
 
   return (
     <div style={S.box}>
@@ -1610,12 +1610,12 @@ function CalendarScreen({ history, onBack }) {
         <button style={S.back} onClick={onBack}>← Voltar</button>
         <div style={S.eyebrow}>FREQUÊNCIA</div>
       </div>
-      <h1 style={S.h1}>Check-in de treinos</h1>
+      <h1 style={S.h1}>Check-in semanal</h1>
 
       <div style={{display:"flex",gap:10,marginBottom:18}}>
         <div style={{...S.card,flex:1,alignItems:"center"}}>
-          <div style={{fontSize:24,fontWeight:800,color:C.acc}}>{monthCount}</div>
-          <div style={{fontSize:11,color:C.muted}}>dias no mês</div>
+          <div style={{fontSize:24,fontWeight:800,color:C.acc}}>{weekCount}</div>
+          <div style={{fontSize:11,color:C.muted}}>treinos na semana</div>
         </div>
         <div style={{...S.card,flex:1,alignItems:"center"}}>
           <div style={{fontSize:24,fontWeight:800,color:C.text}}>{totalCount}</div>
@@ -1624,40 +1624,47 @@ function CalendarScreen({ history, onBack }) {
       </div>
 
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <button style={{...S.back,fontSize:18}} onClick={()=>setRefDate(new Date(year,month-1,1))}>‹</button>
-        <div style={{fontSize:15,fontWeight:700,textTransform:"capitalize"}}>{monthName}</div>
-        <button style={{...S.back,fontSize:18}} onClick={()=>setRefDate(new Date(year,month+1,1))}>›</button>
+        <button style={{...S.back,fontSize:20,padding:"0 8px"}} onClick={()=>shiftWeek(-1)}>‹</button>
+        <div style={{fontSize:14,fontWeight:700}}>{isCurrentWeek ? "Esta semana" : fmtRange}</div>
+        <button style={{...S.back,fontSize:20,padding:"0 8px"}} onClick={()=>shiftWeek(1)}>›</button>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:6}}>
-        {["D","S","T","Q","Q","S","S"].map((d,i)=>(
-          <div key={i} style={{textAlign:"center",fontSize:10,color:C.muted,fontWeight:700}}>{d}</div>
-        ))}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:20}}>
-        {cells.map((d,i)=>{
-          if (d===null) return <div key={i}/>;
-          const trained = trainedDays[d];
-          const isToday = isThisMonth && d===today.getDate();
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+        {days.map((d,i)=>{
+          const done = workoutsOn(d);
+          const trained = done.length > 0;
+          const isToday = sameDay(d, today);
+          const isFuture = d > today;
           return (
-            <div key={i} title={trained?trained.join(", "):""} style={{
-              aspectRatio:"1", borderRadius:10, display:"flex", flexDirection:"column",
-              alignItems:"center", justifyContent:"center",
-              background: trained ? C.acc : C.card,
+            <div key={i} style={{
+              ...S.card, flexDirection:"row", alignItems:"center", gap:14, padding:"12px 16px",
               border: isToday ? `1.5px solid ${C.acc}` : `1px solid ${C.border}`,
-              color: trained ? "#06140e" : C.muted,
-              fontSize:13, fontWeight: trained?800:500,
+              opacity: isFuture ? 0.4 : 1,
             }}>
-              {d}
-              {trained && <div style={{fontSize:8,fontWeight:700}}>✓</div>}
+              <div style={{width:44,textAlign:"center",flexShrink:0}}>
+                <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:"0.05em"}}>{DOW[i].toUpperCase()}</div>
+                <div style={{fontSize:17,fontWeight:800,color:isToday?C.acc:C.text}}>{fmtDay(d)}</div>
+              </div>
+              <div style={{flex:1}}>
+                {trained ? (
+                  done.map((s,j)=>(
+                    <div key={j} style={{display:"flex",alignItems:"center",gap:8,marginBottom:j<done.length-1?4:0}}>
+                      <div style={{width:20,height:20,borderRadius:"50%",background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>✓</div>
+                      <span style={{fontSize:14,fontWeight:700,color:C.text}}>{s.dayLabel || "Treino"}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span style={{fontSize:13,color:C.muted}}>{isFuture ? "—" : "Sem treino"}</span>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div style={{...S.card,flexDirection:"row",gap:14,alignItems:"center"}}>
-        <div style={{width:16,height:16,borderRadius:5,background:C.acc}}/>
-        <span style={{fontSize:12,color:C.muted}}>Dia com treino concluído (check-in automático ao finalizar)</span>
+      <div style={{...S.card,flexDirection:"row",gap:12,alignItems:"center"}}>
+        <div style={{width:18,height:18,borderRadius:"50%",background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800}}>✓</div>
+        <span style={{fontSize:12,color:C.muted}}>Check-in automático ao finalizar o treino, com o nome do treino executado</span>
       </div>
     </div>
   );
