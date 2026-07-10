@@ -1895,9 +1895,11 @@ function FigureBlock({ exercise }) {
   if (match && match.imagem_url) {
     return (
       <div style={{background:"#F4F4F6",border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 10px 4px",marginBottom:12}}>
-        <img src={match.imagem_url} alt={exercise.name} loading="lazy"
-          onError={()=>setMatch(null)}
-          style={{width:"100%",maxWidth:380,margin:"0 auto",display:"block",mixBlendMode:"multiply"}}/>
+        <div style={{aspectRatio:"4/3",maxWidth:380,margin:"0 auto"}}>
+          <img src={match.imagem_url} alt={exercise.name} loading="lazy"
+            onError={()=>setMatch(null)}
+            style={{width:"100%",height:"100%",objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/>
+        </div>
         <div style={{fontSize:10,color:"#7a7a80",textAlign:"center",padding:"2px 0 4px",fontWeight:700}}>
           {match.grupo_muscular} · {match.equipamento}{match.acessorio!=="—"?` · ${match.acessorio}`:""}
         </div>
@@ -1955,7 +1957,7 @@ function ABodyCard({ ex }) {
           </div>
         </div>
         {ex.imagem_url && <div style={{display:"flex",justifyContent:"center",padding:"4px 0 10px"}}>
-          <img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",maxWidth:420,display:"block",mixBlendMode:"multiply"}}/>
+          <div style={{aspectRatio:"4/3",width:"100%",maxWidth:420}}><img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/></div>
         </div>}
         <div style={{borderTop:"1.5px solid #d8d8dc",paddingTop:9,display:"flex",alignItems:"center"}}>
           <div style={{flex:1}}>
