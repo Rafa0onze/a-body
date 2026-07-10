@@ -1,76 +1,89 @@
 #!/usr/bin/env bash
-# Setup automatizado do Supabase para o A-BODY
-# Roda no GitHub Actions (que alcança api.supabase.com)
 set -uo pipefail
-
 API="https://api.supabase.com/v1"
 AUTH="Authorization: Bearer $SUPABASE_TOKEN"
-REPORT=/tmp/report.md
-
-log() { echo "$1" | tee -a $REPORT; }
-
-echo "## Setup Supabase — A-BODY" > $REPORT
-echo '```' >> $REPORT
-
-# ── 1. Organização ────────────────────────────────────────────────
-ORG_ID=$(curl -s -H "$AUTH" "$API/organizations" | jq -r '.[0].id // empty')
-if [ -z "$ORG_ID" ]; then log "ERRO: nenhuma organização encontrada (token inválido?)"; echo '```' >> $REPORT; exit 0; fi
-log "org: $ORG_ID"
-
-# ── 2. Projeto (reusa se já existir) ──────────────────────────────
+{
+echo "## Setup — quota de IA, telemetria e otimização de imagens"
+echo '```'
 REF=$(curl -s -H "$AUTH" "$API/projects" | jq -r '.[] | select(.name=="a-body") | .id' | head -1)
-if [ -z "$REF" ]; then
-  DB_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
-  CREATE=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" "$API/projects" \
-    -d "{\"name\":\"a-body\",\"organization_id\":\"$ORG_ID\",\"db_pass\":\"$DB_PASS\",\"region\":\"sa-east-1\"}")
-  REF=$(echo "$CREATE" | jq -r '.id // empty')
-  if [ -z "$REF" ]; then log "ERRO ao criar projeto: $(echo $CREATE | head -c 300)"; echo '```' >> $REPORT; exit 0; fi
-  log "projeto criado: $REF (region sa-east-1)"
-  log "obs: senha do banco gerada aleatoriamente — resetável no dashboard se precisar"
-else
-  log "projeto existente reutilizado: $REF"
-fi
+echo "projeto: $REF"
+SERVICE=$(curl -s -H "$AUTH" "$API/projects/$REF/api-keys" | jq -r '.[] | select(.name=="service_role") | .api_key')
+SUPA="https://$REF.supabase.co"
 
-# ── 3. Aguardar ficar saudável ────────────────────────────────────
-for i in $(seq 1 40); do
-  STATUS=$(curl -s -H "$AUTH" "$API/projects/$REF" | jq -r '.status')
-  [ "$STATUS" = "ACTIVE_HEALTHY" ] && break
-  sleep 10
+echo "--- quota de IA (tabela + função) ---"
+SQL1=$(cat << 'EOSQL'
+CREATE TABLE IF NOT EXISTS public.ia_usage (
+  user_id uuid NOT NULL,
+  dia date NOT NULL DEFAULT current_date,
+  count integer NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, dia)
+);
+ALTER TABLE public.ia_usage ENABLE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.consume_ia_quota(limite integer DEFAULT 20)
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE atual integer;
+BEGIN
+  IF auth.uid() IS NULL THEN RETURN false; END IF;
+  INSERT INTO public.ia_usage (user_id, dia, count) VALUES (auth.uid(), current_date, 1)
+  ON CONFLICT (user_id, dia) DO UPDATE SET count = ia_usage.count + 1
+  RETURNING count INTO atual;
+  RETURN atual <= limite;
+END; $$;
+REVOKE ALL ON FUNCTION public.consume_ia_quota(integer) FROM public, anon;
+GRANT EXECUTE ON FUNCTION public.consume_ia_quota(integer) TO authenticated;
+
+CREATE TABLE IF NOT EXISTS public.eventos (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  anon_id text,
+  user_id uuid,
+  evento text NOT NULL CHECK (char_length(evento) <= 60),
+  props jsonb,
+  criado_em timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_eventos_evento ON public.eventos (evento, criado_em);
+ALTER TABLE public.eventos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Inserção pública de eventos" ON public.eventos;
+CREATE POLICY "Inserção pública de eventos" ON public.eventos
+  FOR INSERT TO anon, authenticated WITH CHECK (true);
+EOSQL
+)
+curl -s -X POST "$API/projects/$REF/database/query" -H "$AUTH" -H "Content-Type: application/json" \
+  -d "$(jq -n --arg q "$SQL1" '{query:$q}')" | head -c 200; echo ""
+
+echo "--- convertendo imagens para WebP ---"
+pip install pillow --quiet 2>/dev/null || pip install pillow --break-system-packages --quiet
+LISTA=$(curl -s -X POST "$SUPA/storage/v1/object/list/exercicios" \
+  -H "Authorization: Bearer $SERVICE" -H "apikey: $SERVICE" -H "Content-Type: application/json" \
+  -d '{"prefix":"","limit":300}' | jq -r '.[].name | select(test("\\.(png|jpg|jpeg)$"))')
+OK=0; FAIL=0; ANTES=0; DEPOIS=0
+for arquivo in $LISTA; do
+  curl -s -o /tmp/orig "$SUPA/storage/v1/object/public/exercicios/$arquivo"
+  T_ANTES=$(stat -c%s /tmp/orig)
+  python3 - "$arquivo" << 'EOPY'
+import sys
+from PIL import Image
+arq = sys.argv[1]
+img = Image.open('/tmp/orig').convert('RGB')
+if img.width > 700:
+    img = img.resize((700, int(img.height*700/img.width)), Image.LANCZOS)
+img.save('/tmp/conv.webp', 'WEBP', quality=80, method=6)
+EOPY
+  if [ $? -ne 0 ]; then FAIL=$((FAIL+1)); echo "conversão falhou: $arquivo"; continue; fi
+  T_DEPOIS=$(stat -c%s /tmp/conv.webp)
+  NOVO="${arquivo%.*}.webp"
+  UP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$SUPA/storage/v1/object/exercicios/$NOVO" \
+    -H "Authorization: Bearer $SERVICE" -H "apikey: $SERVICE" -H "Content-Type: image/webp" \
+    -H "x-upsert: true" --data-binary @/tmp/conv.webp)
+  if [ "$UP" = "200" ]; then OK=$((OK+1)); ANTES=$((ANTES+T_ANTES)); DEPOIS=$((DEPOIS+T_DEPOIS));
+  else FAIL=$((FAIL+1)); echo "upload falhou: $NOVO ($UP)"; fi
 done
-log "status: $STATUS"
-if [ "$STATUS" != "ACTIVE_HEALTHY" ]; then log "ERRO: projeto não ficou saudável a tempo"; echo '```' >> $REPORT; exit 0; fi
+echo "webp ok: $OK | falhas: $FAIL | ${ANTES} bytes -> ${DEPOIS} bytes"
 
-# ── 4. Rodar SQL (tabela + RLS) ───────────────────────────────────
-SQL=$(jq -Rs . < supabase-setup.sql)
-SQLRES=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
-  "$API/projects/$REF/database/query" -d "{\"query\":$SQL}")
-log "sql: $(echo "$SQLRES" | head -c 200)"
-
-# ── 5. Site URL do Auth ───────────────────────────────────────────
-AUTHRES=$(curl -s -X PATCH -H "$AUTH" -H "Content-Type: application/json" \
-  "$API/projects/$REF/config/auth" \
-  -d '{"site_url":"https://a-body.vercel.app","uri_allow_list":"https://a-body.vercel.app"}')
-log "auth site_url: $(echo "$AUTHRES" | jq -r '.site_url // "erro"')"
-
-# ── 6. Anon key ───────────────────────────────────────────────────
-ANON=$(curl -s -H "$AUTH" "$API/projects/$REF/api-keys" | jq -r '.[] | select(.name=="anon") | .api_key')
-SUPA_URL="https://$REF.supabase.co"
-log "url: $SUPA_URL"
-log "anon key: ${ANON:0:20}... (pública por design)"
-
-# ── 7. Env vars na Vercel ─────────────────────────────────────────
-TEAM_ID=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/teams" | jq -r '.teams[0].id')
-for PAIR in "VITE_SUPABASE_URL|$SUPA_URL" "VITE_SUPABASE_ANON_KEY|$ANON"; do
-  K="${PAIR%%|*}"; V="${PAIR#*|}"
-  ENVRES=$(curl -s -X POST "https://api.vercel.com/v10/projects/a-body/env?teamId=$TEAM_ID&upsert=true" \
-    -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
-    -d "{\"key\":\"$K\",\"value\":\"$V\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\"]}")
-  log "vercel env $K: $(echo "$ENVRES" | jq -r 'if .error then .error.message else "ok" end')"
-done
-
-# ── 8. Health check do Auth ───────────────────────────────────────
-HEALTH=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: $ANON" "$SUPA_URL/auth/v1/health")
-log "auth health: HTTP $HEALTH"
-
-echo '```' >> $REPORT
-echo "SETUP_OK=1" >> "$GITHUB_ENV" 2>/dev/null || true
+echo "--- atualizando imagem_url para .webp ---"
+curl -s -X POST "$API/projects/$REF/database/query" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"query":"UPDATE public.exercicios SET imagem_url = replace(replace(imagem_url, chr(46)||chr(112)||chr(110)||chr(103), chr(46)||chr(119)||chr(101)||chr(98)||chr(112)), chr(46)||chr(106)||chr(112)||chr(103), chr(46)||chr(119)||chr(101)||chr(98)||chr(112)) WHERE imagem_url IS NOT NULL; SELECT count(*) FILTER (WHERE imagem_url LIKE chr(37)||chr(46)||chr(119)||chr(101)||chr(98)||chr(112)) AS webp, count(*) AS total FROM public.exercicios;"}'
+echo ""
+echo '```'
+} | tee /tmp/report.md
+true
