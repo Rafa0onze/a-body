@@ -327,14 +327,37 @@ const getApiKey = () => localStorage.getItem("abody:apikey") || "";
 const setApiKey = (k) => localStorage.setItem("abody:apikey", k);
 
 async function callClaude(body) {
+  const s = await refreshIfNeeded();
+  if (!s?.access_token) throw new Error("Faça login para usar a geração por IA.");
   const res = await fetch("/api/claude", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
     body: JSON.stringify(body),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
   return data;
+}
+
+// ─── TELEMETRIA (fire-and-forget, tabela eventos) ────────────────────────────
+const anonId = (() => {
+  let id = localStorage.getItem("abody:anonid");
+  if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem("abody:anonid", id); }
+  return id;
+})();
+function track(evento, props) {
+  try {
+    const s = getSession();
+    fetch(`${SUPA_URL}/rest/v1/eventos`, {
+      method: "POST",
+      headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify({ anon_id: anonId, user_id: s?.user?.id || null, evento, props: props || null }),
+    }).catch(()=>{});
+  } catch {}
+}
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (e) => track("js_error", { msg: String(e.message).slice(0,200) }));
+  window.addEventListener("unhandledrejection", (e) => track("js_error", { msg: String(e.reason?.message || e.reason).slice(0,200) }));
 }
 
 
@@ -500,7 +523,7 @@ export default function App() {
         if (u) setUser(u);
         else if (!localStorage.getItem("abody:skipauth")) { setScreen("auth"); return; }
       }
-      const [p, h, bh] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history"), loadStorage("abody:bodyhistory")]);
+      track("app_aberto"); const [p, h, bh] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history"), loadStorage("abody:bodyhistory")]);
       if (h) setHistory(h);
       if (bh) setBodyHistory(bh);
       if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
@@ -583,6 +606,11 @@ export default function App() {
     } catch(e) { console.warn("Biblioteca indisponível, plano sem restrição:", e.message); }
 
     let bodyAnalysisText = "";
+    if((photos.front || photos.back || photos.side) && !form.photoConsent) {
+      setGen(false); setScreen("anamnesis");
+      setGenError("Para usar as fotos, marque a autorização de análise. Ou remova as fotos para gerar sem análise corporal.");
+      return;
+    }
     if(photos.front || photos.back || photos.side) {
       try {
         setPhotoAnalyzing(true);
@@ -625,14 +653,14 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       const rawPlan=data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
       const aiPlan=extractJSON(rawPlan);
       const converted=convertAIPlan(aiPlan,form.name);
-      setPlan(converted); await saveStorage("abody:plan",converted); setScreen("planPreview");
+      track("plano_ia_gerado",{dias:converted?.weekDays?.length}); setPlan(converted); await saveStorage("abody:plan",converted); setScreen("planPreview");
     } catch(err){ setGenError(err.message||"Erro ao gerar plano."); setScreen("anamnesis"); }
     setGen(false);
   };
 
   // ── PLANO MANUAL ──────────────────────────────────────────────────────────
 
-  const saveManualPlan = async () => {
+  const saveManualPlan = async () => { track("plano_manual_salvo");
     const split = SPLITS[selectedSplit];
     const p = buildManualPlan(manualUserName, split.days, dayExercises);
     setPlan(p); await saveStorage("abody:plan",p); setScreen("planPreview");
@@ -660,7 +688,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   const initTimer=(ex)=>{ setSeriesElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);setSeriesRunning(false);}else{setSeriesRunning(true);setIsoRunning(false);setIsoDone(false);}};
   const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setWeightInput("");setCardioChoice(null);setScreen("warmup"); };
-  const beginWorkout=()=>{ initTimer(queue[0]); setScreen("workout"); };
+  const beginWorkout=()=>{ track("treino_iniciado"); initTimer(queue[0]); setScreen("workout"); };
   const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput("");initTimer(next); };
   const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput("");initTimer(newEx);setShowSubs(false); };
 
@@ -677,7 +705,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   const advanceAfterRest=()=>{ setWeightInput("");initTimer(queue[0]);setScreen("workout"); };
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
-  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);setScreen("postcardio"); };
+  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido"),setScreen("postcardio"); };
 
   const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
 
@@ -720,7 +748,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     <div style={S.page}><style>{CSS}</style>
       {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
-      {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
+      {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{ if(AUTH_ENABLED && !getSession()){ localStorage.removeItem("abody:skipauth"); setScreen("auth"); return; } track("ia_flow_iniciado"); setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
       {screen==="anamnesis"    && <AnamnesisScreen step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError}/>}
       {screen==="generating"   && <GeneratingScreen name={form.name} photoAnalyzing={photoAnalyzing}/>}
       {screen==="splitSelect"  && <SplitSelectScreen onSelect={(k)=>{setSelectedSplit(k);setDayExercises({});setScreen("dayBuilder");}} onBack={()=>setScreen("modeSelect")}/>}
@@ -734,7 +762,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>setScreen("library")} hasBody={bodyHistory.length>0}/>}
+      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
@@ -955,6 +983,12 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
           ℹ️ As fotos são opcionais. Sem elas, o plano será gerado apenas com base na anamnese.
         </div>
+        {(photos.front||photos.back||photos.side)&&(
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+            <input type="checkbox" checked={!!form.photoConsent} onChange={e=>setForm({...form,photoConsent:e.target.checked})} style={{marginTop:2}}/>
+            <span>Autorizo o envio das minhas fotos para análise pela IA. Entendo que são <b>dados sensíveis de saúde</b> (LGPD), que serão usadas apenas para gerar minha análise corporal e <b>não serão armazenadas</b>.</span>
+          </label>
+        )}
         {error&&<div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"12px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{error}</div>}
       </>)}
 
@@ -1237,7 +1271,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
       headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
       body: JSON.stringify({ nome })
     }).catch(()=>{});
-    onAdd({ id:`custom_${Date.now()}`, name:nome, sets:3, reps:"8-12", rest:60 });
+    track("sugestao_enviada",{nome}); onAdd({ id:`custom_${Date.now()}`, name:nome, sets:3, reps:"8-12", rest:60 });
     setSugestao(""); setSugestaoOk(true);
     setTimeout(()=>setSugestaoOk(false), 2500);
   };
@@ -1263,7 +1297,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
               <button key={ex.id} style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:8,opacity:already?0.5:1}} disabled={already} onClick={()=>{onAdd(ex);}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,textAlign:"left",flex:1}}>
                   {ex.imagem_url && <div style={{background:"#F4F4F6",borderRadius:8,padding:3,flexShrink:0}}>
-                    <img src={ex.imagem_url} alt="" loading="lazy" style={{width:52,height:38,objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/>
+                    <img src={ex.imagem_url} alt="" loading="lazy" onError={e=>{e.currentTarget.parentElement.style.display="none";}} style={{width:52,height:38,objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/>
                   </div>}
                   <div>
                     <div style={{fontSize:13,fontWeight:600}}>{ex.name}</div>
@@ -1633,6 +1667,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess }) {
 // ─── REASSESS ────────────────────────────────────────────────────────────────
 
 function ReassessScreen({ photos, setPhotos, busy, err, onRun, onBack }) {
+  const [consent, setConsent] = useState(false);
   const hasAny = photos.front || photos.back || photos.side;
   return (
     <div style={S.box}>
@@ -1643,8 +1678,14 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, onBack }) {
       <h1 style={S.h1}>Avaliação comparativa</h1>
       <p style={S.sub}>Envie fotos atuais nas mesmas posições. A IA compara com sua avaliação anterior e mostra sua evolução.</p>
       <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
+      {(photos.front||photos.back||photos.side)&&(
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
+          <span>Autorizo o envio das minhas fotos para análise pela IA (dados sensíveis — LGPD). Não serão armazenadas.</span>
+        </label>
+      )}
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:10}}>{err}</div>}
-      <button style={{...S.btn,marginTop:16,opacity:(hasAny&&!busy)?1:0.4}} disabled={!hasAny||busy} onClick={onRun}>
+      <button style={{...S.btn,marginTop:16,opacity:(hasAny&&!busy)?1:0.4}} disabled={!hasAny||busy} onClick={()=>{ if(!consent){alert("Marque a autorização de análise das fotos.");return;} onRun(); }}>
         {busy ? "Analisando…" : "Gerar comparativo ✨"}
       </button>
     </div>
@@ -1847,7 +1888,7 @@ function FigureBlock({ exercise }) {
   useEffect(()=>{
     let vivo = true;
     fetchBiblioteca()
-      .then(l => { if (vivo) setMatch(matchExercicio(exercise.name, l)); })
+      .then(l => { if (vivo){ const m = matchExercicio(exercise.name, l); setMatch(m); if(!m) track("exercicio_sem_match",{nome:exercise.name}); } })
       .catch(() => { if (vivo) setMatch(null); });
     return ()=>{ vivo = false; };
   },[exercise.name]);
@@ -1855,6 +1896,7 @@ function FigureBlock({ exercise }) {
     return (
       <div style={{background:"#F4F4F6",border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 10px 4px",marginBottom:12}}>
         <img src={match.imagem_url} alt={exercise.name} loading="lazy"
+          onError={()=>setMatch(null)}
           style={{width:"100%",maxWidth:380,margin:"0 auto",display:"block",mixBlendMode:"multiply"}}/>
         <div style={{fontSize:10,color:"#7a7a80",textAlign:"center",padding:"2px 0 4px",fontWeight:700}}>
           {match.grupo_muscular} · {match.equipamento}{match.acessorio!=="—"?` · ${match.acessorio}`:""}
@@ -1913,7 +1955,7 @@ function ABodyCard({ ex }) {
           </div>
         </div>
         {ex.imagem_url && <div style={{display:"flex",justifyContent:"center",padding:"4px 0 10px"}}>
-          <img src={ex.imagem_url} alt={ex.nome} loading="lazy" style={{width:"100%",maxWidth:420,display:"block",mixBlendMode:"multiply"}}/>
+          <img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",maxWidth:420,display:"block",mixBlendMode:"multiply"}}/>
         </div>}
         <div style={{borderTop:"1.5px solid #d8d8dc",paddingTop:9,display:"flex",alignItems:"center"}}>
           <div style={{flex:1}}>
