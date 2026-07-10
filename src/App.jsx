@@ -355,6 +355,54 @@ function track(evento, props) {
     }).catch(()=>{});
   } catch {}
 }
+
+// ─── FOTOS CORPORAIS (bucket privado, LGPD) ──────────────────────────────────
+async function uploadFotoCorporal(ts, tipo, foto) {
+  const s = await refreshIfNeeded();
+  if (!s?.access_token || !s?.user?.id) return null;
+  const path = `${s.user.id}/${ts}_${tipo}.jpg`;
+  const bin = Uint8Array.from(atob(foto.data), c => c.charCodeAt(0));
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/fotos-corporais/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": foto.type || "image/jpeg", "x-upsert": "true" },
+    body: bin,
+  });
+  return r.ok ? path : null;
+}
+async function uploadFotosCorporais(photos) {
+  const ts = Date.now();
+  const paths = {};
+  for (const tipo of ["front","back","side"]) {
+    if (photos[tipo]) {
+      const p = await uploadFotoCorporal(ts, tipo, photos[tipo]).catch(()=>null);
+      if (p) paths[tipo] = p;
+    }
+  }
+  return Object.keys(paths).length ? paths : null;
+}
+async function signedUrlFoto(path) {
+  const s = await refreshIfNeeded();
+  if (!s?.access_token) return null;
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/sign/fotos-corporais/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ expiresIn: 3600 }),
+  });
+  if (!r.ok) return null;
+  const d = await r.json();
+  return d.signedURL ? `${SUPA_URL}/storage/v1${d.signedURL}` : null;
+}
+async function deleteFotosCorporais(paths) {
+  const s = await refreshIfNeeded();
+  if (!s?.access_token || !paths?.length) return false;
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/fotos-corporais`, {
+    method: "DELETE",
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: paths }),
+  });
+  return r.ok;
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (e) => track("js_error", { msg: String(e.message).slice(0,200) }));
   window.addEventListener("unhandledrejection", (e) => track("js_error", { msg: String(e.reason?.message || e.reason).slice(0,200) }));
@@ -617,8 +665,10 @@ export default function App() {
         const analysis = await analyzeBodyPhotos(photos);
         setBodyAnalysis(analysis);
         // Persistir no histórico de avaliações
+        let photoPaths = null;
+        if (form.photoStoreConsent) { photoPaths = await uploadFotosCorporais(photos); if (photoPaths) track("fotos_armazenadas"); }
         const prevBody = (await loadStorage("abody:bodyhistory")) || [];
-        const newBodyHist = [...prevBody, { date: todayISO(), analysis }];
+        const newBodyHist = [...prevBody, { date: todayISO(), analysis, ...(photoPaths ? { photoPaths } : {}) }];
         await saveStorage("abody:bodyhistory", newBodyHist);
         setBodyHistory(newBodyHist);
         bodyAnalysisText = `\n\nANÁLISE CORPORAL POR FOTOS:\n- Pontos fortes: ${analysis.strongPoints?.join(", ")||"N/A"}\n- Pontos fracos: ${analysis.weakPoints?.join(", ")||"N/A"}\n- Postura: ${analysis.postureNotes?.join(", ")||"N/A"}\n- Desequilíbrios: ${analysis.muscleImbalances?.join(", ")||"N/A"}\n- Análise geral: ${analysis.overallAnalysis||""}\n\nCONSIDERE ESTA ANÁLISE NA PRIORIZAÇÃO DOS GRUPOS MUSCULARES DO PLANO.`;
@@ -711,6 +761,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
 
   // Reavaliação corporal comparativa (habilitada 30 dias após a última)
+  const [reStoreConsent, setReStoreConsent] = useState(false);
   const runReassessment = async () => {
     setReBusy(true); setReErr(null);
     try {
@@ -730,7 +781,9 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       const data = await callClaude({ model:"claude-sonnet-4-6", max_tokens:2000, messages:[{role:"user",content:imageBlocks}] });
       const raw = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
       const analysis = extractJSON(raw);
-      const newHist = [...bodyHistory, { date: todayISO(), analysis }];
+      let photoPaths = null;
+      if (reStoreConsent) { photoPaths = await uploadFotosCorporais(rePhotos); if (photoPaths) track("fotos_armazenadas"); }
+      const newHist = [...bodyHistory, { date: todayISO(), analysis, ...(photoPaths ? { photoPaths } : {}) }];
       setBodyHistory(newHist);
       await saveStorage("abody:bodyhistory", newHist);
       setRePhotos(PHOTOS_INIT);
@@ -770,8 +823,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         {showSubs&&<SubModal exercise={current} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed}/>}
-      {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}}/>}
-      {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} onBack={()=>setScreen("bodyReport")}/>}
+      {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>resto); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
+      {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} onBack={goHome}/>}
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
@@ -986,7 +1039,13 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         {(photos.front||photos.back||photos.side)&&(
           <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoConsent} onChange={e=>setForm({...form,photoConsent:e.target.checked})} style={{marginTop:2}}/>
-            <span>Autorizo o envio das minhas fotos para análise pela IA. Entendo que são <b>dados sensíveis de saúde</b> (LGPD), que serão usadas apenas para gerar minha análise corporal e <b>não serão armazenadas</b>.</span>
+            <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b>. Entendo que são <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para gerar minha análise corporal.</span>
+          </label>
+        )}
+        {(photos.front||photos.back||photos.side)&&(
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+            <input type="checkbox" checked={!!form.photoStoreConsent} onChange={e=>setForm({...form,photoStoreConsent:e.target.checked})} style={{marginTop:2}}/>
+            <span><b>Opcional:</b> autorizo o <b>armazenamento seguro</b> das minhas fotos em área privada, acessível somente por mim, com a finalidade exclusiva de gerar <b>comparativos visuais da minha evolução</b>. Posso excluí-las a qualquer momento no Relatório Corporal.</span>
           </label>
         )}
         {error&&<div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"12px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{error}</div>}
@@ -1601,7 +1660,72 @@ function RestScreen({ seconds, total, onSkip, queue, completed }) {
 
 // ─── BODY REPORT ─────────────────────────────────────────────────────────────
 
-function BodyReportScreen({ bodyHistory, onBack, onReassess }) {
+
+function FotoComparativo({ bodyHistory, onFotosExcluidas }) {
+  const comFotos = bodyHistory.filter(h => h.photoPaths);
+  const [urls, setUrls] = useState(null);
+  const [excluindo, setExcluindo] = useState(false);
+  const primeira = comFotos[0], ultima = comFotos[comFotos.length - 1];
+
+  useEffect(()=>{
+    let vivo = true;
+    (async()=>{
+      if (!primeira) { setUrls({}); return; }
+      const out = {};
+      for (const [rot, entry] of [["antes", primeira], ["depois", ultima]]) {
+        out[rot] = {};
+        for (const tipo of ["front","back","side"]) {
+          const p = entry.photoPaths?.[tipo];
+          if (p) out[rot][tipo] = await signedUrlFoto(p).catch(()=>null);
+        }
+      }
+      if (vivo) setUrls(out);
+    })();
+    return ()=>{ vivo = false; };
+  },[bodyHistory.length]);
+
+  if (!primeira || !urls) return null;
+  const mesmaData = primeira === ultima;
+  const tipos = ["front","back","side"].filter(t => urls.antes?.[t] || urls.depois?.[t]);
+  const ROT = { front:"Frente", back:"Costas", side:"Lateral" };
+
+  const excluirTudo = async () => {
+    if (!confirm("Excluir permanentemente todas as suas fotos armazenadas? Os comparativos visuais deixarão de existir.")) return;
+    setExcluindo(true);
+    const paths = comFotos.flatMap(h => Object.values(h.photoPaths || {}));
+    const ok = await deleteFotosCorporais(paths);
+    if (ok) { track("fotos_excluidas"); onFotosExcluidas(); }
+    else alert("Não foi possível excluir agora. Tente novamente.");
+    setExcluindo(false);
+  };
+
+  return (
+    <div style={{...S.card, marginTop:12}}>
+      <div style={{fontSize:13,fontWeight:700,color:C.acc,marginBottom:8}}>📸 Evolução visual</div>
+      {mesmaData
+        ? <p style={{fontSize:12,color:C.muted,margin:"0 0 10px"}}>Fotos de {new Date(primeira.date).toLocaleDateString("pt-BR")} guardadas. Na próxima reavaliação com fotos, o antes/depois aparece aqui.</p>
+        : <p style={{fontSize:12,color:C.muted,margin:"0 0 10px"}}>{new Date(primeira.date).toLocaleDateString("pt-BR")} → {new Date(ultima.date).toLocaleDateString("pt-BR")}</p>}
+      {tipos.map(t=>(
+        <div key={t} style={{marginBottom:10}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:4}}>{ROT[t]}</div>
+          <div style={{display:"flex",gap:8}}>
+            {(mesmaData ? ["antes"] : ["antes","depois"]).map(rot => urls[rot]?.[t] && (
+              <div key={rot} style={{flex:1}}>
+                {!mesmaData && <div style={{fontSize:10,color:C.muted,marginBottom:2,textTransform:"uppercase"}}>{rot}</div>}
+                <img src={urls[rot][t]} alt={`${ROT[t]} ${rot}`} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border}`}}/>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button onClick={excluirTudo} disabled={excluindo} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,color:"#ff8a8a",fontSize:12,fontWeight:600,padding:"8px 12px",width:"100%",cursor:"pointer",opacity:excluindo?0.5:1}}>
+        {excluindo?"Excluindo…":"🗑 Excluir minhas fotos armazenadas (LGPD)"}
+      </button>
+    </div>
+  );
+}
+
+function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas }) {
   const last = bodyHistory[bodyHistory.length - 1];
   if (!last) return null;
   const a = last.analysis || {};
@@ -1652,6 +1776,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess }) {
         </div>
       )}
 
+      <FotoComparativo bodyHistory={bodyHistory} onFotosExcluidas={onFotosExcluidas}/>
       <button style={{...S.btn,opacity:canReassess?1:0.45,marginBottom:8}} disabled={!canReassess} onClick={onReassess}>
         📸 Nova avaliação comparativa
       </button>
@@ -1666,7 +1791,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess }) {
 
 // ─── REASSESS ────────────────────────────────────────────────────────────────
 
-function ReassessScreen({ photos, setPhotos, busy, err, onRun, onBack }) {
+function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, setStoreConsent, onBack }) {
   const [consent, setConsent] = useState(false);
   const hasAny = photos.front || photos.back || photos.side;
   return (
@@ -1681,7 +1806,13 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, onBack }) {
       {(photos.front||photos.back||photos.side)&&(
         <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
-          <span>Autorizo o envio das minhas fotos para análise pela IA (dados sensíveis — LGPD). Não serão armazenadas.</span>
+          <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b> (dados sensíveis de saúde — LGPD).</span>
+        </label>
+      )}
+      {(photos.front||photos.back||photos.side)&&(
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <input type="checkbox" checked={!!storeConsent} onChange={e=>setStoreConsent(e.target.checked)} style={{marginTop:2}}/>
+          <span><b>Opcional:</b> autorizo o <b>armazenamento seguro e privado</b> das fotos para comparativos visuais da minha evolução. Posso excluí-las quando quiser.</span>
         </label>
       )}
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:10}}>{err}</div>}
