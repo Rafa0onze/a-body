@@ -572,6 +572,16 @@ export default function App() {
     setGen(true); setGenError(null); setScreen("generating");
     const goalsText = form.goals.map(g=>GOALS.find(x=>x.id===g)?.label||g).join(", ");
 
+    // Restringe o plano aos exercícios com card visual na biblioteca
+    let libraryText = "";
+    try {
+      const lib = await fetchBiblioteca();
+      const porGrupo = {};
+      lib.forEach(e=>{ (porGrupo[e.grupo_muscular] = porGrupo[e.grupo_muscular]||[]).push(e.nome); });
+      libraryText = "\n\nEXERCÍCIOS DISPONÍVEIS (use APENAS estes, com o nome EXATAMENTE como escrito):\n"
+        + Object.entries(porGrupo).map(([g,ns])=>`${g}: ${ns.join("; ")}`).join("\n");
+    } catch(e) { console.warn("Biblioteca indisponível, plano sem restrição:", e.message); }
+
     let bodyAnalysisText = "";
     if(photos.front || photos.back || photos.side) {
       try {
@@ -599,12 +609,12 @@ PERFIL:
 - Dias/semana: ${form.daysPerWeek} | Duração: ${form.duration}
 - Equipamentos: ${form.equipment}
 - Lesões/Limitações: ${form.injuries||"Nenhuma"}
-- Condições médicas: ${form.conditions||"Nenhuma"}${bodyAnalysisText}
+- Condições médicas: ${form.conditions||"Nenhuma"}${bodyAnalysisText}${libraryText}
 
 Retorne SOMENTE JSON válido sem markdown:
 {"planName":"X","planDescription":"Y","weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
-REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
+REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações). Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
     try {
       const data = await callClaude({
@@ -1189,8 +1199,49 @@ function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, o
 // ─── EXERCISE PICKER MODAL ────────────────────────────────────────────────────
 
 function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
-  const [activeGroup, setActiveGroup] = useState(Object.keys(EXERCISE_LIBRARY)[0]);
-  const group = EXERCISE_LIBRARY[activeGroup];
+  const [lib, setLib] = useState(null);           // biblioteca do banco (ou null = fallback estático)
+  const [activeGroup, setActiveGroup] = useState(null);
+  const [sugerindo, setSugerindo] = useState(false);
+  const [sugestao, setSugestao] = useState("");
+  const [sugestaoOk, setSugestaoOk] = useState(false);
+
+  useEffect(()=>{
+    let vivo = true;
+    fetchBiblioteca().then(l=>{
+      if(!vivo) return;
+      const grupos = {};
+      const ICONES = { "Peito":"🫁","Costas":"🔙","Ombros":"🙆","Bíceps":"💪","Tríceps":"🦾","Antebraço":"🤜",
+        "Quadríceps":"🦵","Posteriores de Coxa":"🦵","Glúteos":"🍑","Adutores":"🦵","Panturrilhas":"🐐","Abdômen":"🎯" };
+      l.forEach(e=>{
+        if(!grupos[e.grupo_muscular]) grupos[e.grupo_muscular] = { label:e.grupo_muscular, icon:ICONES[e.grupo_muscular]||"🏋️", exercises:[] };
+        grupos[e.grupo_muscular].exercises.push({ id:`lib_${e.id}`, name:e.nome, sets:3, reps:"8-12", rest:60, imagem_url:e.imagem_url });
+      });
+      setLib(grupos);
+      setActiveGroup(Object.keys(grupos)[0]);
+    }).catch(()=>{ if(vivo){ setLib(null); setActiveGroup(Object.keys(EXERCISE_LIBRARY)[0]); } });
+    return ()=>{ vivo=false; };
+  },[]);
+
+  const fonte = lib || EXERCISE_LIBRARY;
+  if (!activeGroup) return (
+    <div style={S.modalOverlay}><div style={S.modal}><p style={{color:C.muted,fontSize:13}}>Carregando exercícios…</p></div></div>
+  );
+  const group = fonte[activeGroup];
+
+  const enviarSugestao = async () => {
+    const nome = sugestao.trim();
+    if (nome.length < 2) return;
+    // registra a sugestão (fire-and-forget) e adiciona ao treino como exercício personalizado
+    fetch(`${SUPA_URL}/rest/v1/sugestoes_exercicios`, {
+      method:"POST",
+      headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
+      body: JSON.stringify({ nome })
+    }).catch(()=>{});
+    onAdd({ id:`custom_${Date.now()}`, name:nome, sets:3, reps:"8-12", rest:60 });
+    setSugestao(""); setSugestaoOk(true);
+    setTimeout(()=>setSugestaoOk(false), 2500);
+  };
+
   return (
     <div style={S.modalOverlay}>
       <div style={{...S.modal,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
@@ -1199,7 +1250,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
           <button style={{background:"none",border:"none",color:C.muted,fontSize:18}} onClick={onClose}>✕</button>
         </div>
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:12,flexShrink:0}}>
-          {Object.entries(EXERCISE_LIBRARY).map(([key,g])=>(
+          {Object.entries(fonte).map(([key,g])=>(
             <button key={key} style={{flexShrink:0,background:activeGroup===key?C.acc:"#0d2218",border:"none",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:600,color:activeGroup===key?"#06140e":C.muted}} onClick={()=>setActiveGroup(key)}>
               {g.icon} {g.label}
             </button>
@@ -1210,22 +1261,42 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
             const already=selectedIds.includes(ex.id);
             return (
               <button key={ex.id} style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:8,opacity:already?0.5:1}} disabled={already} onClick={()=>{onAdd(ex);}}>
-                <div style={{textAlign:"left"}}>
-                  <div style={{fontSize:13,fontWeight:600}}>{ex.name}</div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>{ex.sets}x {ex.reps} · {ex.rest}s</div>
+                <div style={{display:"flex",alignItems:"center",gap:10,textAlign:"left",flex:1}}>
+                  {ex.imagem_url && <div style={{background:"#F4F4F6",borderRadius:8,padding:3,flexShrink:0}}>
+                    <img src={ex.imagem_url} alt="" loading="lazy" style={{width:52,height:38,objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/>
+                  </div>}
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600}}>{ex.name}</div>
+                    <div style={{fontSize:11,color:C.muted,marginTop:2}}>{ex.sets}x {ex.reps} · {ex.rest}s</div>
+                  </div>
                 </div>
-                <span style={{color:already?C.muted:C.acc,fontSize:18,fontWeight:700}}>{already?"✓":"+"}</span>
+                <span style={{color:already?C.muted:C.acc,fontSize:18,flexShrink:0}}>{already?"✓":"+"}</span>
               </button>
             );
           })}
+
+          {/* Caixa de sugestões */}
+          <div style={{border:`1.5px dashed ${C.border}`,borderRadius:12,padding:"12px 14px",marginTop:4,marginBottom:10}}>
+            {!sugerindo ? (
+              <button style={{background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:700,width:"100%",textAlign:"center",cursor:"pointer"}} onClick={()=>setSugerindo(true)}>
+                Não encontrou? Sugerir e adicionar exercício +
+              </button>
+            ) : (
+              <>
+                <div style={{fontSize:12,color:C.muted,marginBottom:8}}>Ele entra no seu treino agora e a sugestão vai para nossa equipe adicionar o card visual.</div>
+                <input style={{...S.field,marginBottom:8}} value={sugestao} onChange={e=>setSugestao(e.target.value)} placeholder="Nome do exercício" maxLength={120}/>
+                <button style={{...S.btn,padding:"10px",fontSize:13,opacity:sugestao.trim().length>=2?1:0.4}} disabled={sugestao.trim().length<2} onClick={enviarSugestao}>
+                  Adicionar ao treino e sugerir
+                </button>
+              </>
+            )}
+            {sugestaoOk && <div style={{fontSize:12,color:C.acc,marginTop:8,textAlign:"center"}}>✓ Adicionado ao treino e sugestão enviada!</div>}
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-// ─── PLAN PREVIEW ─────────────────────────────────────────────────────────────
-
 function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
   return (
     <div style={S.box}>
