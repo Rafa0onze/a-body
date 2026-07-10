@@ -1,76 +1,82 @@
 #!/usr/bin/env bash
-# Setup automatizado do Supabase para o A-BODY
-# Roda no GitHub Actions (que alcança api.supabase.com)
 set -uo pipefail
-
 API="https://api.supabase.com/v1"
 AUTH="Authorization: Bearer $SUPABASE_TOKEN"
-REPORT=/tmp/report.md
-
-log() { echo "$1" | tee -a $REPORT; }
-
-echo "## Setup Supabase — A-BODY" > $REPORT
-echo '```' >> $REPORT
-
-# ── 1. Organização ────────────────────────────────────────────────
-ORG_ID=$(curl -s -H "$AUTH" "$API/organizations" | jq -r '.[0].id // empty')
-if [ -z "$ORG_ID" ]; then log "ERRO: nenhuma organização encontrada (token inválido?)"; echo '```' >> $REPORT; exit 0; fi
-log "org: $ORG_ID"
-
-# ── 2. Projeto (reusa se já existir) ──────────────────────────────
+{
+echo "## Padronização visual — reprocessamento das 146 ilustrações"
+echo '```'
 REF=$(curl -s -H "$AUTH" "$API/projects" | jq -r '.[] | select(.name=="a-body") | .id' | head -1)
-if [ -z "$REF" ]; then
-  DB_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
-  CREATE=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" "$API/projects" \
-    -d "{\"name\":\"a-body\",\"organization_id\":\"$ORG_ID\",\"db_pass\":\"$DB_PASS\",\"region\":\"sa-east-1\"}")
-  REF=$(echo "$CREATE" | jq -r '.id // empty')
-  if [ -z "$REF" ]; then log "ERRO ao criar projeto: $(echo $CREATE | head -c 300)"; echo '```' >> $REPORT; exit 0; fi
-  log "projeto criado: $REF (region sa-east-1)"
-  log "obs: senha do banco gerada aleatoriamente — resetável no dashboard se precisar"
-else
-  log "projeto existente reutilizado: $REF"
-fi
+SERVICE=$(curl -s -H "$AUTH" "$API/projects/$REF/api-keys" | jq -r '.[] | select(.name=="service_role") | .api_key')
+SUPA="https://$REF.supabase.co"
+pip install pillow --quiet 2>/dev/null || pip install pillow --break-system-packages --quiet
 
-# ── 3. Aguardar ficar saudável ────────────────────────────────────
-for i in $(seq 1 40); do
-  STATUS=$(curl -s -H "$AUTH" "$API/projects/$REF" | jq -r '.status')
-  [ "$STATUS" = "ACTIVE_HEALTHY" ] && break
-  sleep 10
+LISTA=$(curl -s -X POST "$SUPA/storage/v1/object/list/exercicios" \
+  -H "Authorization: Bearer $SERVICE" -H "apikey: $SERVICE" -H "Content-Type: application/json" \
+  -d '{"prefix":"","limit":400}' | jq -r '.[].name | select(test("\\.(png|jpg|jpeg)$"))')
+OK=0; FAIL=0
+for arquivo in $LISTA; do
+  curl -s -o /tmp/orig "$SUPA/storage/v1/object/public/exercicios/$arquivo"
+  python3 - << 'EOPY'
+from PIL import Image, ImageDraw, ImageChops, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+import statistics
+
+img = Image.open('/tmp/orig'); img.load()
+
+# 1) Alfa composto sobre BRANCO (corrige o bug do fundo preto)
+if img.mode in ('RGBA','LA') or (img.mode=='P' and 'transparency' in img.info):
+    img = img.convert('RGBA')
+    base = Image.new('RGBA', img.size, (255,255,255,255))
+    img = Image.alpha_composite(base, img).convert('RGB')
+else:
+    img = img.convert('RGB')
+
+# 2) Cor de fundo pela mediana da borda
+W,H = img.size
+px = img.load()
+borda = []
+for x in range(0,W,max(1,W//80)): borda += [px[x,0], px[x,H-1]]
+for y in range(0,H,max(1,H//80)): borda += [px[0,y], px[W-1,y]]
+med = tuple(int(statistics.median(c[i] for c in borda)) for i in range(3))
+
+# 3) Fundo não-branco -> flood-fill a partir das bordas
+if not all(v > 235 for v in med):
+    seeds = [(0,0),(W-1,0),(0,H-1),(W-1,H-1),(W//2,0),(W//2,H-1),(0,H//2),(W-1,H//2)]
+    for s in seeds:
+        try:
+            if sum(abs(px[s][i]-med[i]) for i in range(3)) < 120:
+                ImageDraw.floodfill(img, s, (255,255,255), thresh=60)
+        except Exception: pass
+    px = img.load()
+
+# 4) Recorte do conteúdo (diferença vs branco) + margem
+diff = ImageChops.difference(img, Image.new('RGB', img.size, (255,255,255))).convert('L').point(lambda p: 255 if p>18 else 0)
+bbox = diff.getbbox()
+if bbox:
+    mx = int((bbox[2]-bbox[0])*0.04)+2; my = int((bbox[3]-bbox[1])*0.04)+2
+    img = img.crop((max(0,bbox[0]-mx), max(0,bbox[1]-my), min(W,bbox[2]+mx), min(H,bbox[3]+my)))
+
+# 5) Canvas padrão 4:3 (960x720) com conteúdo centralizado
+CW,CH = 960,720
+esc = min((CW*0.92)/img.width, (CH*0.92)/img.height)
+img = img.resize((max(1,int(img.width*esc)), max(1,int(img.height*esc))), Image.LANCZOS)
+canvas = Image.new('RGB',(CW,CH),(255,255,255))
+canvas.paste(img, ((CW-img.width)//2,(CH-img.height)//2))
+canvas.save('/tmp/conv.webp','WEBP',quality=82,method=6)
+EOPY
+  if [ $? -ne 0 ]; then FAIL=$((FAIL+1)); echo "falhou: $arquivo"; continue; fi
+  NOVO="${arquivo%.*}.webp"
+  UP=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$SUPA/storage/v1/object/exercicios/$NOVO" \
+    -H "Authorization: Bearer $SERVICE" -H "apikey: $SERVICE" -H "Content-Type: image/webp" \
+    -H "x-upsert: true" --data-binary @/tmp/conv.webp)
+  if [ "$UP" = "200" ]; then OK=$((OK+1)); else FAIL=$((FAIL+1)); echo "upload falhou: $NOVO ($UP)"; fi
 done
-log "status: $STATUS"
-if [ "$STATUS" != "ACTIVE_HEALTHY" ]; then log "ERRO: projeto não ficou saudável a tempo"; echo '```' >> $REPORT; exit 0; fi
+echo "padronizadas: $OK | falhas: $FAIL"
 
-# ── 4. Rodar SQL (tabela + RLS) ───────────────────────────────────
-SQL=$(jq -Rs . < supabase-setup.sql)
-SQLRES=$(curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
-  "$API/projects/$REF/database/query" -d "{\"query\":$SQL}")
-log "sql: $(echo "$SQLRES" | head -c 200)"
-
-# ── 5. Site URL do Auth ───────────────────────────────────────────
-AUTHRES=$(curl -s -X PATCH -H "$AUTH" -H "Content-Type: application/json" \
-  "$API/projects/$REF/config/auth" \
-  -d '{"site_url":"https://a-body.vercel.app","uri_allow_list":"https://a-body.vercel.app"}')
-log "auth site_url: $(echo "$AUTHRES" | jq -r '.site_url // "erro"')"
-
-# ── 6. Anon key ───────────────────────────────────────────────────
-ANON=$(curl -s -H "$AUTH" "$API/projects/$REF/api-keys" | jq -r '.[] | select(.name=="anon") | .api_key')
-SUPA_URL="https://$REF.supabase.co"
-log "url: $SUPA_URL"
-log "anon key: ${ANON:0:20}... (pública por design)"
-
-# ── 7. Env vars na Vercel ─────────────────────────────────────────
-TEAM_ID=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v2/teams" | jq -r '.teams[0].id')
-for PAIR in "VITE_SUPABASE_URL|$SUPA_URL" "VITE_SUPABASE_ANON_KEY|$ANON"; do
-  K="${PAIR%%|*}"; V="${PAIR#*|}"
-  ENVRES=$(curl -s -X POST "https://api.vercel.com/v10/projects/a-body/env?teamId=$TEAM_ID&upsert=true" \
-    -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" \
-    -d "{\"key\":\"$K\",\"value\":\"$V\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\"]}")
-  log "vercel env $K: $(echo "$ENVRES" | jq -r 'if .error then .error.message else "ok" end')"
-done
-
-# ── 8. Health check do Auth ───────────────────────────────────────
-HEALTH=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: $ANON" "$SUPA_URL/auth/v1/health")
-log "auth health: HTTP $HEALTH"
-
-echo '```' >> $REPORT
-echo "SETUP_OK=1" >> "$GITHUB_ENV" 2>/dev/null || true
+echo "--- garantindo imagem_url em .webp para todas ---"
+curl -s -X POST "$API/projects/$REF/database/query" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"query":"UPDATE public.exercicios SET imagem_url = replace(imagem_url, chr(46)||chr(106)||chr(112)||chr(103), chr(46)||chr(119)||chr(101)||chr(98)||chr(112)) WHERE imagem_url LIKE chr(37)||chr(46)||chr(106)||chr(112)||chr(103); SELECT count(*) FILTER (WHERE imagem_url LIKE chr(37)||chr(46)||chr(119)||chr(101)||chr(98)||chr(112)) AS webp, count(*) AS total FROM public.exercicios;"}'
+echo ""
+echo '```'
+} | tee /tmp/report.md
+true
