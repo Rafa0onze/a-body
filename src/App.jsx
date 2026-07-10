@@ -1383,11 +1383,7 @@ function WorkoutScreen({ day, exercise, setIdx, queue, completed, weightInput, s
       <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label}</div></div>
       <div style={{height:4,background:C.border,borderRadius:2,marginBottom:4}}><div style={{height:4,background:C.acc,borderRadius:2,width:`${pct}%`,transition:"width .3s"}}/></div>
       <div style={{fontSize:11,color:C.muted,marginBottom:14}}>{doneSets} série{doneSets!==1?"s":""} concluída{doneSets!==1?"s":""} · {totalSets-doneSets} restante{(totalSets-doneSets)!==1?"s":""}</div>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-        <div style={S.figCard}><Figure pose={exercise.pose} phase="start"/><div style={S.figLbl}>Início</div></div>
-        <div style={{color:C.acc,fontSize:18,fontWeight:700}}>→</div>
-        <div style={S.figCard}><Figure pose={exercise.pose} phase="end"/><div style={S.figLbl}>Final</div></div>
-      </div>
+      <FigureBlock exercise={exercise}/>
       {exercise._substitutedFor&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>↔ Substituiu: {exercise._substitutedFor}</div>}
       {exercise._skipped&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>⏩ Reagendado</div>}
       <div style={{fontSize:11,color:"#8fb8a2",marginBottom:4}}>{completed.length+1}º de {completed.length+queue.length} exercícios</div>
@@ -1731,6 +1727,79 @@ function ReportScreen({ report, onHome }) {
 const AB = { verde:"#1B7A3C", verdeEsc:"#14602F", preto:"#0B0B0B", fundo:"#F4F4F6", texto:"#4A4A4A",
   fonte:"'Roboto Condensed','Archivo Narrow','Arial Narrow',Arial,sans-serif" };
 
+let _bibliotecaCache = null;
+async function fetchBiblioteca() {
+  if (_bibliotecaCache) return _bibliotecaCache;
+  const r = await fetch(`${SUPA_URL}/rest/v1/exercicios?select=*&order=numero`,
+    { headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}` } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  _bibliotecaCache = await r.json();
+  return _bibliotecaCache;
+}
+
+const _SIN = { pulley:"polia", cabo:"polia", halteres:"halter", haltere:"halter",
+  barras:"barra", maquinas:"maquina", livre:"livre" };
+const _norm = (s, semParenteses) => {
+  let t = s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  t = semParenteses ? t.replace(/\(.*?\)/g," ") : t.replace(/[()]/g," ");
+  return t.replace(/[^a-z0-9 ]/g," ").split(/\s+/)
+    .filter(x=>x && !["de","com","no","na","em","o","a","os","as","do","da"].includes(x))
+    .map(x=>_SIN[x]||x);
+};
+
+function _melhorMatch(alvo, lista) {
+  const alvoStr = alvo.join(" ");
+  let melhor = null, melhorScore = 0;
+  for (const ex of lista) {
+    const t = _norm(ex.nome, false);
+    if (t.join(" ") === alvoStr) return { ex, score: 99 };
+    const comum = t.filter(x=>alvo.includes(x)).length;
+    const menor = Math.min(t.length, alvo.length);
+    const score = comum / Math.max(menor, 1) + (comum === menor ? 0.5 : 0);
+    if ((comum >= 2 || (menor === 1 && comum === 1 && t.length === alvo.length)) && score > melhorScore) {
+      melhorScore = score; melhor = ex;
+    }
+  }
+  return melhorScore >= 1 ? { ex: melhor, score: melhorScore } : null;
+}
+
+function matchExercicio(nome, lista) {
+  if (!nome || !lista) return null;
+  const r1 = _melhorMatch(_norm(nome, false), lista);
+  if (r1) return r1.ex;
+  const r2 = _melhorMatch(_norm(nome, true), lista);
+  return r2 ? r2.ex : null;
+}
+
+function FigureBlock({ exercise }) {
+  const [match, setMatch] = useState(undefined);
+  useEffect(()=>{
+    let vivo = true;
+    fetchBiblioteca()
+      .then(l => { if (vivo) setMatch(matchExercicio(exercise.name, l)); })
+      .catch(() => { if (vivo) setMatch(null); });
+    return ()=>{ vivo = false; };
+  },[exercise.name]);
+  if (match && match.imagem_url) {
+    return (
+      <div style={{background:"#F4F4F6",border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 10px 4px",marginBottom:12}}>
+        <img src={match.imagem_url} alt={exercise.name} loading="lazy"
+          style={{width:"100%",maxWidth:380,margin:"0 auto",display:"block",mixBlendMode:"multiply"}}/>
+        <div style={{fontSize:10,color:"#7a7a80",textAlign:"center",padding:"2px 0 4px",fontWeight:700}}>
+          {match.grupo_muscular} · {match.equipamento}{match.acessorio!=="—"?` · ${match.acessorio}`:""}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+      <div style={S.figCard}><Figure pose={exercise.pose} phase="start"/><div style={S.figLbl}>Início</div></div>
+      <div style={{color:C.acc,fontSize:18,fontWeight:700}}>→</div>
+      <div style={S.figCard}><Figure pose={exercise.pose} phase="end"/><div style={S.figLbl}>Final</div></div>
+    </div>
+  );
+}
+
 const AB_REGIOES = {
   triceps:[{cx:26,cy:64,rx:6,ry:14},{cx:74,cy:64,rx:6,ry:14}],
   biceps:[{cx:27,cy:60,rx:6,ry:12},{cx:73,cy:60,rx:6,ry:12}],
@@ -1798,10 +1867,7 @@ function LibraryScreen({ onBack }) {
   useEffect(()=>{
     (async()=>{
       try{
-        const r = await fetch(`${SUPA_URL}/rest/v1/exercicios?select=*&order=numero`,
-          { headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}` } });
-        if(!r.ok) throw new Error(`HTTP ${r.status}`);
-        setExs(await r.json());
+        setExs(await fetchBiblioteca());
       }catch(e){ setErr(e.message); }
     })();
   },[]);
