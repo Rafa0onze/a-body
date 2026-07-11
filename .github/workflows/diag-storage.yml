@@ -15,7 +15,7 @@ jobs:
       - name: Diagnóstico e reparo do storage
         env:
           SUPABASE_TOKEN: ${{ secrets.SUPABASE_TOKEN }}
-        run: bash scripts/diag-storage.sh
+        run: bash scripts/e2e-upload.sh
 
       - name: Publicar relatorio
         if: always()
