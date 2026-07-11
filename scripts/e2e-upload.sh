@@ -36,21 +36,21 @@ log "grant raw (300c): $(echo "$GRANT" | head -c 300)"
 # uid à prova de formato: claim sub do próprio JWT
 PAY=$(echo "$TOK" | cut -d. -f2 | tr '_-' '/+' )
 PAD=$(( (4 - ${#PAY} % 4) % 4 )); PAY="$PAY$(printf '=%.0s' $(seq 1 $PAD) 2>/dev/null)"
-UID=$(echo "$PAY" | base64 -d 2>/dev/null | jq -r '.sub // empty')
-log "usuário (sub do JWT): $UID"
+USR_ID=$(echo "$PAY" | base64 -d 2>/dev/null | jq -r '.sub // empty')
+log "usuário (sub do JWT): $USR_ID"
 printf '\xff\xd8\xff\xdb\x00\x43\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\x09\x09\x08\x0a\x0c\x14\x0d\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c\x20\x24\x2e\x27\x20\x22\x2c\x23\x1c\x1c\x28\x37\x29\x2c\x30\x31\x34\x34\x34\x1f\x27\x39\x3d\x38\x32\x3c\x2e\x33\x34\x32\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00\xfb\xfe\x8a\xff\xd9' > /tmp/px.jpg
 for B in perfis fotos-corporais documentos-saude; do
-  R=$(curl -s -w " | HTTP %{http_code}" -X POST "$SUPA/storage/v1/object/$B/$UID/diag.jpg" \
+  R=$(curl -s -w " | HTTP %{http_code}" -X POST "$SUPA/storage/v1/object/$B/$USR_ID/diag.jpg" \
     -H "apikey: $ANON" -H "Authorization: Bearer $TOK" -H "Content-Type: image/jpeg" --data-binary @/tmp/px.jpg)
   log "$B: $R"
 done
 log ""
 log "--- leitura pública do perfis ---"
-curl -s -o /dev/null -w "GET público: HTTP %{http_code}\n" "$SUPA/storage/v1/object/public/perfis/$UID/diag.jpg" | tee -a $REPORT
+curl -s -o /dev/null -w "GET público: HTTP %{http_code}\n" "$SUPA/storage/v1/object/public/perfis/$USR_ID/diag.jpg" | tee -a $REPORT
 
 log "--- limpeza ---"
 for B in perfis fotos-corporais documentos-saude; do
-  curl -s -X DELETE "$SUPA/storage/v1/object/$B/$UID/diag.jpg" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null
+  curl -s -X DELETE "$SUPA/storage/v1/object/$B/$USR_ID/diag.jpg" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null
 done
-curl -s -X DELETE "$SUPA/auth/v1/admin/users/$UID" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null -w "delete user: HTTP %{http_code}\n" | tee -a $REPORT
+curl -s -X DELETE "$SUPA/auth/v1/admin/users/$USR_ID" -H "apikey: $SERVICE" -H "Authorization: Bearer $SERVICE" -o /dev/null -w "delete user: HTTP %{http_code}\n" | tee -a $REPORT
 echo '```' >> $REPORT
