@@ -42,3 +42,14 @@ self.addEventListener("fetch", (e) => {
     );
   }
 });
+
+// Tocar no aviso de descanso traz o app de volta
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  e.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((lista) => {
+      for (const c of lista) if ("focus" in c) return c.focus();
+      return clients.openWindow("/");
+    })
+  );
+});

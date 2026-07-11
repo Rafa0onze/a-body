@@ -339,6 +339,55 @@ async function callClaude(body) {
   return data;
 }
 
+// ─── SOM, VIBRAÇÃO E NOTIFICAÇÃO DO DESCANSO ─────────────────────────────────
+let _audioCtx = null;
+function primeAudio() {
+  // precisa ser chamado num gesto do usuário para o som funcionar depois
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === "suspended") _audioCtx.resume();
+  } catch {}
+}
+function beepDescanso() {
+  try {
+    if (!_audioCtx) return;
+    const agora = _audioCtx.currentTime;
+    [0, 0.35, 0.7].forEach((dt, i) => {
+      const osc = _audioCtx.createOscillator();
+      const gain = _audioCtx.createGain();
+      osc.connect(gain); gain.connect(_audioCtx.destination);
+      osc.frequency.value = i === 2 ? 1320 : 880; // último beep mais agudo
+      gain.gain.setValueAtTime(0.0001, agora + dt);
+      gain.gain.exponentialRampToValueAtTime(0.4, agora + dt + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, agora + dt + 0.28);
+      osc.start(agora + dt); osc.stop(agora + dt + 0.3);
+    });
+  } catch {}
+  try { navigator.vibrate && navigator.vibrate([250, 120, 250, 120, 400]); } catch {}
+}
+function pedirPermissaoNotif() {
+  try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch {}
+}
+function notificarDescansoFim() {
+  try {
+    if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+      navigator.serviceWorker?.ready?.then(reg =>
+        reg.showNotification("⏱ Descanso encerrado!", {
+          body: "Hora da próxima série. Bora! 💪",
+          tag: "abody-rest", renotify: true, vibrate: [250,120,250], silent: false,
+        })
+      ).catch(()=>{});
+    }
+  } catch {}
+}
+let _wakeLock = null;
+async function manterTelaAcesa(ligar) {
+  try {
+    if (ligar && "wakeLock" in navigator) { _wakeLock = await navigator.wakeLock.request("screen"); }
+    else if (!ligar && _wakeLock) { await _wakeLock.release(); _wakeLock = null; }
+  } catch {}
+}
+
 // ─── TELEMETRIA (fire-and-forget, tabela eventos) ────────────────────────────
 const anonId = (() => {
   let id = localStorage.getItem("abody:anonid");
@@ -603,7 +652,21 @@ export default function App() {
   useEffect(()=>{ if(seriesRunning){seriesRef.current=setInterval(()=>setSeriesElapsed(s=>s+1),1000);}else clearInterval(seriesRef.current); return()=>clearInterval(seriesRef.current); },[seriesRunning]);
   useEffect(()=>{ if(isoRunning&&isoSec>0){isoRef.current=setInterval(()=>{setIsoSec(s=>{if(s<=1){clearInterval(isoRef.current);setIsoRunning(false);setIsoDone(true);return 0;}return s-1;});},1000);}else clearInterval(isoRef.current); return()=>clearInterval(isoRef.current); },[isoRunning]);
   useEffect(()=>{
-    if(screen==="rest"&&restSec>0){restRef.current=setInterval(()=>{setRestSec(s=>{if(s<=1){clearInterval(restRef.current);advanceAfterRest();return 0;}return s-1;});},1000);}
+    if(screen==="rest"&&restSec>0){
+      const fim = Date.now() + restSec*1000; // timestamp absoluto: exato mesmo se o navegador suspender
+      const tick = () => {
+        const falta = Math.max(0, Math.round((fim - Date.now())/1000));
+        if (falta <= 0) {
+          clearInterval(restRef.current);
+          beepDescanso(); notificarDescansoFim();
+          advanceAfterRest();
+        } else setRestSec(falta);
+      };
+      restRef.current = setInterval(tick, 500);
+      const onVis = () => { if (!document.hidden) tick(); }; // recalcula ao voltar
+      document.addEventListener("visibilitychange", onVis);
+      return()=>{ clearInterval(restRef.current); document.removeEventListener("visibilitychange", onVis); };
+    }
     return()=>clearInterval(restRef.current);
   },[screen,restSec===restTotal]);
 
@@ -738,7 +801,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   const initTimer=(ex)=>{ setSeriesElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);setSeriesRunning(false);}else{setSeriesRunning(true);setIsoRunning(false);setIsoDone(false);}};
   const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setWeightInput("");setCardioChoice(null);setScreen("warmup"); };
-  const beginWorkout=()=>{ track("treino_iniciado"); initTimer(queue[0]); setScreen("workout"); };
+  const beginWorkout=()=>{ track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
   const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput("");initTimer(next); };
   const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput("");initTimer(newEx);setShowSubs(false); };
 
@@ -753,6 +816,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   };
 
   const advanceAfterRest=()=>{ setWeightInput("");initTimer(queue[0]);setScreen("workout"); };
+  useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
   const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido"),setScreen("postcardio"); };
