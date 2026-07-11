@@ -15,7 +15,7 @@ SERVICE=$(echo "$KEYS" | jq -r '.[] | select(.name=="service_role") | .api_key' 
 ANON=$(echo "$KEYS" | jq -r '.[] | select(.name=="anon") | .api_key' | head -1)
 q() { curl -s -X POST "$API/projects/$REF/database/query" -H "$AUTH" -H "Content-Type: application/json" -d "$(jq -n --arg q "$1" '{query:$q}')"; }
 
-log "--- estado da tabela legada profiles e suas policies ---"
+log "--- confirmação: policies legadas já removidas ---"
 q "SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='profiles';" | tee -a $REPORT
 q "SELECT policyname, cmd, qual FROM pg_policies WHERE schemaname='public' AND tablename='profiles';" | tee -a $REPORT
 
@@ -29,10 +29,11 @@ EMAIL="e2e-fix-$(date +%s)@teste.abody.local"
 PASS="E2e-$(openssl rand -hex 8)"
 U=$(curl -s -X POST "$SUPA/auth/v1/admin/users" -H "Authorization: Bearer $SERVICE" -H "apikey: $SERVICE" -H "Content-Type: application/json" \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\",\"email_confirm\":true}")
-UID=$(echo "$U" | jq -r 'if (.id|type)=="string" then .id else (.user.id // empty) end')
-log "usuário: $UID"
-TOK=$(curl -s -X POST "$SUPA/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" | jq -r '.access_token // empty')
+GRANT=$(curl -s -X POST "$SUPA/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+TOK=$(echo "$GRANT" | jq -r '.access_token // empty')
+UID=$(echo "$GRANT" | jq -r '.user.id // empty')
+log "usuário (via grant): $UID"
 printf '\xff\xd8\xff\xdb\x00\x43\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\x09\x09\x08\x0a\x0c\x14\x0d\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c\x20\x24\x2e\x27\x20\x22\x2c\x23\x1c\x1c\x28\x37\x29\x2c\x30\x31\x34\x34\x34\x1f\x27\x39\x3d\x38\x32\x3c\x2e\x33\x34\x32\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00\xfb\xfe\x8a\xff\xd9' > /tmp/px.jpg
 for B in perfis fotos-corporais documentos-saude; do
   R=$(curl -s -w " | HTTP %{http_code}" -X POST "$SUPA/storage/v1/object/$B/$UID/diag.jpg" \
