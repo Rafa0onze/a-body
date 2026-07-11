@@ -889,11 +889,12 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>resto); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
-      {screen==="calendar"     && <CalendarScreen history={history} onBack={goHome} onUpdateHistory={async(dia,grupos)=>{
+      {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
         const iso = dia.toISOString();
         const sd = (a,b)=>{a=new Date(a);b=new Date(b);return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();};
         let novo = history.filter(s => !(s.manual && sd(s.date, dia)));
-        if (grupos && grupos.length) novo = [...novo, { dayId:"manual", dayLabel:grupos.join(" + "), date: iso, manual:true, grupos, completed:[] }];
+        if (registro?.day) novo = [...novo, { dayId:registro.day.id, dayLabel:registro.day.label, date: iso, manual:true, completed:[] }];
+        else if (registro?.grupos?.length) novo = [...novo, { dayId:"manual", dayLabel:registro.grupos.join(" + "), date: iso, manual:true, grupos:registro.grupos, completed:[] }];
         setHistory(novo); await saveStorage("abody:history", novo);
       }}/>}
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
@@ -1897,7 +1898,7 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
 
 const GRUPOS_MANUAL = ["Peito","Costas","Ombros","Bíceps","Tríceps","Pernas","Glúteos","Panturrilhas","Abdômen","Cardio","Corpo inteiro"];
 
-function CalendarScreen({ history, onBack, onUpdateHistory }) {
+function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
   const [editDia, setEditDia] = useState(null);      // Date sendo editada
   const [gruposSel, setGruposSel] = useState([]);
   // Semana começando no domingo
@@ -2001,7 +2002,20 @@ function CalendarScreen({ history, onBack, onUpdateHistory }) {
               <button style={{background:"none",border:"none",color:C.muted,fontSize:18}} onClick={()=>setEditDia(null)}>✕</button>
             </div>
             <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{editDia.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})}</div>
-            <p style={{fontSize:12,color:C.muted,margin:"0 0 12px"}}>Selecione o(s) grupo(s) muscular(es) que você treinou nesse dia:</p>
+            {plan?.weekDays?.length > 0 && (<>
+              <p style={{fontSize:12,color:C.muted,margin:"0 0 8px"}}>Qual treino do seu plano você fez nesse dia?</p>
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
+                {plan.weekDays.map(day=>(
+                  <button key={day.id} onClick={()=>{ onUpdateHistory(editDia, { day }); track("registro_manual",{treino:day.label}); setEditDia(null); }}
+                    style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",cursor:"pointer",border:`1.5px solid #f0a848`}}>
+                    <span style={{fontSize:14,fontWeight:800,color:"#f0a848"}}>{day.label}</span>
+                    <span style={{fontSize:12,color:C.muted}}>{day.sub||""}</span>
+                  </button>
+                ))}
+              </div>
+              <p style={{fontSize:12,color:C.muted,margin:"0 0 8px"}}>Ou fez algo fora do plano? Selecione o(s) grupo(s):</p>
+            </>)}
+            {!(plan?.weekDays?.length > 0) && <p style={{fontSize:12,color:C.muted,margin:"0 0 12px"}}>Selecione o(s) grupo(s) muscular(es) que você treinou nesse dia:</p>}
             <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
               {GRUPOS_MANUAL.map(g=>{
                 const sel = gruposSel.includes(g);
@@ -2014,7 +2028,7 @@ function CalendarScreen({ history, onBack, onUpdateHistory }) {
               })}
             </div>
             <button style={{...S.btn,opacity:gruposSel.length?1:0.4}} disabled={!gruposSel.length}
-              onClick={()=>{ onUpdateHistory(editDia, gruposSel); track("registro_manual",{grupos:gruposSel}); setEditDia(null); }}>
+              onClick={()=>{ onUpdateHistory(editDia, { grupos: gruposSel }); track("registro_manual",{grupos:gruposSel}); setEditDia(null); }}>
               Salvar registro
             </button>
             {workoutsOn(editDia).some(s=>s.manual) && (
