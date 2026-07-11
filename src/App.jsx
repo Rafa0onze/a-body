@@ -2224,14 +2224,13 @@ function ConviteModal({ aluno, onClose }) {
   })(); }, []);
 
   const link = conv ? `${window.location.origin}/?convite=${conv.token}` : "";
+  const textoConvite = `Olá, ${aluno.nome.split(" ")[0]}!\n\nSeu acesso ao A-Body está pronto. Crie seu login pelo link abaixo para ver seus treinos, registrar sua frequência e falar comigo pelo app:\n\n${link}\n\nO link expira em 7 dias.\n\nBons treinos!`;
   const copiar = async () => {
-    try { await navigator.clipboard.writeText(link); setCopiado(true); setTimeout(()=>setCopiado(false), 2500); }
+    try { await navigator.clipboard.writeText(textoConvite); setCopiado(true); setTimeout(()=>setCopiado(false), 2500); }
     catch { setErr("Copie manualmente o link abaixo."); }
   };
-  const corpoEmail = encodeURIComponent(
-    `Olá, ${aluno.nome.split(" ")[0]}!\n\nSeu acesso ao A-Body está pronto. Crie seu login pelo link abaixo para ver seus treinos, registrar sua frequência e falar comigo pelo app:\n\n${link}\n\nO link expira em 7 dias.\n\nBons treinos!`
-  );
-  const mailto = `mailto:${encodeURIComponent(aluno.email)}?subject=${encodeURIComponent("Seu acesso ao A-Body")}&body=${corpoEmail}`;
+  const corpoZap = encodeURIComponent(textoConvite);
+  const mailto = `mailto:${encodeURIComponent(aluno.email)}?subject=${encodeURIComponent("Seu acesso ao A-Body")}&body=${encodeURIComponent(textoConvite)}`;
 
   return (
     <div style={OVERLAY_B2B} onClick={onClose}>
@@ -2244,10 +2243,17 @@ function ConviteModal({ aluno, onClose }) {
 
         {conv && (
           <>
-            <div style={{...S.card,padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:12,color:C.acc}}>{link}</div>
-            <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Válido até {new Date(conv.expira_em).toLocaleDateString("pt-BR")} · uso único</div>
-            <button style={{...S.btn,marginBottom:10}} onClick={()=>{ track("convite_email_aberto"); window.location.href = mailto; }}>📨 Enviar por e-mail ({aluno.email})</button>
-            <button style={{...S.btnOutline,marginBottom:10}} onClick={copiar}>{copiado ? "✓ Link copiado!" : "📋 Copiar link (WhatsApp etc.)"}</button>
+            <div style={{...S.card,padding:"12px 14px",marginBottom:10,wordBreak:"break-all",fontSize:12,color:C.acc}}>{link}</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Válido até {new Date(conv.expira_em).toLocaleDateString("pt-BR")} · uso único</div>
+            <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
+              ℹ️ O envio sai do <b style={{color:C.text}}>seu</b> aparelho: os botões abaixo abrem o app escolhido com a mensagem pronta — é só confirmar o envio lá.
+            </div>
+            <button style={{...S.btn,marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank"); }}>💬 Enviar por WhatsApp</button>
+            <button style={{...S.btnOutline,marginBottom:10}} onClick={()=>{ track("convite_email_aberto"); window.location.href = mailto; }}>📨 Abrir no e-mail ({aluno.email})</button>
+            {typeof navigator !== "undefined" && navigator.share && (
+              <button style={{...S.btnOutline,marginBottom:10}} onClick={async()=>{ track("convite_share"); try { await navigator.share({ title: "Acesso ao A-Body", text: textoConvite }); } catch {} }}>📤 Compartilhar…</button>
+            )}
+            <button style={{...S.btnOutline,marginBottom:10}} onClick={copiar}>{copiado ? "✓ Mensagem copiada!" : "📋 Copiar mensagem"}</button>
           </>
         )}
         <button style={{...S.btnOutline,fontSize:13}} onClick={onClose}>Fechar</button>
