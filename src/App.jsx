@@ -452,6 +452,90 @@ async function deleteFotosCorporais(paths) {
   return r.ok;
 }
 
+// ─── B2B BLOCO 2: PERFIL PROFISSIONAL E IDENTIDADE ───────────────────────────
+async function uidAtual() {
+  const s = await refreshIfNeeded();
+  if (!s) return null;
+  if (s.user?.id) return s.user.id;
+  const u = await authGetUser();
+  return u?.id || null;
+}
+async function proFetch(pathQ, opts = {}) {
+  const s = await refreshIfNeeded();
+  if (!s?.access_token) return null;
+  const r = await fetch(`${SUPA_URL}${pathQ}`, {
+    ...opts,
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json", ...(opts.headers || {}) },
+  });
+  if (!r.ok) return null;
+  if (r.status === 204) return true;
+  return r.json().catch(() => null);
+}
+async function fetchMeuPerfilPro() {
+  const uid = await uidAtual(); if (!uid) return null;
+  const rows = await proFetch(`/rest/v1/profissionais?user_id=eq.${uid}&select=user_id,nome,foto_url`);
+  return rows?.[0] || null;
+}
+// RLS prof_visto_por_alunos: um aluno enxerga só a linha do próprio personal
+async function fetchMeuPersonal() {
+  const uid = await uidAtual(); if (!uid) return null;
+  const rows = await proFetch(`/rest/v1/profissionais?user_id=neq.${uid}&select=nome,foto_url`);
+  return rows?.[0] || null;
+}
+async function criarPerfilPro(nome) {
+  const uid = await uidAtual(); if (!uid) return null;
+  await proFetch(`/rest/v1/profissionais`, { method: "POST", headers: { Prefer: "resolution=merge-duplicates" }, body: JSON.stringify({ user_id: uid, nome }) });
+  return fetchMeuPerfilPro();
+}
+async function atualizarPerfilPro(campos) {
+  const uid = await uidAtual(); if (!uid) return null;
+  await proFetch(`/rest/v1/profissionais?user_id=eq.${uid}`, { method: "PATCH", body: JSON.stringify(campos) });
+  return fetchMeuPerfilPro();
+}
+// cria o perfil pendente (signup c/ confirmação de e-mail ou OAuth) e devolve o perfil, se houver
+async function resolvePerfilPro() {
+  const pendente = localStorage.getItem("abody:pendingpro");
+  if (pendente) {
+    const p = await criarPerfilPro(pendente);
+    if (p) { localStorage.removeItem("abody:pendingpro"); track("pro_cadastrado"); return p; }
+  }
+  return fetchMeuPerfilPro();
+}
+function comprimirImagem(file, max = 512) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const esc = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * esc), h = Math.round(img.height * esc);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob(b => b ? resolve(b) : reject(new Error("Falha ao comprimir imagem")), "image/jpeg", 0.82);
+      };
+      img.onerror = () => reject(new Error("Imagem inválida"));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error("Falha ao ler o arquivo"));
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadFotoPerfil(file) {
+  const s = await refreshIfNeeded();
+  const uid = await uidAtual();
+  if (!s?.access_token || !uid) return null;
+  const blob = await comprimirImagem(file, 512);
+  const path = `${uid}/avatar_${Date.now()}.jpg`;
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/perfis/${path}`, {
+    method: "POST",
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "image/jpeg", "x-upsert": "true" },
+    body: blob,
+  });
+  if (!r.ok) return null;
+  return `${SUPA_URL}/storage/v1/object/public/perfis/${path}`;
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (e) => track("js_error", { msg: String(e.message).slice(0,200) }));
   window.addEventListener("unhandledrejection", (e) => track("js_error", { msg: String(e.reason?.message || e.reason).slice(0,200) }));
@@ -611,13 +695,20 @@ export default function App() {
   const seriesRef=useRef(null), isoRef=useRef(null), restRef=useRef(null);
 
   const [user, setUser] = useState(null);
+  const [pro, setPro] = useState(null);           // perfil do profissional logado
+  const [personal, setPersonal] = useState(null); // personal vinculado ao aluno logado
 
   useEffect(()=>{
     (async () => {
       if (AUTH_ENABLED) {
         handleOAuthCallback(); // captura tokens do Google se vier de redirect
         const u = await authGetUser();
-        if (u) setUser(u);
+        if (u) {
+          setUser(u);
+          const perfilPro = await resolvePerfilPro();
+          if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
+          fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
+        }
         else if (!localStorage.getItem("abody:skipauth")) { setScreen("auth"); return; }
       }
       track("app_aberto"); const [p, h, bh] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history"), loadStorage("abody:bodyhistory")]);
@@ -630,6 +721,9 @@ export default function App() {
   const afterAuth = async () => {
     const u = await authGetUser();
     setUser(u);
+    const perfilPro = await resolvePerfilPro();
+    if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
+    fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
     const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
     if (h) setHistory(h);
     if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
@@ -644,6 +738,7 @@ export default function App() {
 
   const doLogout = () => {
     authSignOut();
+    setPro(null); setPersonal(null);
     localStorage.removeItem("abody:skipauth");
     setUser(null);
     setScreen("auth");
@@ -864,6 +959,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   return (
     <div style={S.page}><style>{CSS}</style>
       {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
+      {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onLogout={doLogout}/>}
+      {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
       {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{ if(AUTH_ENABLED && !getSession()){ localStorage.removeItem("abody:skipauth"); setScreen("auth"); return; } track("ia_flow_iniciado"); setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
       {screen==="anamnesis"    && <AnamnesisScreen step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError}/>}
@@ -879,7 +976,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} hasBody={bodyHistory.length>0}/>}
+      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
@@ -911,6 +1008,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
 function AuthScreen({ onDone, onSkip }) {
   const [mode, setMode]   = useState("login"); // login | signup
+  const [tipo, setTipo]   = useState("aluno"); // aluno | pro
+  const [nome, setNome]   = useState("");
   const [email, setEmail] = useState("");
   const [pass,  setPass]  = useState("");
   const [busy,  setBusy]  = useState(false);
@@ -921,7 +1020,9 @@ function AuthScreen({ onDone, onSkip }) {
     setErr(null); setInfo(null); setBusy(true);
     try {
       if (mode === "signup") {
+        if (tipo === "pro" && nome.trim().length < 2) { setErr("Informe seu nome profissional."); setBusy(false); return; }
         const d = await authSignUp(email.trim(), pass);
+        if (tipo === "pro") localStorage.setItem("abody:pendingpro", nome.trim());
         if (d.access_token) { onDone(); }
         else setInfo("Conta criada! Verifique seu e-mail para confirmar e depois faça login.");
       } else {
@@ -942,7 +1043,7 @@ function AuthScreen({ onDone, onSkip }) {
       <h1 style={{...S.h1,fontSize:24}}>{mode==="login" ? "Entrar" : "Criar conta"}</h1>
       <p style={S.sub}>Seus treinos ficam salvos na nuvem e acessíveis de qualquer aparelho.</p>
 
-      <button style={{...S.card, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:10, marginBottom:16, fontWeight:600, fontSize:14, color:C.text}} onClick={authSignInGoogle}>
+      <button style={{...S.card, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:10, marginBottom:16, fontWeight:600, fontSize:14, color:C.text}} onClick={()=>{ if(mode==="signup" && tipo==="pro" && nome.trim().length>=2) localStorage.setItem("abody:pendingpro", nome.trim()); authSignInGoogle(); }}>
         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.4-11.3-8H6.1l-6.5 5C6.9 39.6 14.8 44 24 44z" transform="translate(6.5,0) scale(0.87)"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41.4 35.3 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
         Continuar com Google
       </button>
@@ -953,6 +1054,28 @@ function AuthScreen({ onDone, onSkip }) {
         <div style={{flex:1,height:1,background:C.border}}/>
       </div>
 
+      {mode==="signup" && (
+        <>
+          <label style={S.fieldLabel}>EU SOU</label>
+          <div style={{display:"flex",gap:8,marginBottom:12}}>
+            {[["aluno","🏋️ Aluno"],["pro","📋 Personal Trainer"]].map(([k,rotulo])=>(
+              <button key={k} onClick={()=>setTipo(k)}
+                style={{...S.card,flex:1,alignItems:"center",padding:"12px 8px",fontSize:13,fontWeight:700,
+                  color: tipo===k ? C.acc : C.muted,
+                  border: `1px solid ${tipo===k ? C.acc : C.border}`}}>
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          {tipo==="pro" && (
+            <>
+              <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
+              <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem" autoComplete="name"/>
+              <p style={{fontSize:11,color:C.muted,margin:"6px 2px 10px"}}>Seus alunos verão este nome e sua foto dentro do A-Body.</p>
+            </>
+          )}
+        </>
+      )}
       <label style={S.fieldLabel}>E-MAIL</label>
       <input style={S.field} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
       <label style={S.fieldLabel}>SENHA</label>
@@ -961,7 +1084,7 @@ function AuthScreen({ onDone, onSkip }) {
       {err  && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
       {info && <div style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
 
-      <button style={{...S.btn,marginTop:18,opacity:(email&&pass.length>=6&&!busy)?1:0.4}} disabled={!email||pass.length<6||busy} onClick={submit}>
+      <button style={{...S.btn,marginTop:18,opacity:(email&&pass.length>=6&&!busy)?1:0.4}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
         {busy ? "Aguarde…" : (mode==="login" ? "Entrar" : "Criar conta")}
       </button>
 
@@ -972,6 +1095,107 @@ function AuthScreen({ onDone, onSkip }) {
 
       <button style={{...S.btnOutline,marginTop:20,fontSize:13}} onClick={onSkip}>
         Continuar sem conta (dados só neste aparelho)
+      </button>
+    </div>
+  );
+}
+
+// ─── B2B: SHELL DO PROFISSIONAL ──────────────────────────────────────────────
+
+function AvatarFoto({ url, nome, size = 44 }) {
+  const inicial = (nome || "?").trim().charAt(0).toUpperCase();
+  if (url) return <img src={url} alt={nome} style={{width:size,height:size,borderRadius:"50%",objectFit:"cover",border:`2px solid ${C.acc}`}}/>;
+  return (
+    <div style={{width:size,height:size,borderRadius:"50%",background:C.card,border:`2px solid ${C.acc}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:size*0.42,fontWeight:800,color:C.acc}}>
+      {inicial}
+    </div>
+  );
+}
+
+function ProHomeScreen({ pro, onPerfil, onLogout }) {
+  return (
+    <div style={S.box}>
+      <div style={{...S.brandRow,justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
+        <span style={{fontSize:10,fontWeight:800,color:C.acc,letterSpacing:"0.12em",border:`1px solid ${C.acc}`,borderRadius:8,padding:"4px 8px"}}>PRO</span>
+      </div>
+
+      <button style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:20}} onClick={onPerfil}>
+        <AvatarFoto url={pro.foto_url} nome={pro.nome} size={52}/>
+        <div style={{flex:1,textAlign:"left"}}>
+          <div style={{fontSize:16,fontWeight:800,color:C.text}}>{pro.nome}</div>
+          <div style={{fontSize:12,color:C.muted,marginTop:2}}>Personal Trainer · editar perfil</div>
+        </div>
+        <span style={{color:C.acc,fontSize:18}}>→</span>
+      </button>
+
+      <h1 style={{...S.h1,fontSize:22}}>Seu espaço profissional</h1>
+      <p style={S.sub}>Gerencie agenda, alunos e treinos em um só lugar.</p>
+
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
+        <div style={{...S.dayCard,opacity:0.55,cursor:"default"}}>
+          <div><div style={{fontSize:16,fontWeight:700}}>📆 Agenda semanal</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>horários, alunos e locais das aulas — em breve</div></div>
+        </div>
+        <div style={{...S.dayCard,opacity:0.55,cursor:"default"}}>
+          <div><div style={{fontSize:16,fontWeight:700}}>👥 Meus alunos</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>cadastro, convites e montagem de treinos — em breve</div></div>
+        </div>
+      </div>
+
+      <button style={{...S.btnOutline,fontSize:13,padding:"12px"}} onClick={onLogout}>Sair da conta</button>
+    </div>
+  );
+}
+
+function ProPerfilScreen({ pro, onSaved, onBack }) {
+  const [nome, setNome]   = useState(pro.nome || "");
+  const [foto, setFoto]   = useState(pro.foto_url || null);
+  const [busy, setBusy]   = useState(false);
+  const [err,  setErr]    = useState(null);
+  const fileRef = useRef(null);
+
+  const escolherFoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErr(null); setBusy(true);
+    try {
+      const url = await uploadFotoPerfil(file);
+      if (!url) throw new Error("Falha no upload da foto. Tente novamente.");
+      setFoto(url);
+    } catch(ex) { setErr(ex.message); }
+    setBusy(false);
+    e.target.value = "";
+  };
+
+  const salvar = async () => {
+    if (nome.trim().length < 2) { setErr("Informe um nome com pelo menos 2 caracteres."); return; }
+    setErr(null); setBusy(true);
+    const p = await atualizarPerfilPro({ nome: nome.trim(), foto_url: foto });
+    setBusy(false);
+    if (p) onSaved(p);
+    else setErr("Não foi possível salvar. Verifique sua conexão.");
+  };
+
+  return (
+    <div style={S.box}>
+      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:16,padding:0}} onClick={onBack}>← Voltar</button>
+      <h1 style={{...S.h1,fontSize:22}}>Perfil profissional</h1>
+      <p style={S.sub}>É assim que seus alunos verão você no app.</p>
+
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:20}}>
+        <AvatarFoto url={foto} nome={nome} size={92}/>
+        <button style={{...S.btnOutline,marginTop:12,fontSize:13,padding:"10px 18px",width:"auto"}} disabled={busy} onClick={()=>fileRef.current?.click()}>
+          {foto ? "Trocar foto" : "Adicionar foto"}
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
+      </div>
+
+      <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
+      <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem"/>
+
+      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+
+      <button style={{...S.btn,marginTop:18,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>
+        {busy ? "Aguarde…" : "Salvar perfil"}
       </button>
     </div>
   );
@@ -1537,7 +1761,7 @@ function SettingsModal({ onClose, user, onLogout }) {
   );
 }
 
-function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, hasBody }) {
+function HomeScreen({ plan, history, personal, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, hasBody }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
@@ -1548,6 +1772,15 @@ function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport,
         <div style={{display:"flex",alignItems:"center",gap:10}}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
         <button onClick={onSettings} style={{background:"none",border:"none",fontSize:20,cursor:"pointer"}}>⚙️</button>
       </div>
+      {personal && (
+        <div style={{display:"flex",alignItems:"center",gap:10,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 14px",marginBottom:16}}>
+          <AvatarFoto url={personal.foto_url} nome={personal.nome} size={38}/>
+          <div>
+            <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>SEU PERSONAL</div>
+            <div style={{fontSize:14,fontWeight:700,color:C.text}}>{personal.nome}</div>
+          </div>
+        </div>
+      )}
       <div style={S.eyebrow}>{plan.planName}</div>
       <h1 style={S.h1}>Olá, {plan.userName}!</h1>
       <p style={S.sub}>Escolha o treino do dia.</p>
