@@ -61,6 +61,31 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: { message: "Requisição não reconhecida" } });
   }
 
+  // 3b) Validação de blocos: só texto, imagem (jpeg/png/webp) e PDF, com limites de tamanho
+  const MIMES_IMG = ["image/jpeg", "image/png", "image/webp"];
+  const MAX_B64_BLOCO = 5_000_000;   // ~3,7 MB binário por bloco
+  const MAX_BLOCOS_BIN = 5;          // fotos + documentos por requisição
+  let blocosBin = 0;
+  for (const m of body.messages) {
+    if (typeof m.content === "string") continue;
+    if (!Array.isArray(m.content)) return res.status(400).json({ error: { message: "Payload inválido" } });
+    for (const c of m.content) {
+      if (c.type === "text") continue;
+      if (c.type === "image") {
+        if (c.source?.type !== "base64" || !MIMES_IMG.includes(c.source?.media_type) || typeof c.source?.data !== "string" || c.source.data.length > MAX_B64_BLOCO)
+          return res.status(400).json({ error: { message: "Imagem inválida ou acima do limite" } });
+        blocosBin++;
+      } else if (c.type === "document") {
+        if (c.source?.type !== "base64" || c.source?.media_type !== "application/pdf" || typeof c.source?.data !== "string" || c.source.data.length > MAX_B64_BLOCO)
+          return res.status(400).json({ error: { message: "Documento inválido: apenas PDF até o limite de tamanho" } });
+        blocosBin++;
+      } else {
+        return res.status(400).json({ error: { message: "Tipo de bloco não permitido" } });
+      }
+      if (blocosBin > MAX_BLOCOS_BIN) return res.status(400).json({ error: { message: "Excesso de anexos na requisição" } });
+    }
+  }
+
   // 4) Parâmetros forçados no servidor (cliente não controla modelo/custos)
   const safeBody = {
     model: "claude-sonnet-4-6",
