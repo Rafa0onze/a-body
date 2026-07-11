@@ -161,6 +161,34 @@ const DURATION_OPTIONS = ["45 min","1 hora","1h30","2 horas"];
 const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
+
+const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#9ec4b1",fig:"#bff0d4"};
+const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
+const S={
+  page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
+  box:{width:"100%",maxWidth:480,color:C.text},
+  brandRow:{display:"flex",alignItems:"center",gap:10,marginBottom:22},
+  logo:{width:30,height:30,borderRadius:8,background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15},
+  brand:{fontSize:15,fontWeight:800,letterSpacing:"0.05em"},
+  eyebrow:{fontSize:11,letterSpacing:"0.15em",color:C.acc,fontWeight:700,marginBottom:8},
+  h1:{fontSize:26,fontWeight:800,margin:"0 0 6px 0",letterSpacing:"-0.01em"},
+  sub:{fontSize:13,color:C.muted,margin:"0 0 16px 0",lineHeight:1.5},
+  topRow:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14},
+  back:{background:"none",border:"none",color:C.muted,fontSize:13,padding:0},
+  sectionLabel:{fontSize:11,color:C.muted,letterSpacing:"0.1em",marginBottom:8,display:"block"},
+  fieldLabel:{fontSize:11,color:C.muted,letterSpacing:"0.08em",display:"block",marginBottom:6,marginTop:14},
+  field:{width:"100%",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 14px",color:C.text,fontSize:15,outline:"none"},
+  card:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",color:C.text},
+  dayCard:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",color:C.text,textAlign:"left"},
+  figCard:{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"8px 4px 6px",textAlign:"center"},
+  figLbl:{fontSize:10,color:C.muted,marginTop:2},
+  seriesTimer:{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:2},
+  input:{width:"100%",fontSize:30,fontWeight:700,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",color:C.text,marginTop:8,marginBottom:16,outline:"none"},
+  btn:{width:"100%",background:C.acc,border:"none",borderRadius:14,padding:"16px",fontSize:15,fontWeight:700,color:"#06140e"},
+  btnOutline:{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:14,padding:"14px",fontSize:14,color:C.muted},
+  modalOverlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100},
+  modal:{background:"#0f2419",borderRadius:"20px 20px 0 0",padding:"24px 20px 36px",width:"100%",maxWidth:480},
+};
 async function loadStorage(key) {
   // Nuvem primeiro (se logado), fallback local
   if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
@@ -3651,30 +3679,3 @@ function LibraryScreen({ onBack }) {
   );
 }
 
-const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#9ec4b1",fig:"#bff0d4"};
-const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
-const S={
-  page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
-  box:{width:"100%",maxWidth:480,color:C.text},
-  brandRow:{display:"flex",alignItems:"center",gap:10,marginBottom:22},
-  logo:{width:30,height:30,borderRadius:8,background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15},
-  brand:{fontSize:15,fontWeight:800,letterSpacing:"0.05em"},
-  eyebrow:{fontSize:11,letterSpacing:"0.15em",color:C.acc,fontWeight:700,marginBottom:8},
-  h1:{fontSize:26,fontWeight:800,margin:"0 0 6px 0",letterSpacing:"-0.01em"},
-  sub:{fontSize:13,color:C.muted,margin:"0 0 16px 0",lineHeight:1.5},
-  topRow:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14},
-  back:{background:"none",border:"none",color:C.muted,fontSize:13,padding:0},
-  sectionLabel:{fontSize:11,color:C.muted,letterSpacing:"0.1em",marginBottom:8,display:"block"},
-  fieldLabel:{fontSize:11,color:C.muted,letterSpacing:"0.08em",display:"block",marginBottom:6,marginTop:14},
-  field:{width:"100%",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 14px",color:C.text,fontSize:15,outline:"none"},
-  card:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",color:C.text},
-  dayCard:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",color:C.text,textAlign:"left"},
-  figCard:{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"8px 4px 6px",textAlign:"center"},
-  figLbl:{fontSize:10,color:C.muted,marginTop:2},
-  seriesTimer:{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:2},
-  input:{width:"100%",fontSize:30,fontWeight:700,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",color:C.text,marginTop:8,marginBottom:16,outline:"none"},
-  btn:{width:"100%",background:C.acc,border:"none",borderRadius:14,padding:"16px",fontSize:15,fontWeight:700,color:"#06140e"},
-  btnOutline:{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:14,padding:"14px",fontSize:14,color:C.muted},
-  modalOverlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100},
-  modal:{background:"#0f2419",borderRadius:"20px 20px 0 0",padding:"24px 20px 36px",width:"100%",maxWidth:480},
-};
