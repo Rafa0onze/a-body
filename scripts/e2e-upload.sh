@@ -32,8 +32,12 @@ U=$(curl -s -X POST "$SUPA/auth/v1/admin/users" -H "Authorization: Bearer $SERVI
 GRANT=$(curl -s -X POST "$SUPA/auth/v1/token?grant_type=password" -H "apikey: $ANON" -H "Content-Type: application/json" \
   -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
 TOK=$(echo "$GRANT" | jq -r '.access_token // empty')
-UID=$(echo "$GRANT" | jq -r '.user.id // empty')
-log "usuário (via grant): $UID"
+log "grant raw (300c): $(echo "$GRANT" | head -c 300)"
+# uid à prova de formato: claim sub do próprio JWT
+PAY=$(echo "$TOK" | cut -d. -f2 | tr '_-' '/+' )
+PAD=$(( (4 - ${#PAY} % 4) % 4 )); PAY="$PAY$(printf '=%.0s' $(seq 1 $PAD) 2>/dev/null)"
+UID=$(echo "$PAY" | base64 -d 2>/dev/null | jq -r '.sub // empty')
+log "usuário (sub do JWT): $UID"
 printf '\xff\xd8\xff\xdb\x00\x43\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\x09\x09\x08\x0a\x0c\x14\x0d\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c\x20\x24\x2e\x27\x20\x22\x2c\x23\x1c\x1c\x28\x37\x29\x2c\x30\x31\x34\x34\x34\x1f\x27\x39\x3d\x38\x32\x3c\x2e\x33\x34\x32\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00\xfb\xfe\x8a\xff\xd9' > /tmp/px.jpg
 for B in perfis fotos-corporais documentos-saude; do
   R=$(curl -s -w " | HTTP %{http_code}" -X POST "$SUPA/storage/v1/object/$B/$UID/diag.jpg" \
