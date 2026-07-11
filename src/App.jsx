@@ -889,7 +889,13 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>resto); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
-      {screen==="calendar"     && <CalendarScreen history={history} onBack={goHome}/>}
+      {screen==="calendar"     && <CalendarScreen history={history} onBack={goHome} onUpdateHistory={async(dia,grupos)=>{
+        const iso = dia.toISOString();
+        const sd = (a,b)=>{a=new Date(a);b=new Date(b);return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();};
+        let novo = history.filter(s => !(s.manual && sd(s.date, dia)));
+        if (grupos && grupos.length) novo = [...novo, { dayId:"manual", dayLabel:grupos.join(" + "), date: iso, manual:true, grupos, completed:[] }];
+        setHistory(novo); await saveStorage("abody:history", novo);
+      }}/>}
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
       {screen==="report"       && report && <ReportScreen report={report} onHome={goHome}/>}
@@ -1889,7 +1895,11 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
 
 // ─── CALENDAR / CHECK-IN ─────────────────────────────────────────────────────
 
-function CalendarScreen({ history, onBack }) {
+const GRUPOS_MANUAL = ["Peito","Costas","Ombros","Bíceps","Tríceps","Pernas","Glúteos","Panturrilhas","Abdômen","Cardio","Corpo inteiro"];
+
+function CalendarScreen({ history, onBack, onUpdateHistory }) {
+  const [editDia, setEditDia] = useState(null);      // Date sendo editada
+  const [gruposSel, setGruposSel] = useState([]);
   // Semana começando no domingo
   const startOfWeek = (d) => { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - x.getDay()); return x; };
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
@@ -1944,11 +1954,12 @@ function CalendarScreen({ history, onBack }) {
           const trained = done.length > 0;
           const isToday = sameDay(d, today);
           const isFuture = d > today;
+          const manual = done.find(s=>s.manual);
           return (
-            <div key={i} style={{
+            <div key={i} onClick={()=>{ if(isFuture) return; setGruposSel(manual ? (manual.grupos||[]) : []); setEditDia(d); }} style={{
               ...S.card, flexDirection:"row", alignItems:"center", gap:14, padding:"12px 16px",
               border: isToday ? `1.5px solid ${C.acc}` : `1px solid ${C.border}`,
-              opacity: isFuture ? 0.4 : 1,
+              opacity: isFuture ? 0.4 : 1, cursor: isFuture ? "default" : "pointer",
             }}>
               <div style={{width:44,textAlign:"center",flexShrink:0}}>
                 <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:"0.05em"}}>{DOW[i].toUpperCase()}</div>
@@ -1958,12 +1969,12 @@ function CalendarScreen({ history, onBack }) {
                 {trained ? (
                   done.map((s,j)=>(
                     <div key={j} style={{display:"flex",alignItems:"center",gap:8,marginBottom:j<done.length-1?4:0}}>
-                      <div style={{width:20,height:20,borderRadius:"50%",background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>✓</div>
-                      <span style={{fontSize:14,fontWeight:700,color:C.text}}>{s.dayLabel || "Treino"}</span>
+                      <div style={{width:20,height:20,borderRadius:"50%",background:s.manual?"#f0a848":C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{s.manual?"✎":"✓"}</div>
+                      <span style={{fontSize:14,fontWeight:700,color:s.manual?"#f0a848":C.text}}>{s.dayLabel || "Treino"}{s.manual?" · manual":""}</span>
                     </div>
                   ))
                 ) : (
-                  <span style={{fontSize:13,color:C.muted}}>{isFuture ? "—" : "Sem treino"}</span>
+                  <span style={{fontSize:13,color:C.muted}}>{isFuture ? "—" : "Sem treino · toque para registrar"}</span>
                 )}
               </div>
             </div>
@@ -1971,10 +1982,50 @@ function CalendarScreen({ history, onBack }) {
         })}
       </div>
 
-      <div style={{...S.card,flexDirection:"row",gap:12,alignItems:"center"}}>
-        <div style={{width:18,height:18,borderRadius:"50%",background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800}}>✓</div>
-        <span style={{fontSize:12,color:C.muted}}>Check-in automático ao finalizar o treino, com o nome do treino executado</span>
+      <div style={{...S.card,gap:8}}>
+        <div style={{display:"flex",gap:12,alignItems:"center"}}>
+          <div style={{width:18,height:18,borderRadius:"50%",background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✓</div>
+          <span style={{fontSize:12,color:C.muted}}>Check-in automático ao finalizar o treino no app</span>
+        </div>
+        <div style={{display:"flex",gap:12,alignItems:"center"}}>
+          <div style={{width:18,height:18,borderRadius:"50%",background:"#f0a848",color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✎</div>
+          <span style={{fontSize:12,color:C.muted}}>Registro manual — toque em qualquer dia passado para adicionar ou corrigir</span>
+        </div>
       </div>
+
+      {editDia && (
+        <div style={S.modalOverlay} onClick={()=>setEditDia(null)}>
+          <div style={{...S.modal,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={S.eyebrow}>REGISTRO MANUAL</div>
+              <button style={{background:"none",border:"none",color:C.muted,fontSize:18}} onClick={()=>setEditDia(null)}>✕</button>
+            </div>
+            <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{editDia.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})}</div>
+            <p style={{fontSize:12,color:C.muted,margin:"0 0 12px"}}>Selecione o(s) grupo(s) muscular(es) que você treinou nesse dia:</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
+              {GRUPOS_MANUAL.map(g=>{
+                const sel = gruposSel.includes(g);
+                return (
+                  <button key={g} onClick={()=>setGruposSel(sel ? gruposSel.filter(x=>x!==g) : [...gruposSel,g])}
+                    style={{padding:"8px 14px",borderRadius:20,fontSize:13,fontWeight:700,cursor:"pointer",
+                      border:`1.5px solid ${sel?"#f0a848":C.border}`,
+                      background:sel?"#f0a848":"transparent",color:sel?"#06140e":C.muted}}>{g}</button>
+                );
+              })}
+            </div>
+            <button style={{...S.btn,opacity:gruposSel.length?1:0.4}} disabled={!gruposSel.length}
+              onClick={()=>{ onUpdateHistory(editDia, gruposSel); track("registro_manual",{grupos:gruposSel}); setEditDia(null); }}>
+              Salvar registro
+            </button>
+            {workoutsOn(editDia).some(s=>s.manual) && (
+              <button style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,color:"#ff8a8a",fontSize:12,fontWeight:600,padding:"9px 12px",width:"100%",cursor:"pointer",marginTop:8}}
+                onClick={()=>{ onUpdateHistory(editDia, null); setEditDia(null); }}>
+                Remover registro manual deste dia
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
