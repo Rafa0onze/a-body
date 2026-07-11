@@ -821,7 +821,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido"),setScreen("postcardio"); };
 
-  const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
+  const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId && !s.manual); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
 
 
   // Reavaliação corporal comparativa (habilitada 30 dias após a última)
@@ -893,7 +893,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         const iso = dia.toISOString();
         const sd = (a,b)=>{a=new Date(a);b=new Date(b);return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();};
         let novo = history.filter(s => !(s.manual && sd(s.date, dia)));
-        if (registro?.day) novo = [...novo, { dayId:registro.day.id, dayLabel:registro.day.label, date: iso, manual:true, completed:[] }];
+        if (registro?.day) novo = [...novo, { dayId:registro.day.id, dayLabel:`Treino ${registro.day.label}`, date: iso, manual:true, completed:[] }];
         else if (registro?.grupos?.length) novo = [...novo, { dayId:"manual", dayLabel:registro.grupos.join(" + "), date: iso, manual:true, grupos:registro.grupos, completed:[] }];
         setHistory(novo); await saveStorage("abody:history", novo);
       }}/>}
