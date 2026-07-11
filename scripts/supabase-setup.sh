@@ -21,10 +21,6 @@ ALTER TABLE public.profissionais ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS prof_proprio ON public.profissionais;
 CREATE POLICY prof_proprio ON public.profissionais FOR ALL TO authenticated
   USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
-DROP POLICY IF EXISTS prof_visto_por_alunos ON public.profissionais;
-CREATE POLICY prof_visto_por_alunos ON public.profissionais FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.alunos a WHERE a.personal_id = profissionais.user_id AND a.user_id = auth.uid()));
-
 -- ===== ALUNOS =====
 CREATE TABLE IF NOT EXISTS public.alunos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -43,6 +39,11 @@ CREATE POLICY alunos_do_personal ON public.alunos FOR ALL TO authenticated
   USING (personal_id = auth.uid()) WITH CHECK (personal_id = auth.uid());
 DROP POLICY IF EXISTS aluno_se_ve ON public.alunos;
 CREATE POLICY aluno_se_ve ON public.alunos FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS prof_visto_por_alunos ON public.profissionais;
+CREATE POLICY prof_visto_por_alunos ON public.profissionais FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.alunos a WHERE a.personal_id = profissionais.user_id AND a.user_id = auth.uid()));
+
 
 -- ===== CONVITES =====
 CREATE TABLE IF NOT EXISTS public.convites (
