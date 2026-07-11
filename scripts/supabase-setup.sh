@@ -9,7 +9,19 @@ REF=$(curl -s -H "$AUTH" "$API/projects" | jq -r '.[] | select(.name=="a-body") 
 SERVICE=$(curl -s -H "$AUTH" "$API/projects/$REF/api-keys" | jq -r '.[] | select(.name=="service_role") | .api_key')
 SUPA="https://$REF.supabase.co"
 
+echo "--- schema atual da tabela convites (se existir) ---"
+curl -s -X POST "$API/projects/$REF/database/query" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"query":"SELECT column_name FROM information_schema.columns WHERE table_schema = chr(112)||chr(117)||chr(98)||chr(108)||chr(105)||chr(99) AND table_name = chr(99)||chr(111)||chr(110)||chr(118)||chr(105)||chr(116)||chr(101)||chr(115);"}'
+echo ""
+
 SQL=$(cat << 'EOSQL'
+-- tabela convites legada (sem aluno_id) é de uma versão antiga: remover com segurança
+DO $mig$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='convites')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='convites' AND column_name='aluno_id')
+  THEN DROP TABLE public.convites CASCADE; END IF;
+END $mig$;
+
 -- ===== PROFISSIONAIS =====
 CREATE TABLE IF NOT EXISTS public.profissionais (
   user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
