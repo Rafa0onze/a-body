@@ -607,6 +607,55 @@ function sugerirSubs(ex) {
   return sug;
 }
 
+// ─── B2B BLOCO 5: CONVITE E APP DO ALUNO ─────────────────────────────────────
+function capturarConviteDaURL() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("convite");
+    if (t) {
+      localStorage.setItem("abody:convite", t);
+      localStorage.removeItem("abody:skipauth"); // convite exige conta
+      history.replaceState(null, "", window.location.pathname);
+    }
+  } catch {}
+}
+async function resgatarConvitePendente() {
+  const t = localStorage.getItem("abody:convite");
+  if (!t) return null;
+  const r = await proFetch(`/rest/v1/rpc/ativar_convite`, { method: "POST", body: JSON.stringify({ p_token: t }) });
+  if (r?.ok) { localStorage.removeItem("abody:convite"); track("convite_ativado"); return r; }
+  if (r && r.erro) { localStorage.removeItem("abody:convite"); } // inválido/expirado: não insistir
+  return null;
+}
+// vínculo do aluno logado: registro em alunos + treino ativo do personal
+async function fetchVinculoAluno() {
+  const uid = await uidAtual(); if (!uid) return null;
+  const rows = await proFetch(`/rest/v1/alunos?user_id=eq.${uid}&select=id,nome,personal_id,status&limit=1`);
+  const aluno = rows?.[0];
+  if (!aluno || aluno.status === "inativo") return null;
+  const ts = await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${aluno.id}&ativo=eq.true&select=id,plano&order=atualizado_em.desc&limit=1`);
+  return { aluno, treino: ts?.[0] || null };
+}
+async function criarOuObterConvite(alunoId) {
+  const agora = new Date().toISOString();
+  const atuais = await proFetch(`/rest/v1/convites?aluno_id=eq.${alunoId}&usado_em=is.null&expira_em=gt.${encodeURIComponent(agora)}&select=token,expira_em&order=expira_em.desc&limit=1`);
+  if (atuais?.[0]) return atuais[0];
+  const rows = await proFetch(`/rest/v1/convites`, { method: "POST", headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ aluno_id: alunoId }) });
+  return rows?.[0] || null;
+}
+async function enviarMensagem(alunoId, autor, texto, contexto) {
+  return proFetch(`/rest/v1/mensagens`, { method: "POST",
+    body: JSON.stringify({ aluno_id: alunoId, autor, texto: texto.slice(0, 2000), contexto: contexto || null }) });
+}
+async function fetchMensagens(alunoId) {
+  return (await proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&select=*&order=criado_em.asc&limit=200`)) || [];
+}
+async function marcarMensagensLidas(alunoId, autorLido) {
+  return proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&autor=eq.${autorLido}&lida=eq.false`, {
+    method: "PATCH", body: JSON.stringify({ lida: true }) });
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (e) => track("js_error", { msg: String(e.message).slice(0,200) }));
   window.addEventListener("unhandledrejection", (e) => track("js_error", { msg: String(e.reason?.message || e.reason).slice(0,200) }));
@@ -768,16 +817,22 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [pro, setPro] = useState(null);           // perfil do profissional logado
   const [personal, setPersonal] = useState(null); // personal vinculado ao aluno logado
+  const [vinculo, setVinculo] = useState(null);   // {aluno, treino} do aluno gerido por personal
 
   useEffect(()=>{
     (async () => {
+      let planoDoPersonal = null;
       if (AUTH_ENABLED) {
+        capturarConviteDaURL();
         handleOAuthCallback(); // captura tokens do Google se vier de redirect
         const u = await authGetUser();
         if (u) {
           setUser(u);
+          await resgatarConvitePendente();
           const perfilPro = await resolvePerfilPro();
           if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
+          const v = await fetchVinculoAluno();
+          if (v) { setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true }; }
           fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
         }
         else if (!localStorage.getItem("abody:skipauth")) { setScreen("auth"); return; }
@@ -785,19 +840,25 @@ export default function App() {
       track("app_aberto"); const [p, h, bh] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history"), loadStorage("abody:bodyhistory")]);
       if (h) setHistory(h);
       if (bh) setBodyHistory(bh);
-      if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+      if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
+      else if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
     })();
   },[]);
 
   const afterAuth = async () => {
     const u = await authGetUser();
     setUser(u);
+    await resgatarConvitePendente();
     const perfilPro = await resolvePerfilPro();
     if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
+    let planoDoPersonal = null;
+    const v = await fetchVinculoAluno();
+    if (v) { setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true }; }
     fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
     const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
     if (h) setHistory(h);
-    if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+    if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
+    else if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
   };
 
   const skipAuth = async () => {
@@ -809,7 +870,7 @@ export default function App() {
 
   const doLogout = () => {
     authSignOut();
-    setPro(null); setPersonal(null);
+    setPro(null); setPersonal(null); setVinculo(null);
     localStorage.removeItem("abody:skipauth");
     setUser(null);
     setScreen("auth");
@@ -1049,14 +1110,14 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} hasBody={bodyHistory.length>0}/>}
+      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
         <WorkoutScreen day={currentDay} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
-        {showSubs&&<SubModal exercise={current} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
+        {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
-      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed}/>}
+      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>resto); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
@@ -1069,7 +1130,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       }}/>}
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
-      {screen==="report"       && report && <ReportScreen report={report} onHome={goHome}/>}
+      {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo}/>}
     </div>
   );
 }
@@ -1519,6 +1580,8 @@ function ProAlunosScreen({ onBack }) {
   const [sel, setSel]       = useState(null);    // aluno selecionado
   const [treino, setTreino] = useState(null);    // {id, plano} ativo do selecionado
   const [novoAluno, setNovoAluno] = useState(false);
+  const [convite, setConvite]     = useState(false);
+  const [mensagens, setMensagens] = useState(false);
   const [planoBase, setPlanoBase] = useState(null); // plano em edição (novo, IA ou existente)
 
   const carregar = async () => setAlunos(await fetchAlunosPro());
@@ -1556,7 +1619,10 @@ function ProAlunosScreen({ onBack }) {
           </div>
           <span style={{fontSize:11,fontWeight:800,color:st.cor,border:`1px solid ${st.cor}`,borderRadius:8,padding:"4px 8px"}}>{st.rotulo.toUpperCase()}</span>
         </div>
-        <p style={{fontSize:11,color:C.muted,marginBottom:16}}>O convite por e-mail para o aluno acessar o app chega no próximo módulo.</p>
+        <div style={{display:"flex",gap:8,marginBottom:16}}>
+          <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"11px"}} onClick={()=>setConvite(true)}>📨 Convite de acesso</button>
+          <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"11px"}} onClick={()=>setMensagens(true)}>💬 Mensagens</button>
+        </div>
 
         <div style={S.eyebrow}>TREINO ATIVO</div>
         {treino === null && <p style={{color:C.muted,fontSize:13}}>Verificando…</p>}
@@ -1582,6 +1648,8 @@ function ProAlunosScreen({ onBack }) {
             ? <button style={{...S.btnOutline,fontSize:13,color:"#ff8080",borderColor:"#8b2a2a"}} onClick={async()=>{await atualizarAluno(sel.id,{status:"inativo"});setSel({...sel,status:"inativo"});}}>Desativar aluno</button>
             : <button style={{...S.btnOutline,fontSize:13}} onClick={async()=>{await atualizarAluno(sel.id,{status: sel.user_id ? "ativo" : "convidado"});setSel({...sel,status: sel.user_id ? "ativo" : "convidado"});}}>Reativar aluno</button>}
         </div>
+        {convite && <ConviteModal aluno={sel} onClose={()=>setConvite(false)}/>}
+        {mensagens && <MensagensModal aluno={sel} onClose={()=>setMensagens(false)}/>}
       </div>
     );
   }
@@ -1963,6 +2031,137 @@ REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de 
 
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
       <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={gerar}>{busy?"Gerando treino…":"✨ Gerar treino"}</button>
+    </div>
+  );
+}
+
+// ─── B2B: COMUNICAÇÃO ALUNO ↔ PERSONAL E CONVITE ─────────────────────────────
+
+function ObsPersonalBox({ vinculo, contexto, placeholder }) {
+  const [texto, setTexto] = useState("");
+  const [estado, setEstado] = useState("idle"); // idle | enviando | ok | erro
+  const enviar = async () => {
+    if (!texto.trim()) return;
+    setEstado("enviando");
+    const r = await enviarMensagem(vinculo.aluno.id, "aluno", texto.trim(), contexto);
+    if (r) { setEstado("ok"); setTexto(""); track("msg_aluno_enviada",{tipo:contexto?.tipo}); setTimeout(()=>setEstado("idle"), 3000); }
+    else setEstado("erro");
+  };
+  return (
+    <div style={{...S.card,padding:"12px 14px",marginBottom:14}}>
+      <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>💬 MENSAGEM PARA O PERSONAL</div>
+      <textarea style={{...S.field,margin:0,minHeight:54,fontSize:13}} maxLength={2000} value={texto} onChange={e=>setTexto(e.target.value)} placeholder={placeholder}/>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
+        <button style={{...S.btn,width:"auto",padding:"9px 16px",fontSize:12,opacity:(texto.trim()&&estado!=="enviando")?1:0.4}} disabled={!texto.trim()||estado==="enviando"} onClick={enviar}>
+          {estado==="enviando"?"Enviando…":"Enviar"}
+        </button>
+        {estado==="ok" && <span style={{fontSize:12,color:C.acc,fontWeight:700}}>✓ enviado ao personal</span>}
+        {estado==="erro" && <span style={{fontSize:12,color:"#ff8080"}}>falha ao enviar — tente de novo</span>}
+      </div>
+    </div>
+  );
+}
+
+function ConviteModal({ aluno, onClose }) {
+  const [conv, setConv] = useState(null);
+  const [copiado, setCopiado] = useState(false);
+  const [err, setErr] = useState(null);
+  useEffect(() => { (async () => {
+    const c = await criarOuObterConvite(aluno.id);
+    if (c) { setConv(c); track("convite_gerado"); } else setErr("Não foi possível gerar o convite.");
+  })(); }, []);
+
+  const link = conv ? `${window.location.origin}/?convite=${conv.token}` : "";
+  const copiar = async () => {
+    try { await navigator.clipboard.writeText(link); setCopiado(true); setTimeout(()=>setCopiado(false), 2500); }
+    catch { setErr("Copie manualmente o link abaixo."); }
+  };
+  const corpoEmail = encodeURIComponent(
+    `Olá, ${aluno.nome.split(" ")[0]}!\n\nSeu acesso ao A-Body está pronto. Crie seu login pelo link abaixo para ver seus treinos, registrar sua frequência e falar comigo pelo app:\n\n${link}\n\nO link expira em 7 dias.\n\nBons treinos!`
+  );
+  const mailto = `mailto:${encodeURIComponent(aluno.email)}?subject=${encodeURIComponent("Seu acesso ao A-Body")}&body=${corpoEmail}`;
+
+  return (
+    <div style={OVERLAY_B2B} onClick={onClose}>
+      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Convite de acesso</h2>
+        <p style={{fontSize:12,color:C.muted,margin:"0 0 14px"}}>O aluno abre o link, cria login e senha, e o vínculo com você é ativado automaticamente.</p>
+
+        {!conv && !err && <p style={{color:C.muted,fontSize:13}}>Gerando convite…</p>}
+        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080"}}>{err}</div>}
+
+        {conv && (
+          <>
+            <div style={{...S.card,padding:"12px 14px",marginBottom:12,wordBreak:"break-all",fontSize:12,color:C.acc}}>{link}</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Válido até {new Date(conv.expira_em).toLocaleDateString("pt-BR")} · uso único</div>
+            <button style={{...S.btn,marginBottom:10}} onClick={()=>{ track("convite_email_aberto"); window.location.href = mailto; }}>📨 Enviar por e-mail ({aluno.email})</button>
+            <button style={{...S.btnOutline,marginBottom:10}} onClick={copiar}>{copiado ? "✓ Link copiado!" : "📋 Copiar link (WhatsApp etc.)"}</button>
+          </>
+        )}
+        <button style={{...S.btnOutline,fontSize:13}} onClick={onClose}>Fechar</button>
+      </div>
+    </div>
+  );
+}
+
+function MensagensModal({ aluno, onClose }) {
+  const [msgs, setMsgs] = useState(null);
+  const [texto, setTexto] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fimRef = useRef(null);
+
+  const carregar = async () => {
+    const m = await fetchMensagens(aluno.id);
+    setMsgs(m);
+    marcarMensagensLidas(aluno.id, "aluno");
+    setTimeout(()=>fimRef.current?.scrollIntoView({behavior:"smooth"}), 100);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const enviar = async () => {
+    if (!texto.trim()) return;
+    setBusy(true);
+    const r = await enviarMensagem(aluno.id, "personal", texto.trim(), null);
+    setBusy(false);
+    if (r) { setTexto(""); await carregar(); }
+  };
+
+  const rotuloCtx = (c) => {
+    if (!c) return null;
+    if (c.tipo==="descanso") return `durante o descanso${c.exercicio?` · ${c.exercicio}`:""}`;
+    if (c.tipo==="fim_treino") return `ao final do treino${c.treino?` · ${c.treino}`:""}`;
+    return null;
+  };
+
+  return (
+    <div style={OVERLAY_B2B} onClick={onClose}>
+      <div style={{...SHEET_B2B,display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 12px"}}>💬 {aluno.nome}</h2>
+
+        <div style={{flex:1,overflowY:"auto",minHeight:180,maxHeight:"48vh",marginBottom:12}}>
+          {msgs === null && <p style={{color:C.muted,fontSize:13}}>Carregando…</p>}
+          {msgs && msgs.length === 0 && <p style={{color:C.muted,fontSize:13}}>Nenhuma mensagem ainda. O aluno pode escrever durante o descanso e ao final do treino.</p>}
+          {(msgs||[]).map(m => {
+            const minha = m.autor === "personal";
+            const ctx = rotuloCtx(m.contexto);
+            return (
+              <div key={m.id} style={{display:"flex",justifyContent: minha ? "flex-end" : "flex-start",marginBottom:8}}>
+                <div style={{maxWidth:"82%",background: minha ? "#123526" : C.card,border:`1px solid ${minha ? C.acc : C.border}`,borderRadius:14,padding:"9px 12px"}}>
+                  {ctx && <div style={{fontSize:9,color:"#d9a441",fontWeight:800,letterSpacing:"0.05em",marginBottom:3}}>{ctx.toUpperCase()}</div>}
+                  <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap"}}>{m.texto}</div>
+                  <div style={{fontSize:9,color:C.muted,marginTop:4,textAlign:"right"}}>{new Date(m.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={fimRef}/>
+        </div>
+
+        <div style={{display:"flex",gap:8}}>
+          <input style={{...S.field,margin:0,flex:1}} value={texto} maxLength={2000} onChange={e=>setTexto(e.target.value)} placeholder="responder ao aluno…" onKeyDown={e=>{if(e.key==="Enter")enviar();}}/>
+          <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13,opacity:(texto.trim()&&!busy)?1:0.4}} disabled={!texto.trim()||busy} onClick={enviar}>➤</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2527,7 +2726,7 @@ function SettingsModal({ onClose, user, onLogout }) {
   );
 }
 
-function HomeScreen({ plan, history, personal, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, hasBody }) {
+function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, hasBody }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
@@ -2577,7 +2776,9 @@ function HomeScreen({ plan, history, personal, onStart, onReset, onSettings, onB
           </button>
         );})}
       </div>
-      <button style={{...S.btnOutline,fontSize:13,padding:"12px"}} onClick={onReset}>↺ Refazer anamnese / novo plano</button>
+      {locked
+        ? <p style={{fontSize:11,color:C.muted,textAlign:"center"}}>🔒 Treino gerenciado pelo seu personal. Alterações e substituições só por ele — use o campo de mensagem no descanso ou ao final do treino.</p>
+        : <button style={{...S.btnOutline,fontSize:13,padding:"12px"}} onClick={onReset}>↺ Refazer anamnese / novo plano</button>}
     </div>
   );
 }
@@ -2677,14 +2878,17 @@ const SUBS_POR_POSE = (pose)=>({
     leg_raise:      [{name:"Abdominal no cabo",pose:"plank"}],
   }[pose]||[]);
 
-function SubModal({ exercise, onSelect, onClose }) {
-  const subs=SUBS_POR_POSE(exercise.pose||"press_chest").map(s=>({...s,id:`sub_${uid()}`,sets:exercise.sets,reps:exercise.reps,rest:exercise.rest,iso:false,isoSec:null}));
+function SubModal({ exercise, onSelect, onClose, locked }) {
+  const fonte = locked
+    ? (exercise.subs||[]).filter(sb=>sb.ativa&&sb.name&&sb.name.trim()).map(sb=>({name:sb.name.trim(),pose:exercise.pose}))
+    : SUBS_POR_POSE(exercise.pose||"press_chest");
+  const subs=fonte.map(s=>({...s,id:`sub_${uid()}`,sets:exercise.sets,reps:exercise.reps,rest:exercise.rest,iso:false,isoSec:null}));
   return (
     <div style={S.modalOverlay}>
       <div style={S.modal}>
         <div style={S.eyebrow}>SUBSTITUIR EXERCÍCIO</div>
         <p style={{...S.sub,marginBottom:16}}>Alternativas para <b style={{color:C.text}}>{exercise.name}</b>:</p>
-        {subs.length===0&&<p style={{...S.sub,color:C.muted}}>Nenhuma alternativa disponível.</p>}
+        {subs.length===0&&<p style={{...S.sub,color:C.muted}}>{locked?"O personal não liberou substituições para este exercício. Envie uma mensagem a ele no descanso ou ao final do treino.":"Nenhuma alternativa disponível."}</p>}
         {subs.map((s,i)=><button key={i} style={{...S.card,marginBottom:10,textAlign:"left"}} onClick={()=>onSelect(s)}><div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{s.name}</div><div style={{fontSize:12,color:C.muted}}>{s.sets} séries · {s.reps} reps</div></button>)}
         <button style={{...S.btnOutline,marginTop:6}} onClick={onClose}>Cancelar</button>
       </div>
@@ -2694,7 +2898,7 @@ function SubModal({ exercise, onSelect, onClose }) {
 
 // ─── REST ─────────────────────────────────────────────────────────────────────
 
-function RestScreen({ seconds, total, onSkip, queue, completed }) {
+function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual }) {
   const circ=2*Math.PI*52, off=circ*(1-seconds/(total||1));
   const allItems=[...completed.map(e=>({...e,status:"done"})),...queue.map((e,i)=>({...e,status:i===0?"current":e._skipped?"skipped":"pending"}))];
   return (
@@ -2709,6 +2913,7 @@ function RestScreen({ seconds, total, onSkip, queue, completed }) {
           <div style={{position:"absolute",textAlign:"center"}}><div style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(seconds)}</div><div style={{fontSize:10,color:C.muted}}>descanso</div></div>
         </div>
       </div>
+      {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"descanso",exercicio:exercicioAtual||null}} placeholder="observação para o personal (dúvida, dor, pedido de troca)…"/>}
       <div style={S.sectionLabel}>EXERCÍCIOS DO TREINO</div>
       <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
         {allItems.map((ex,i)=>{ const isDone=ex.status==="done",isCurrent=ex.status==="current",isSkipped=ex.status==="skipped"; return(
@@ -3063,11 +3268,12 @@ function PostCardioScreen({ day, onContinue }) {
   );
 }
 
-function ReportScreen({ report, onHome }) {
+function ReportScreen({ report, onHome, vinculo }) {
   return (
     <div style={S.box}>
       <div style={S.eyebrow}>RELATÓRIO</div>
       <h1 style={S.h1}>{report.dayLabel}</h1>
+      {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"fim_treino",treino:report.dayLabel||null}} placeholder="fale com seu personal: dúvidas, feedback, pedido de substituição…"/>}
       {!report.hasPrev&&<p style={S.sub}>Primeira sessão registrada. Comparação disponível no próximo treino.</p>}
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
         {report.rows.map((r,i)=>(
