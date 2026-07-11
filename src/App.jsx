@@ -536,6 +536,28 @@ async function uploadFotoPerfil(file) {
   return `${SUPA_URL}/storage/v1/object/public/perfis/${path}`;
 }
 
+// ─── B2B BLOCO 3: AGENDA SEMANAL ─────────────────────────────────────────────
+// Convenção dia_semana: 1=segunda … 7=domingo (semana do app começa na segunda)
+async function fetchAulas() {
+  return (await proFetch(`/rest/v1/aulas?select=*,alunos(nome)&order=hora.asc`)) || [];
+}
+async function fetchAlunosPro() {
+  return (await proFetch(`/rest/v1/alunos?select=id,nome,status&order=nome.asc`)) || [];
+}
+async function salvarAula(aula) {
+  const { id, alunos, ...campos } = aula;
+  if (id) return proFetch(`/rest/v1/aulas?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(campos) });
+  const uid = await uidAtual(); if (!uid) return null;
+  return proFetch(`/rest/v1/aulas`, { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ ...campos, personal_id: uid }) });
+}
+async function excluirAula(id) {
+  return proFetch(`/rest/v1/aulas?id=eq.${id}`, { method: "DELETE" });
+}
+async function fetchTreinoAtivoDoAluno(alunoId) {
+  const rows = await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&ativo=eq.true&select=plano&order=atualizado_em.desc&limit=1`);
+  return rows?.[0]?.plano || null;
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (e) => track("js_error", { msg: String(e.message).slice(0,200) }));
   window.addEventListener("unhandledrejection", (e) => track("js_error", { msg: String(e.reason?.message || e.reason).slice(0,200) }));
@@ -959,8 +981,9 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   return (
     <div style={S.page}><style>{CSS}</style>
       {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
-      {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onLogout={doLogout}/>}
+      {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onAgenda={()=>setScreen("proAgenda")} onLogout={doLogout}/>}
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
+      {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
       {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{ if(AUTH_ENABLED && !getSession()){ localStorage.removeItem("abody:skipauth"); setScreen("auth"); return; } track("ia_flow_iniciado"); setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
       {screen==="anamnesis"    && <AnamnesisScreen step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError}/>}
@@ -1112,7 +1135,7 @@ function AvatarFoto({ url, nome, size = 44 }) {
   );
 }
 
-function ProHomeScreen({ pro, onPerfil, onLogout }) {
+function ProHomeScreen({ pro, onPerfil, onAgenda, onLogout }) {
   return (
     <div style={S.box}>
       <div style={{...S.brandRow,justifyContent:"space-between"}}>
@@ -1133,9 +1156,10 @@ function ProHomeScreen({ pro, onPerfil, onLogout }) {
       <p style={S.sub}>Gerencie agenda, alunos e treinos em um só lugar.</p>
 
       <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
-        <div style={{...S.dayCard,opacity:0.55,cursor:"default"}}>
-          <div><div style={{fontSize:16,fontWeight:700}}>📆 Agenda semanal</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>horários, alunos e locais das aulas — em breve</div></div>
-        </div>
+        <button style={S.dayCard} onClick={onAgenda}>
+          <div><div style={{fontSize:16,fontWeight:700}}>📆 Agenda semanal</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>horários, alunos e locais das aulas</div></div>
+          <span style={{color:C.acc,fontSize:20}}>→</span>
+        </button>
         <div style={{...S.dayCard,opacity:0.55,cursor:"default"}}>
           <div><div style={{fontSize:16,fontWeight:700}}>👥 Meus alunos</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>cadastro, convites e montagem de treinos — em breve</div></div>
         </div>
@@ -1197,6 +1221,237 @@ function ProPerfilScreen({ pro, onSaved, onBack }) {
       <button style={{...S.btn,marginTop:18,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>
         {busy ? "Aguarde…" : "Salvar perfil"}
       </button>
+    </div>
+  );
+}
+
+// ─── B2B: AGENDA SEMANAL DO PERSONAL ─────────────────────────────────────────
+
+const DIAS_PT = ["Segunda","Terça","Quarta","Quinta","Sexta","Sábado","Domingo"];
+const isoData = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+const inicioSemana = (base) => { const d = new Date(base); d.setHours(0,0,0,0); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return d; };
+
+function ProAgendaScreen({ onBack }) {
+  const [semana, setSemana]   = useState(inicioSemana(new Date()));
+  const [aulas, setAulas]     = useState(null);
+  const [alunos, setAlunos]   = useState([]);
+  const [editando, setEditando] = useState(null); // objeto aula (novo ou existente)
+  const [treinoDe, setTreinoDe] = useState(null); // {aula} → modal do treino do dia
+
+  const carregar = async () => {
+    const [as, als] = await Promise.all([fetchAulas(), fetchAlunosPro()]);
+    setAulas(as); setAlunos(als);
+  };
+  useEffect(() => { carregar(); }, []);
+
+  const hoje = isoData(new Date());
+  const dias = Array.from({length:7}, (_,i) => { const d = new Date(semana); d.setDate(d.getDate()+i); return d; });
+
+  const aulasDoDia = (d, idx) => (aulas||[])
+    .filter(a => (a.dia_semana === idx+1 && !a.data) || a.data === isoData(d))
+    .sort((x,y) => x.hora.localeCompare(y.hora));
+
+  const novaAula = () => setEditando({ dia_semana: 1, data: null, hora: "07:00", duracao_min: 60, local: "", tipo: "presencial", aluno_id: null });
+
+  return (
+    <div style={S.box}>
+      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onBack}>← Voltar</button>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+        <h1 style={{...S.h1,fontSize:22,margin:0}}>Agenda semanal</h1>
+        <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13}} onClick={novaAula}>+ Aula</button>
+      </div>
+
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"12px 0 16px"}}>
+        <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:14}} onClick={()=>{const d=new Date(semana);d.setDate(d.getDate()-7);setSemana(d);}}>‹</button>
+        <span style={{fontSize:13,fontWeight:700,color:C.text}}>
+          {dias[0].toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})} – {dias[6].toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}
+        </span>
+        <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:14}} onClick={()=>{const d=new Date(semana);d.setDate(d.getDate()+7);setSemana(d);}}>›</button>
+      </div>
+
+      {aulas === null && <p style={{color:C.muted,fontSize:13}}>Carregando agenda…</p>}
+
+      {aulas !== null && dias.map((d, idx) => {
+        const doDia = aulasDoDia(d, idx);
+        const ehHoje = isoData(d) === hoje;
+        return (
+          <div key={idx} style={{marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:800,letterSpacing:"0.08em",color: ehHoje ? C.acc : C.muted, marginBottom:6}}>
+              {DIAS_PT[idx].toUpperCase()} · {d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}{ehHoje ? " · HOJE" : ""}
+            </div>
+            {doDia.length === 0 && <div style={{fontSize:12,color:C.muted,opacity:0.6,padding:"4px 2px"}}>— sem aulas</div>}
+            {doDia.map(a => (
+              <div key={a.id} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:8,padding:"12px 14px",
+                borderLeft:`3px solid ${a.tipo==="presencial" ? C.acc : "#d9a441"}`}}>
+                <div style={{minWidth:52,textAlign:"center"}}>
+                  <div style={{fontSize:15,fontWeight:800,color:C.text}}>{a.hora.slice(0,5)}</div>
+                  <div style={{fontSize:10,color:C.muted}}>{a.duracao_min} min</div>
+                </div>
+                <button style={{flex:1,background:"none",border:"none",textAlign:"left",padding:0,cursor:"pointer"}} onClick={()=>setTreinoDe({aula:a})}>
+                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>{a.alunos?.nome || "Sem aluno vinculado"}</div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+                    {a.tipo==="presencial" ? "🏋️ Presencial" : "🏃 Independente"}
+                    {a.local ? ` · 📍 ${a.local}` : ""}
+                    {a.data ? " · data única" : " · semanal"}
+                  </div>
+                </button>
+                <button style={{background:"none",border:"none",color:C.muted,fontSize:16,cursor:"pointer"}} onClick={()=>setEditando({...a})}>✎</button>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+
+      {editando && <AulaModal aula={editando} alunos={alunos} onClose={()=>setEditando(null)} onSaved={async()=>{setEditando(null);await carregar();}}/>}
+      {treinoDe && <TreinoDoDiaModal aula={treinoDe.aula} onClose={()=>setTreinoDe(null)}/>}
+    </div>
+  );
+}
+
+function AulaModal({ aula, alunos, onClose, onSaved }) {
+  const [form, setForm] = useState(aula);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr]   = useState(null);
+  const up = (k,v) => setForm(f => ({...f,[k]:v}));
+  const recorrente = !form.data;
+
+  const salvar = async () => {
+    if (!form.hora) { setErr("Informe o horário."); return; }
+    setErr(null); setBusy(true);
+    const payload = {...form, dia_semana: recorrente ? form.dia_semana : null, local: form.local?.trim() || null};
+    const r = await salvarAula(payload);
+    setBusy(false);
+    if (r) onSaved(); else setErr("Não foi possível salvar a aula.");
+  };
+  const remover = async () => {
+    if (!form.id) return;
+    setBusy(true);
+    const r = await excluirAula(form.id);
+    setBusy(false);
+    if (r) onSaved(); else setErr("Não foi possível excluir.");
+  };
+
+  const overlay = {position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:60};
+  const sheet = {background:C.bg,border:`1px solid ${C.border}`,borderRadius:"20px 20px 0 0",padding:"20px 18px 28px",width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto"};
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={sheet} onClick={e=>e.stopPropagation()}>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 14px"}}>{form.id ? "Editar aula" : "Nova aula"}</h2>
+
+        <label style={S.fieldLabel}>TIPO</label>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          {[["presencial","🏋️ Presencial"],["independente","🏃 Independente"]].map(([k,r])=>(
+            <button key={k} onClick={()=>up("tipo",k)} style={{...S.card,flex:1,alignItems:"center",padding:"10px 8px",fontSize:13,fontWeight:700,
+              color: form.tipo===k ? C.acc : C.muted, border:`1px solid ${form.tipo===k ? C.acc : C.border}`}}>{r}</button>
+          ))}
+        </div>
+
+        <label style={S.fieldLabel}>RECORRÊNCIA</label>
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <button onClick={()=>setForm(f=>({...f,data:null,dia_semana:f.dia_semana||1}))} style={{...S.card,flex:1,alignItems:"center",padding:"10px 8px",fontSize:13,fontWeight:700,
+            color: recorrente ? C.acc : C.muted, border:`1px solid ${recorrente ? C.acc : C.border}`}}>Toda semana</button>
+          <button onClick={()=>setForm(f=>({...f,data:f.data||isoData(new Date())}))} style={{...S.card,flex:1,alignItems:"center",padding:"10px 8px",fontSize:13,fontWeight:700,
+            color: !recorrente ? C.acc : C.muted, border:`1px solid ${!recorrente ? C.acc : C.border}`}}>Data única</button>
+        </div>
+
+        {recorrente ? (
+          <>
+            <label style={S.fieldLabel}>DIA DA SEMANA</label>
+            <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+              {DIAS_PT.map((d,i)=>(
+                <button key={i} onClick={()=>up("dia_semana",i+1)} style={{...S.card,padding:"8px 10px",fontSize:12,fontWeight:700,
+                  color: form.dia_semana===i+1 ? C.acc : C.muted, border:`1px solid ${form.dia_semana===i+1 ? C.acc : C.border}`}}>{d.slice(0,3)}</button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <label style={S.fieldLabel}>DATA</label>
+            <input style={S.field} type="date" value={form.data||""} onChange={e=>up("data",e.target.value)}/>
+          </>
+        )}
+
+        <div style={{display:"flex",gap:10}}>
+          <div style={{flex:1}}>
+            <label style={S.fieldLabel}>HORÁRIO</label>
+            <input style={S.field} type="time" value={(form.hora||"").slice(0,5)} onChange={e=>up("hora",e.target.value)}/>
+          </div>
+          <div style={{flex:1}}>
+            <label style={S.fieldLabel}>DURAÇÃO (MIN)</label>
+            <input style={S.field} type="number" min="15" max="240" step="5" value={form.duracao_min} onChange={e=>up("duracao_min",Math.max(15,Math.min(240,Number(e.target.value)||60)))}/>
+          </div>
+        </div>
+
+        <label style={S.fieldLabel}>LOCAL</label>
+        <input style={S.field} type="text" value={form.local||""} onChange={e=>up("local",e.target.value)} placeholder="academia, condomínio, parque…"/>
+
+        <label style={S.fieldLabel}>ALUNO</label>
+        <select style={{...S.field,appearance:"auto"}} value={form.aluno_id||""} onChange={e=>up("aluno_id",e.target.value||null)}>
+          <option value="">— sem aluno vinculado —</option>
+          {alunos.map(a=><option key={a.id} value={a.id}>{a.nome}</option>)}
+        </select>
+        {alunos.length===0 && <p style={{fontSize:11,color:C.muted,margin:"6px 2px 0"}}>O cadastro de alunos chega no próximo módulo — dá pra criar a aula e vincular depois.</p>}
+
+        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+
+        <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Salvar aula"}</button>
+        {form.id && <button style={{...S.btnOutline,marginTop:10,fontSize:13,color:"#ff8080",borderColor:"#8b2a2a"}} disabled={busy} onClick={remover}>Excluir aula</button>}
+      </div>
+    </div>
+  );
+}
+
+function TreinoDoDiaModal({ aula, onClose }) {
+  const [estado, setEstado] = useState("carregando"); // carregando | ok | vazio | semAluno
+  const [plano, setPlano]   = useState(null);
+  const [aberto, setAberto] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      if (!aula.aluno_id) { setEstado("semAluno"); return; }
+      const p = await fetchTreinoAtivoDoAluno(aula.aluno_id);
+      if (p) { setPlano(p); setEstado("ok"); } else setEstado("vazio");
+    })();
+  }, []);
+
+  const overlay = {position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:60};
+  const sheet = {background:C.bg,border:`1px solid ${C.border}`,borderRadius:"20px 20px 0 0",padding:"20px 18px 28px",width:"100%",maxWidth:480,maxHeight:"88vh",overflowY:"auto"};
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={sheet} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:11,color:C.muted,letterSpacing:"0.1em",fontWeight:700,marginBottom:4}}>
+          {aula.hora.slice(0,5)} · {aula.tipo==="presencial"?"PRESENCIAL":"INDEPENDENTE"}{aula.local?` · ${aula.local.toUpperCase()}`:""}
+        </div>
+        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 14px"}}>{aula.alunos?.nome || "Aula"}</h2>
+
+        {estado==="carregando" && <p style={{color:C.muted,fontSize:13}}>Buscando treino…</p>}
+        {estado==="semAluno" && <p style={{color:C.muted,fontSize:13}}>Esta aula ainda não tem aluno vinculado. Edite a aula (✎) para vincular.</p>}
+        {estado==="vazio" && <p style={{color:C.muted,fontSize:13}}>Este aluno ainda não tem treino ativo. A montagem de treinos chega no módulo de gestão de alunos.</p>}
+
+        {estado==="ok" && (plano.weekDays||[]).map((d,i)=>(
+          <div key={i} style={{...S.card,marginBottom:8,padding:"12px 14px"}}>
+            <button style={{background:"none",border:"none",width:"100%",textAlign:"left",padding:0,cursor:"pointer"}} onClick={()=>setAberto(aberto===i?-1:i)}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:800,color:C.text}}>Treino {d.label}</div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>{d.sub}</div>
+                </div>
+                <span style={{color:C.acc}}>{aberto===i?"▾":"▸"}</span>
+              </div>
+            </button>
+            {aberto===i && (d.exercises||[]).map((ex,j)=>(
+              <div key={j} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderTop:j===0?`1px solid ${C.border}`:"none",marginTop:j===0?10:0}}>
+                <span style={{fontSize:13,color:C.text}}>{ex.name}</span>
+                <span style={{fontSize:12,color:C.muted,whiteSpace:"nowrap",marginLeft:10}}>{ex.sets}× {ex.reps}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        <button style={{...S.btnOutline,marginTop:14,fontSize:13}} onClick={onClose}>Fechar</button>
+      </div>
     </div>
   );
 }
