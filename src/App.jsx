@@ -1540,7 +1540,7 @@ function SettingsModal({ onClose, user, onLogout }) {
 function HomeScreen({ plan, history, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, hasBody }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
-  const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-ws.getDay());
+  const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
   const weekCount = history.filter(s=>new Date(s.date)>=ws).length;
   return (
     <div style={S.box}>
@@ -1902,7 +1902,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
   const [editDia, setEditDia] = useState(null);      // Date sendo editada
   const [gruposSel, setGruposSel] = useState([]);
   // Semana começando no domingo
-  const startOfWeek = (d) => { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - x.getDay()); return x; };
+  const startOfWeek = (d) => { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; };
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
 
   const days = Array.from({length:7}, (_,i) => { const d = new Date(weekStart); d.setDate(d.getDate()+i); return d; });
@@ -1919,7 +1919,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
 
   const fmtDay = (d) => d.toLocaleDateString("pt-BR",{day:"2-digit"});
   const fmtRange = `${days[0].toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})} – ${weekEnd.toLocaleDateString("pt-BR",{day:"2-digit",month:"short"})}`;
-  const DOW = ["Dom","Seg","Ter","Qua","Qui","Sex","Sáb"];
+  const DOW = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"];
   const isCurrentWeek = sameDay(startOfWeek(new Date()), weekStart);
 
   const shiftWeek = (n) => { const d = new Date(weekStart); d.setDate(d.getDate() + n*7); setWeekStart(d); };
