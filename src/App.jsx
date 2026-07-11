@@ -1999,7 +1999,7 @@ function _melhorMatch(alvo, lista) {
     const comum = t.filter(x=>alvo.includes(x)).length;
     const menor = Math.min(t.length, alvo.length);
     const score = comum / Math.max(menor, 1) + (comum === menor ? 0.5 : 0);
-    if ((comum >= 2 || (menor === 1 && comum === 1 && t.length === alvo.length)) && score > melhorScore) {
+    if ((comum >= 2 || comum === menor) && comum > 0 && score > melhorScore) {
       melhorScore = score; melhor = ex;
     }
   }
