@@ -1033,6 +1033,7 @@ export default function App() {
   useEffect(()=>{
     (async () => {
       let planoDoPersonal = null;
+      let vinculoLocal = null;
       if (AUTH_ENABLED) {
         capturarConviteDaURL();
         handleOAuthCallback(); // captura tokens do Google se vier de redirect
@@ -1044,7 +1045,7 @@ export default function App() {
           const perfilPro = await resolvePerfilPro();
           if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
           const v = await fetchVinculoAluno();
-          if (v) { setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true }; }
+          if (v) { vinculoLocal = v; setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true }; }
           fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
         }
         else if (!localStorage.getItem("abody:skipauth")) { setScreen("auth"); return; }
@@ -1053,7 +1054,9 @@ export default function App() {
       if (h) setHistory(h);
       if (bh) setBodyHistory(bh);
       if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
-      else if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+      else if (p) { setPlan(p); setScreen("home"); }
+      else if (vinculoLocal) setScreen("aguardandoTreino");
+      else setScreen("onboarding");
     })();
   },[]);
 
@@ -1071,7 +1074,9 @@ export default function App() {
     const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
     if (h) setHistory(h);
     if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
-    else if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+    else if (p) { setPlan(p); setScreen("home"); }
+    else if (v) setScreen("aguardandoTreino");
+    else setScreen("onboarding");
   };
 
   const skipAuth = async () => {
@@ -1316,6 +1321,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
       {screen==="proAlunos"    && pro && <ProAlunosScreen onBack={()=>setScreen("proHome")}/>}
       {AUTH_ENABLED && user && screen!=="home" && <ContaGlobal user={user} onLogout={doLogout}/>}
+      {screen==="aguardandoTreino" && vinculo && <AguardandoTreinoScreen vinculo={vinculo} personal={personal}
+        onAtualizar={async()=>{ const v = await fetchVinculoAluno(); if (v?.treino?.plano) { setVinculo(v); setPlan({ ...v.treino.plano, locked: true }); setScreen("home"); } }}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
       {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{ if(AUTH_ENABLED && !getSession()){ localStorage.removeItem("abody:skipauth"); setScreen("auth"); return; } track("ia_flow_iniciado"); setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
       {screen==="anamnesis"    && <AnamnesisScreen step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError} docsIA={docsIA} setDocsIA={setDocsIA} logado={!!user}/>}
@@ -1362,7 +1369,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 // ─── AUTH SCREEN ─────────────────────────────────────────────────────────────
 
 function AuthScreen({ onDone, onSkip }) {
-  const [mode, setMode]   = useState("login"); // login | signup
+  const convitePendente = typeof localStorage !== "undefined" && !!localStorage.getItem("abody:convite");
+  const [mode, setMode]   = useState(convitePendente ? "signup" : "login"); // login | signup
   const [tipo, setTipo]   = useState("aluno"); // aluno | pro
   const [nome, setNome]   = useState("");
   const [email, setEmail] = useState("");
@@ -1396,9 +1404,15 @@ function AuthScreen({ onDone, onSkip }) {
       </div>
 
       <h1 style={{...S.h1,fontSize:24}}>{mode==="login" ? "Entrar" : "Criar conta"}</h1>
-      <p style={S.sub}>Seus treinos ficam salvos na nuvem e acessíveis de qualquer aparelho.</p>
+      {convitePendente ? (
+        <div style={{background:"#0d2218",border:`1px solid ${C.acc}`,borderRadius:12,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
+          🎟️ <b>Você foi convidado pelo seu personal.</b> {mode==="signup" ? "Crie sua conta abaixo" : "Entre com sua conta"} e seu acesso será ativado automaticamente.
+        </div>
+      ) : (
+        <p style={S.sub}>Seus treinos ficam salvos na nuvem e acessíveis de qualquer aparelho.</p>
+      )}
 
-      {mode==="signup" && (
+      {mode==="signup" && !convitePendente && (
         <>
           <label style={S.fieldLabel}>EU SOU</label>
           <div style={{display:"flex",gap:8,marginBottom:12}}>
@@ -1449,9 +1463,11 @@ function AuthScreen({ onDone, onSkip }) {
         {mode==="login" ? "Não tem conta? Cadastre-se" : "Já tem conta? Entrar"}
       </button>
 
-      <button style={{...S.btnOutline,marginTop:20,fontSize:13}} onClick={onSkip}>
-        Continuar sem conta (dados só neste aparelho)
-      </button>
+      {!convitePendente && (
+        <button style={{...S.btnOutline,marginTop:20,fontSize:13}} onClick={onSkip}>
+          Continuar sem conta (dados só neste aparelho)
+        </button>
+      )}
     </div>
   );
 }
@@ -2633,6 +2649,37 @@ function ContaGlobal({ user, onLogout }) {
         </div>
       )}
     </>
+  );
+}
+
+// ─── ALUNO VINCULADO AGUARDANDO O PRIMEIRO TREINO ────────────────────────────
+
+function AguardandoTreinoScreen({ vinculo, personal, onAtualizar }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div style={{...S.box, paddingTop: 60, textAlign:"center"}}>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:24}}>
+        <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:16,marginBottom:14}}>A</div>
+        <div style={S.brand}>A-BODY</div>
+      </div>
+      {personal && (
+        <div style={{display:"inline-flex",alignItems:"center",gap:10,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 16px",marginBottom:20}}>
+          <AvatarFoto url={personal.foto_url} nome={personal.nome} size={38}/>
+          <div style={{textAlign:"left"}}>
+            <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>SEU PERSONAL</div>
+            <div style={{fontSize:14,fontWeight:700,color:C.text}}>{personal.nome}</div>
+          </div>
+        </div>
+      )}
+      <h1 style={{...S.h1,fontSize:22}}>Acesso ativado, {vinculo.aluno.nome.split(" ")[0]}! ✅</h1>
+      <p style={{...S.sub,maxWidth:340,margin:"0 auto 24px"}}>
+        Seu vínculo com o personal está confirmado. Ele está preparando seu treino — assim que publicar, ele aparece aqui.
+      </p>
+      <button style={{...S.btn,maxWidth:340,margin:"0 auto",opacity:busy?0.5:1}} disabled={busy}
+        onClick={async()=>{ setBusy(true); await onAtualizar(); setBusy(false); }}>
+        {busy ? "Verificando…" : "🔄 Verificar treino"}
+      </button>
+    </div>
   );
 }
 
