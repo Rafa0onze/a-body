@@ -768,6 +768,21 @@ async function blocosDeDocumentos(docs) {
   return blocos;
 }
 
+// ─── HIGIENE DE CACHE LOCAL POR CONTA ────────────────────────────────────────
+const CHAVES_DE_CONTA = ["abody:plan","abody:history","abody:bodyhistory"];
+function limparCacheLocalDeConta() {
+  CHAVES_DE_CONTA.forEach(k => { try { localStorage.removeItem(k); } catch {} });
+}
+// se a conta logada mudou desde o último uso, o cache local da conta anterior é descartado
+async function garantirDonoDoCache() {
+  const uid = await uidAtual(); if (!uid) return;
+  try {
+    const dono = localStorage.getItem("abody:owner");
+    if (dono && dono !== uid) limparCacheLocalDeConta();
+    localStorage.setItem("abody:owner", uid);
+  } catch {}
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("error", (e) => track("js_error", { msg: String(e.message).slice(0,200) }));
   window.addEventListener("unhandledrejection", (e) => track("js_error", { msg: String(e.reason?.message || e.reason).slice(0,200) }));
@@ -941,6 +956,7 @@ export default function App() {
         const u = await authGetUser();
         if (u) {
           setUser(u);
+          await garantirDonoDoCache();
           await resgatarConvitePendente();
           const perfilPro = await resolvePerfilPro();
           if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
@@ -961,6 +977,7 @@ export default function App() {
   const afterAuth = async () => {
     const u = await authGetUser();
     setUser(u);
+    await garantirDonoDoCache();
     await resgatarConvitePendente();
     const perfilPro = await resolvePerfilPro();
     if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
@@ -983,7 +1000,11 @@ export default function App() {
 
   const doLogout = () => {
     authSignOut();
+    limparCacheLocalDeConta();
+    try { localStorage.removeItem("abody:owner"); } catch {}
     setPro(null); setPersonal(null); setVinculo(null);
+    setPlan(null); setHistory([]); setBodyHistory([]); setDocsIA([]);
+    setForm(ANAMNESIS_INIT); setPhotos(PHOTOS_INIT); setStep(1);
     localStorage.removeItem("abody:skipauth");
     setUser(null);
     setScreen("auth");
