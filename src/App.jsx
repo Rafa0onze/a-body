@@ -1315,6 +1315,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
       {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
       {screen==="proAlunos"    && pro && <ProAlunosScreen onBack={()=>setScreen("proHome")}/>}
+      {AUTH_ENABLED && user && screen!=="home" && <ContaGlobal user={user} onLogout={doLogout}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
       {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{ if(AUTH_ENABLED && !getSession()){ localStorage.removeItem("abody:skipauth"); setScreen("auth"); return; } track("ia_flow_iniciado"); setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
       {screen==="anamnesis"    && <AnamnesisScreen step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError} docsIA={docsIA} setDocsIA={setDocsIA} logado={!!user}/>}
@@ -2600,6 +2601,38 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{err}</div>}
       <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={analisar}>{busy ? "Analisando…" : "📊 Analisar por IA"}</button>
     </div>
+  );
+}
+
+// ─── CONTA GLOBAL: LOGOUT DISPONÍVEL EM TODAS AS TELAS ───────────────────────
+
+function ContaGlobal({ user, onLogout }) {
+  const [aberto, setAberto] = useState(false);
+  const inicial = (user?.email || "?").charAt(0).toUpperCase();
+  return (
+    <>
+      <button onClick={()=>setAberto(a=>!a)} aria-label="Conta"
+        style={{position:"fixed",top:14,right:14,zIndex:55,width:36,height:36,borderRadius:"50%",
+          background:"rgba(17,40,31,0.92)",border:`1px solid ${C.border}`,color:C.acc,
+          fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",
+          boxShadow:"0 2px 8px rgba(0,0,0,0.35)"}}>
+        {inicial}
+      </button>
+      {aberto && (
+        <div style={{position:"fixed",inset:0,zIndex:54}} onClick={()=>setAberto(false)}>
+          <div onClick={e=>e.stopPropagation()}
+            style={{position:"fixed",top:56,right:14,zIndex:56,background:C.bg,border:`1px solid ${C.border}`,
+              borderRadius:14,padding:"12px 14px",minWidth:220,boxShadow:"0 6px 24px rgba(0,0,0,0.5)"}}>
+            <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:4}}>CONECTADO COMO</div>
+            <div style={{fontSize:13,color:C.text,fontWeight:600,marginBottom:12,wordBreak:"break-all"}}>{user?.email || "—"}</div>
+            <button style={{...S.btnOutline,fontSize:13,padding:"10px",color:"#ff8080",borderColor:"#8b2a2a"}}
+              onClick={()=>{ setAberto(false); onLogout(); }}>
+              Sair da conta
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
