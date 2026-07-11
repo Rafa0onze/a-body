@@ -15,11 +15,19 @@ curl -s -X POST "$API/projects/$REF/database/query" -H "$AUTH" -H "Content-Type:
 echo ""
 
 SQL=$(cat << 'EOSQL'
--- tabela convites legada (sem aluno_id) é de uma versão antiga: remover com segurança
-DO $mig$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='convites')
-     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='convites' AND column_name='aluno_id')
-  THEN DROP TABLE public.convites CASCADE; END IF;
+-- remover tabelas do módulo B2B em formato legado (esqueleto antigo do app)
+DO $mig$
+DECLARE t record;
+BEGIN
+  FOR t IN SELECT * FROM (VALUES
+    ('profissionais','foto_url'),('alunos','user_id'),('convites','aluno_id'),
+    ('aulas','duracao_min'),('treinos_alunos','ativo'),('exercicios_custom','usa_cronometro'),
+    ('mensagens','contexto'),('documentos_saude','dono_user_id')
+  ) AS v(tab, col) LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=t.tab)
+       AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=t.tab AND column_name=t.col)
+    THEN EXECUTE format('DROP TABLE public.%I CASCADE', t.tab); END IF;
+  END LOOP;
 END $mig$;
 
 -- ===== PROFISSIONAIS =====
