@@ -1218,6 +1218,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       const rawPlan=data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
       const aiPlan=extractJSON(rawPlan);
       const converted=convertAIPlan(aiPlan,form.name);
+      converted.duracao = form.duration;
       track("plano_ia_gerado",{dias:converted?.weekDays?.length}); setPlan(converted); await saveStorage("abody:plan",converted); setScreen("planPreview");
     } catch(err){ setGenError(err.message||"Erro ao gerar plano."); setScreen("anamnesis"); }
     setGen(false);
@@ -1342,10 +1343,10 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
-        <WorkoutScreen day={currentDay} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
+        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
-      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name}/>}
+      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>resto); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
@@ -2251,6 +2252,7 @@ REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de 
       const raw = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
       const plano = convertAIPlan(extractJSON(raw), aluno.nome);
       plano.mode = "pro";
+      plano.duracao = form.duracao;
       track("treino_pro_ia_gerado",{dias:plano.weekDays.length,fotos:["front","back","side"].filter(k=>fotos[k]).length});
       onGerado(plano); // abre no editor para revisão total do personal
     } catch(e2) { setErr(e2.message||"Erro ao gerar treino."); }
@@ -3287,9 +3289,10 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
       </div>
 
       <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
+        {plan.duracao && <div style={{fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>⏱ TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
         {plan.weekDays.map((d,i)=>{ const last=lastByDay[d.id]; return(
           <button key={i} style={S.dayCard} onClick={()=>onStart(d)}>
-            <div><div style={{fontSize:17,fontWeight:700}}>{d.label}</div><div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.sub}</div>{last&&<div style={{fontSize:11,color:"#8fb8a2",marginTop:5}}>Último: {new Date(last).toLocaleDateString("pt-BR")}</div>}</div>
+            <div><div style={{fontSize:17,fontWeight:700}}>{d.label}</div><div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.sub}{plan.duracao?` · ⏱ ~${plan.duracao}`:""}</div>{last&&<div style={{fontSize:11,color:"#8fb8a2",marginTop:5}}>Último: {new Date(last).toLocaleDateString("pt-BR")}</div>}</div>
             <span style={{color:C.acc,fontSize:20}}>→</span>
           </button>
         );})}
@@ -3324,7 +3327,7 @@ function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-function WorkoutScreen({ day, exercise, setIdx, queue, completed, weightInput, setWeightInput, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
@@ -3333,7 +3336,7 @@ function WorkoutScreen({ day, exercise, setIdx, queue, completed, weightInput, s
   const canComplete=isIso?(isoRunning||isoDone):weightInput.length>0;
   return (
     <div style={S.box}>
-      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label}</div></div>
+      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label}{duracao?` · ⏱ ~${duracao}`:""}</div></div>
       <div style={{height:4,background:C.border,borderRadius:2,marginBottom:4}}><div style={{height:4,background:C.acc,borderRadius:2,width:`${pct}%`,transition:"width .3s"}}/></div>
       <div style={{fontSize:11,color:C.muted,marginBottom:14}}>{doneSets} série{doneSets!==1?"s":""} concluída{doneSets!==1?"s":""} · {totalSets-doneSets} restante{(totalSets-doneSets)!==1?"s":""}</div>
       <FigureBlock exercise={exercise}/>
@@ -3416,7 +3419,7 @@ function SubModal({ exercise, onSelect, onClose, locked }) {
 
 // ─── REST ─────────────────────────────────────────────────────────────────────
 
-function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual }) {
+function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao }) {
   const circ=2*Math.PI*52, off=circ*(1-seconds/(total||1));
   const allItems=[...completed.map(e=>({...e,status:"done"})),...queue.map((e,i)=>({...e,status:i===0?"current":e._skipped?"skipped":"pending"}))];
   return (
@@ -3431,6 +3434,7 @@ function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercic
           <div style={{position:"absolute",textAlign:"center"}}><div style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(seconds)}</div><div style={{fontSize:10,color:C.muted}}>descanso</div></div>
         </div>
       </div>
+      {duracao && <div style={{fontSize:11,color:C.muted,marginBottom:10,textAlign:"center"}}>⏱ tempo previsto do treino: ~{duracao}</div>}
       {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"descanso",exercicio:exercicioAtual||null}} placeholder="observação para o personal (dúvida, dor, pedido de troca)…"/>}
       <div style={S.sectionLabel}>EXERCÍCIOS DO TREINO</div>
       <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
