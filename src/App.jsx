@@ -677,6 +677,22 @@ async function criarOuObterConvite(alunoId) {
     body: JSON.stringify({ aluno_id: alunoId }) });
   return rows?.[0] || null;
 }
+async function contarNaoLidas() {
+  // mensagens de alunos ainda não lidas pelo personal, agrupadas por aluno
+  const rows = await proFetch(`/rest/v1/mensagens?autor=eq.aluno&lida=eq.false&select=aluno_id`) || [];
+  const por = {}; rows.forEach(r => { por[r.aluno_id] = (por[r.aluno_id]||0) + 1; });
+  return { total: rows.length, porAluno: por };
+}
+async function checkinsDaSemana() {
+  const seg = new Date(); seg.setHours(0,0,0,0); seg.setDate(seg.getDate() - ((seg.getDay()+6)%7));
+  const rows = await proFetch(`/rest/v1/checkins?data=gte.${seg.toISOString().slice(0,10)}&select=aluno_id`) || [];
+  const por = {}; rows.forEach(r => { por[r.aluno_id] = (por[r.aluno_id]||0) + 1; });
+  return por;
+}
+async function registrarCheckin(alunoId, treinoLabel) {
+  return proFetch(`/rest/v1/checkins`, { method: "POST",
+    body: JSON.stringify({ aluno_id: alunoId, treino_label: treinoLabel || null }) });
+}
 async function enviarMensagem(alunoId, autor, texto, contexto) {
   return proFetch(`/rest/v1/mensagens`, { method: "POST",
     body: JSON.stringify({ aluno_id: alunoId, autor, texto: texto.slice(0, 2000), contexto: contexto || null }) });
@@ -1055,7 +1071,8 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [pro, setPro] = useState(null);           // perfil do profissional logado
   const [personal, setPersonal] = useState(null); // personal vinculado ao aluno logado
-  const [vinculo, setVinculo] = useState(null);   // {aluno, treino} do aluno gerido por personal
+  const [vinculo, setVinculo] = useState(null);
+  const [treinoNovo, setTreinoNovo] = useState(null); // timestamp do treino atualizado ainda não visto   // {aluno, treino} do aluno gerido por personal
   const [docsIA, setDocsIA] = useState([]);       // documentos de saúde marcados p/ geração IA
 
   useEffect(()=>{
@@ -1073,7 +1090,9 @@ export default function App() {
           const perfilPro = await resolvePerfilPro();
           if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
           const v = await fetchVinculoAluno();
-          if (v) { vinculoLocal = v; setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true }; }
+          if (v) { vinculoLocal = v; setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true };
+            const ts = v.treino?.atualizado_em; const visto = localStorage.getItem("abody:treino_visto");
+            if (ts && ts !== visto) { setTreinoNovo(ts); } }
           fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
         }
         else if (!localStorage.getItem("abody:skipauth")) { setScreen("auth"); return; }
@@ -1300,7 +1319,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
-  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido"),setScreen("postcardio"); };
+  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
 
   const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId && !s.manual); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
 
@@ -1344,7 +1363,13 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   return (
     <div style={S.page}>
-      <UpdateBanner/><style>{CSS}</style>
+      <UpdateBanner/>
+      {treinoNovo && screen==="home" && (
+        <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
+          style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
+          💪 Seu personal atualizou seu treino — toque para dispensar
+        </button>
+      )}<style>{CSS}</style>
       {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
       {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onAgenda={()=>setScreen("proAgenda")} onAlunos={()=>setScreen("proAlunos")} onLogout={doLogout}/>}
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
@@ -1515,6 +1540,34 @@ function AvatarFoto({ url, nome, size = 44 }) {
 }
 
 function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
+  const [naoLidas, setNaoLidas] = useState(0);
+  const [resumo, setResumo] = useState(null); // {alunos, ativos, comTreino, treinosSemana}
+  useEffect(()=>{
+    (async()=>{
+      try {
+        const [nl, alunos, treinos, ck] = await Promise.all([
+          contarNaoLidas(),
+          proFetch(`/rest/v1/alunos?select=id,status`) || [],
+          proFetch(`/rest/v1/treinos_alunos?ativo=eq.true&select=aluno_id`) || [],
+          checkinsDaSemana(),
+        ]);
+        setNaoLidas(nl?.total || 0);
+        setResumo({
+          alunos: (alunos||[]).length,
+          ativos: (alunos||[]).filter(a=>a.status==="ativo").length,
+          comTreino: new Set((treinos||[]).map(t=>t.aluno_id)).size,
+          treinosSemana: Object.values(ck||{}).reduce((a,b)=>a+b,0),
+        });
+      } catch {}
+    })();
+  },[]);
+  const passos = resumo && [
+    { ok: !!(pro?.nome && pro?.foto_url), t: "Complete seu perfil (nome e foto)", acao: onPerfil },
+    { ok: resumo.alunos > 0, t: "Cadastre seu primeiro aluno", acao: onAlunos },
+    { ok: resumo.comTreino > 0, t: "Monte o treino do aluno", acao: onAlunos },
+    { ok: resumo.ativos > 0, t: "Envie o convite e aguarde a ativação", acao: onAlunos },
+  ];
+  const incompleto = passos && passos.some(p=>!p.ok);
   return (
     <div style={S.box}>
       <div style={S.brandRow}>
@@ -1526,32 +1579,62 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
 
       <button style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:20}} onClick={onPerfil}>
         <AvatarFoto url={pro.foto_url} nome={pro.nome} size={52}/>
-        <div style={{flex:1,textAlign:"left"}}>
+        <div style={{textAlign:"left"}}>
           <div style={{fontSize:16,fontWeight:800,color:C.text}}>{pro.nome}</div>
-          <div style={{fontSize:12,color:C.muted,marginTop:2}}>Personal Trainer · editar perfil</div>
+          <div style={{fontSize:12,color:C.muted}}>Personal Trainer · editar perfil</div>
+        </div>
+        <span style={{marginLeft:"auto",color:C.acc,fontSize:18}}>→</span>
+      </button>
+
+      <h1 style={S.h1}>Seu espaço profissional</h1>
+      <p style={S.sub}>Gerencie agenda, alunos e treinos em um só lugar.</p>
+
+      {incompleto && (
+        <div style={{...S.card,marginBottom:14,border:`1.5px solid ${C.acc}`}}>
+          <div style={{fontSize:12,fontWeight:800,color:C.acc,letterSpacing:"0.06em",marginBottom:8}}>🚀 PRIMEIROS PASSOS</div>
+          {passos.map((p,i)=>(
+            <button key={i} onClick={p.acao} disabled={p.ok}
+              style={{display:"flex",alignItems:"center",gap:10,background:"none",border:"none",padding:"6px 0",width:"100%",textAlign:"left",cursor:p.ok?"default":"pointer"}}>
+              <span style={{fontSize:15}}>{p.ok?"✅":"⬜"}</span>
+              <span style={{fontSize:13,fontWeight:600,color:p.ok?C.muted:C.text,textDecoration:p.ok?"line-through":"none"}}>{p.t}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {resumo && !incompleto && (
+        <div style={{...S.card,flexDirection:"row",gap:0,marginBottom:14,padding:"12px 6px"}}>
+          {[["👥",resumo.ativos,"ativos"],["📋",resumo.comTreino,"com treino"],["🔥",resumo.treinosSemana,"treinos na semana"]].map(([ic,v,l],i)=>(
+            <div key={i} style={{flex:1,textAlign:"center",borderLeft:i?`1px solid ${C.border}`:"none"}}>
+              <div style={{fontSize:17,fontWeight:800,color:C.acc}}>{ic} {v}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>{l}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}} onClick={onAgenda}>
+        <div style={{textAlign:"left"}}>
+          <div style={{fontSize:17,fontWeight:800,color:C.text}}>📅 Agenda semanal</div>
+          <div style={{fontSize:12,color:C.muted,marginTop:2}}>horários, alunos e locais das aulas</div>
         </div>
         <span style={{color:C.acc,fontSize:18}}>→</span>
       </button>
 
-      <h1 style={{...S.h1,fontSize:22}}>Seu espaço profissional</h1>
-      <p style={S.sub}>Gerencie agenda, alunos e treinos em um só lugar.</p>
+      <button style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}} onClick={onAlunos}>
+        <div style={{textAlign:"left"}}>
+          <div style={{fontSize:17,fontWeight:800,color:C.text,display:"flex",alignItems:"center",gap:8}}>👥 Meus alunos
+            {naoLidas>0 && <span style={{background:"#e05555",color:"#fff",borderRadius:12,fontSize:11,fontWeight:800,padding:"2px 8px"}}>{naoLidas} nova{naoLidas>1?"s":""}</span>}
+          </div>
+          <div style={{fontSize:12,color:C.muted,marginTop:2}}>{naoLidas>0?"mensagens de alunos aguardando resposta":"cadastro e montagem de treinos"}</div>
+        </div>
+        <span style={{color:C.acc,fontSize:18}}>→</span>
+      </button>
 
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
-        <button style={S.dayCard} onClick={onAgenda}>
-          <div><div style={{fontSize:16,fontWeight:700}}>📆 Agenda semanal</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>horários, alunos e locais das aulas</div></div>
-          <span style={{color:C.acc,fontSize:20}}>→</span>
-        </button>
-        <button style={S.dayCard} onClick={onAlunos}>
-          <div><div style={{fontSize:16,fontWeight:700}}>👥 Meus alunos</div><div style={{fontSize:12,color:C.muted,marginTop:2}}>cadastro e montagem de treinos</div></div>
-          <span style={{color:C.acc,fontSize:20}}>→</span>
-        </button>
-      </div>
-
-      <button style={{...S.btnOutline,fontSize:13,padding:"12px"}} onClick={onLogout}>Sair da conta</button>
+      <button style={{...S.btnOutline,width:"100%",marginTop:8}} onClick={onLogout}>Sair da conta</button>
     </div>
   );
 }
-
 function ProPerfilScreen({ pro, onSaved, onBack }) {
   const [nome, setNome]   = useState(pro.nome || "");
   const [foto, setFoto]   = useState(pro.foto_url || null);
@@ -1855,7 +1938,13 @@ function ProAlunosScreen({ onBack }) {
   const [avals, setAvals]         = useState(null); // histórico de avaliações do selecionado
   const [planoBase, setPlanoBase] = useState(null); // plano em edição (novo, IA ou existente)
 
-  const carregar = async () => setAlunos(await fetchAlunosPro());
+  const [nlPorAluno, setNlPorAluno] = useState({});
+  const [ckPorAluno, setCkPorAluno] = useState({});
+  const carregar = async () => {
+    setAlunos(await fetchAlunosPro());
+    contarNaoLidas().then(nl=>setNlPorAluno(nl?.porAluno||{})).catch(()=>{});
+    checkinsDaSemana().then(ck=>setCkPorAluno(ck||{})).catch(()=>{});
+  };
   useEffect(() => { carregar(); }, []);
 
   const abrirDetalhe = async (a) => {
@@ -1963,8 +2052,10 @@ function ProAlunosScreen({ onBack }) {
           <button key={a.id} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:8,padding:"12px 14px",width:"100%"}} onClick={()=>abrirDetalhe(a)}>
             <AvatarFoto nome={a.nome} size={40}/>
             <div style={{flex:1,textAlign:"left"}}>
-              <div style={{fontSize:14,fontWeight:700,color:C.text}}>{a.nome}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{a.email}</div>
+              <div style={{fontSize:14,fontWeight:700,color:C.text,display:"flex",alignItems:"center",gap:7}}>{a.nome}
+                {nlPorAluno[a.id]>0 && <span style={{background:"#e05555",color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,padding:"1px 7px"}}>💬 {nlPorAluno[a.id]}</span>}
+              </div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{a.status==="ativo" ? `🔥 ${ckPorAluno[a.id]||0} treino${(ckPorAluno[a.id]||0)!==1?"s":""} esta semana` : a.email}</div>
             </div>
             <span style={{fontSize:10,fontWeight:800,color:st.cor,border:`1px solid ${st.cor}`,borderRadius:8,padding:"3px 7px"}}>{st.rotulo.toUpperCase()}</span>
           </button>
