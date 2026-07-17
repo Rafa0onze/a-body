@@ -1697,7 +1697,10 @@ const isoData = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"
 const inicioSemana = (base) => { const d = new Date(base); d.setHours(0,0,0,0); d.setDate(d.getDate() - ((d.getDay()+6)%7)); return d; };
 
 function ProAgendaScreen({ onBack }) {
-  const [semana, setSemana]   = useState(inicioSemana(new Date()));
+  const hoje0 = new Date(); hoje0.setHours(0,0,0,0);
+  const [mes, setMes]         = useState(new Date(hoje0.getFullYear(), hoje0.getMonth(), 1));
+  const [semana, setSemana]   = useState(inicioSemana(hoje0));
+  const [diaSel, setDiaSel]   = useState((hoje0.getDay()+6)%7); // 0=Seg .. 6=Dom
   const [aulas, setAulas]     = useState(null);
   const [alunos, setAlunos]   = useState([]);
   const [editando, setEditando] = useState(null); // objeto aula (novo ou existente)
@@ -1726,25 +1729,70 @@ function ProAgendaScreen({ onBack }) {
         <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13}} onClick={novaAula}>+ Aula</button>
       </div>
 
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"12px 0 16px"}}>
-        <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:14}} onClick={()=>{const d=new Date(semana);d.setDate(d.getDate()-7);setSemana(d);}}>‹</button>
-        <span style={{fontSize:13,fontWeight:700,color:C.text}}>
-          {dias[0].toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})} – {dias[6].toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}
+      {/* Linha 1 — mês */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"12px 0 10px"}}>
+        <button style={{...S.btnOutline,width:"auto",padding:"7px 14px",fontSize:14}} onClick={()=>{
+          const m=new Date(mes.getFullYear(),mes.getMonth()-1,1); setMes(m); const s=inicioSemana(m); setSemana(s);
+        }}>‹</button>
+        <span style={{fontSize:15,fontWeight:800,color:C.text,textTransform:"capitalize"}}>
+          {mes.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}
         </span>
-        <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:14}} onClick={()=>{const d=new Date(semana);d.setDate(d.getDate()+7);setSemana(d);}}>›</button>
+        <button style={{...S.btnOutline,width:"auto",padding:"7px 14px",fontSize:14}} onClick={()=>{
+          const m=new Date(mes.getFullYear(),mes.getMonth()+1,1); setMes(m); const s=inicioSemana(m); setSemana(s);
+        }}>›</button>
+      </div>
+
+      {/* Linha 2 — semanas do mês */}
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:8}}>
+        {(()=>{
+          const semanas=[]; let s=inicioSemana(new Date(mes.getFullYear(),mes.getMonth(),1));
+          while (s.getMonth()===mes.getMonth() || new Date(s.getFullYear(),s.getMonth(),s.getDate()+6).getMonth()===mes.getMonth()) {
+            semanas.push(new Date(s)); s=new Date(s); s.setDate(s.getDate()+7);
+            if (semanas.length>6) break;
+          }
+          return semanas.map((s,i)=>{
+            const fim=new Date(s); fim.setDate(fim.getDate()+6);
+            const sel = isoData(s)===isoData(semana);
+            return (
+              <button key={i} onClick={()=>setSemana(new Date(s))}
+                style={{flexShrink:0,padding:"7px 13px",borderRadius:18,fontSize:12,fontWeight:700,cursor:"pointer",
+                  border:`1.5px solid ${sel?C.acc:C.border}`,background:sel?C.acc:"transparent",color:sel?"#06140e":C.muted}}>
+                {s.getDate()}–{fim.getDate()}
+              </button>
+            );
+          });
+        })()}
+      </div>
+
+      {/* Linha 3 — dias da semana */}
+      <div style={{display:"flex",gap:6,marginBottom:16}}>
+        {dias.map((d,i)=>{
+          const sel = i===diaSel;
+          const ehHojeChip = isoData(d)===hoje;
+          return (
+            <button key={i} onClick={()=>setDiaSel(i)}
+              style={{flex:1,padding:"8px 0",borderRadius:12,cursor:"pointer",textAlign:"center",
+                border:`1.5px solid ${sel?C.acc:ehHojeChip?C.acc+"66":C.border}`,
+                background:sel?C.acc:"transparent"}}>
+              <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:sel?"#06140e":ehHojeChip?C.acc:C.muted}}>{DIAS_PT[i].slice(0,3).toUpperCase()}</div>
+              <div style={{fontSize:13,fontWeight:800,color:sel?"#06140e":C.text,marginTop:2}}>{d.getDate()}</div>
+            </button>
+          );
+        })}
       </div>
 
       {aulas === null && <p style={{color:C.muted,fontSize:13}}>Carregando agenda…</p>}
 
-      {aulas !== null && dias.map((d, idx) => {
-        const doDia = aulasDoDia(d, idx);
+      {aulas !== null && (()=>{
+        const d = dias[diaSel];
+        const doDia = aulasDoDia(d, diaSel);
         const ehHoje = isoData(d) === hoje;
         return (
-          <div key={idx} style={{marginBottom:14}}>
-            <div style={{fontSize:12,fontWeight:800,letterSpacing:"0.08em",color: ehHoje ? C.acc : C.muted, marginBottom:6}}>
-              {DIAS_PT[idx].toUpperCase()} · {d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}{ehHoje ? " · HOJE" : ""}
+          <div style={{marginBottom:14}}>
+            <div style={{fontSize:12,fontWeight:800,letterSpacing:"0.08em",color: ehHoje ? C.acc : C.muted, marginBottom:8}}>
+              {DIAS_PT[diaSel].toUpperCase()} · {d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}{ehHoje ? " · HOJE" : ""}
             </div>
-            {doDia.length === 0 && <div style={{fontSize:12,color:C.muted,opacity:0.6,padding:"4px 2px"}}>— sem aulas</div>}
+            {doDia.length === 0 && <div style={{fontSize:13,color:C.muted,opacity:0.7,padding:"10px 2px"}}>— sem aulas neste dia</div>}
             {doDia.map(a => (
               <div key={a.id} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:8,padding:"12px 14px",
                 borderLeft:`3px solid ${a.tipo==="presencial" ? C.acc : "#d9a441"}`}}>
@@ -1765,7 +1813,7 @@ function ProAgendaScreen({ onBack }) {
             ))}
           </div>
         );
-      })}
+      })()}
 
       {editando && <AulaModal aula={editando} alunos={alunos} onClose={()=>setEditando(null)} onSaved={async()=>{setEditando(null);await carregar();}}/>}
       {treinoDe && <TreinoDoDiaModal aula={treinoDe.aula} onClose={()=>setTreinoDe(null)}/>}
