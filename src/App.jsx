@@ -1519,7 +1519,7 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
     <div style={S.box}>
       <div style={{...S.brandRow,justifyContent:"space-between"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
-        <span style={{fontSize:10,fontWeight:800,color:C.acc,letterSpacing:"0.12em",border:`1px solid ${C.acc}`,borderRadius:8,padding:"4px 8px"}}>PRO</span>
+        <span style={{fontSize:10,fontWeight:800,color:C.acc,letterSpacing:"0.12em",border:`1px solid ${C.acc}`,borderRadius:8,padding:"4px 8px",marginRight:46}}>PRO</span>
       </div>
 
       <button style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:20}} onClick={onPerfil}>
