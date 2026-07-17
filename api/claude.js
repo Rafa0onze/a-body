@@ -9,6 +9,7 @@ const SUPA_URL = process.env.VITE_SUPABASE_URL || "https://zvmriqxigpwuggyhpoun.
 const SUPA_ANON = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp2bXJpcXhpZ3B3dWdneWhwb3VuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NDMxMDAsImV4cCI6MjA5OTExOTEwMH0.HrnVWaVSaWkGUXRc8MXKjM2Vj2N0xN6wwp95y7zmjbQ";
 const ORIGENS = ["https://a-body.vercel.app", "http://localhost:5173"];
 const QUOTA_DIARIA = 20;
+const QUOTA_PRO = 60;
 
 // Marcadores dos únicos usos legítimos deste proxy
 const MARCADORES = ["personal trainer", "ANÁLISE CORPORAL", "Analise as fotos", "analise corporal"];
@@ -40,15 +41,23 @@ export default async function handler(req, res) {
   const uResp = await fetch(`${SUPA_URL}/auth/v1/user`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
   if (!uResp.ok) return res.status(401).json({ error: { message: "Sessão inválida ou expirada. Faça login novamente." } });
 
+  // Profissionais têm quota ampliada (montam treinos para vários alunos)
+  let quota = QUOTA_DIARIA;
+  try {
+    const pResp = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, {
+      headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
+    if (pResp.ok && (await pResp.json()).length > 0) quota = QUOTA_PRO;
+  } catch {}
+
   // 2) Quota diária por usuário (persistida no Postgres)
   const qResp = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
     method: "POST",
     headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ limite: QUOTA_DIARIA }),
+    body: JSON.stringify({ limite: quota }),
   });
   const permitido = qResp.ok ? await qResp.json() : false;
   if (permitido !== true) {
-    return res.status(429).json({ error: { message: `Limite diário de ${QUOTA_DIARIA} usos de IA atingido. Tente amanhã.` } });
+    return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
   }
 
   // 3) Validação do payload: apenas usos do A-Body
