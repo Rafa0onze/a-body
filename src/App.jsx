@@ -976,6 +976,34 @@ function Figure({ pose, phase }) {
 const ANAMNESIS_INIT = { name:"",age:"",height:"",weight:"",goals:[],level:"",daysPerWeek:"",duration:"",equipment:"",injuries:"",conditions:"" };
 const PHOTOS_INIT = { front:null, back:null, side:null };
 
+function UpdateBanner() {
+  const [nova, setNova] = useState(false);
+  useEffect(() => {
+    const atual = document.querySelector('script[src*="/assets/index-"]')?.getAttribute("src");
+    if (!atual) return;
+    let parou = false;
+    const checar = async () => {
+      try {
+        const r = await fetch("/", { cache: "no-store" });
+        const m = (await r.text()).match(/\/assets\/index-[^"]+\.js/);
+        if (!parou && m && m[0] !== atual) setNova(true);
+      } catch {}
+    };
+    const iv = setInterval(checar, 5 * 60 * 1000);
+    const onVis = () => { if (!document.hidden) checar(); };
+    document.addEventListener("visibilitychange", onVis);
+    checar();
+    return () => { parou = true; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
+  }, []);
+  if (!nova) return null;
+  return (
+    <button onClick={()=>location.reload()}
+      style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",zIndex:9999,background:"#e8a23a",color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer"}}>
+      ⬆️ Atualização disponível — toque para recarregar
+    </button>
+  );
+}
+
 export default function App() {
   const [screen, setScreen]   = useState("boot");
   const [showSettings, setShowSettings] = useState(false);
@@ -1315,7 +1343,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   if(screen==="boot") return <div style={S.page}><p style={{color:C.acc,marginTop:80,fontFamily:"sans-serif"}}>Carregando…</p></div>;
 
   return (
-    <div style={S.page}><style>{CSS}</style>
+    <div style={S.page}>
+      <UpdateBanner/><style>{CSS}</style>
       {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
       {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onAgenda={()=>setScreen("proAgenda")} onAlunos={()=>setScreen("proAlunos")} onLogout={doLogout}/>}
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
@@ -1346,7 +1375,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
-      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao}/>}
+      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>resto); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
@@ -3419,7 +3448,7 @@ function SubModal({ exercise, onSelect, onClose, locked }) {
 
 // ─── REST ─────────────────────────────────────────────────────────────────────
 
-function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao }) {
+function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao, nextSet }) {
   const circ=2*Math.PI*52, off=circ*(1-seconds/(total||1));
   const allItems=[...completed.map(e=>({...e,status:"done"})),...queue.map((e,i)=>({...e,status:i===0?"current":e._skipped?"skipped":"pending"}))];
   return (
@@ -3445,7 +3474,7 @@ function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercic
             </div>
             <div style={{flex:1}}>
               <div style={{fontSize:12,fontWeight:600,color:isDone?C.muted:C.text}}>{ex.name}{isSkipped&&<span style={{fontSize:10,color:"#e8a23a",marginLeft:6}}>· reagendado</span>}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{isDone?`${ex.sets}/${ex.sets} séries ✓`:isCurrent?"em andamento":`${ex.sets} séries · ${ex.reps}`}</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{isDone?`${ex.sets}/${ex.sets} séries ✓`:isCurrent?`em andamento · ${Math.min(nextSet||1,ex.sets)-1}/${ex.sets} séries · próxima: ${Math.min(nextSet||1,ex.sets)}ª`:`${ex.sets} séries · ${ex.reps}`}</div>
             </div>
           </div>
         );})}
