@@ -1300,6 +1300,28 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   // ── TREINO ────────────────────────────────────────────────────────────────
 
   const initTimer=(ex)=>{ setSeriesElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);setSeriesRunning(false);}else{setSeriesRunning(true);setIsoRunning(false);setIsoDone(false);}};
+  const ultimoPeso = (ex, sIdx) => {
+    // varre o histórico do mais recente ao mais antigo procurando o exercício (por id, depois por nome)
+    for (let i = history.length - 1; i >= 0; i--) {
+      const comp = history[i]?.completed || [];
+      const m = comp.find(e => (ex.id && e.id === ex.id) || e.name === ex.name);
+      if (m && Array.isArray(m.weights) && m.weights.length) {
+        const w = m.weights[sIdx] ?? m.weights[m.weights.length - 1];
+        if (w !== undefined && w !== null && w !== "") return String(w);
+      }
+    }
+    return null;
+  };
+
+  // pré-preenche o peso com a última carga usada sempre que muda exercício/série
+  useEffect(() => {
+    if (screen !== "workout" || !queue[0]) return;
+    setWeightInput(prev => {
+      if (prev !== "") return prev; // nunca sobrescreve digitação do usuário
+      return ultimoPeso(queue[0], setIdx) ?? "";
+    });
+  }, [screen, queue[0]?._key, setIdx]);
+
   const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setWeightInput("");setCardioChoice(null);setScreen("warmup"); };
   const beginWorkout=()=>{ track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
   const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput("");initTimer(next); };
@@ -1397,7 +1419,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
-        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
+        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
@@ -3497,7 +3519,7 @@ function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, ultimaCarga, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
@@ -3533,7 +3555,7 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
       ):(
         <>
           <div style={S.seriesTimer}><span style={{fontSize:11,color:C.muted,letterSpacing:"0.08em"}}>SÉRIE {setIdx+1}/{exercise.sets}</span><span style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(elapsed)}</span><span style={{fontSize:11,color:C.muted}}>{running?"em execução":"pausado"}</span></div>
-          <label style={{...S.sectionLabel,marginTop:12}}>Peso nesta série (kg)</label>
+          <label style={{...S.sectionLabel,marginTop:12}}>Peso nesta série (kg){ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
           <input type="number" inputMode="decimal" style={S.input} value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="Ex: 40" autoFocus/>
         </>
       )}
