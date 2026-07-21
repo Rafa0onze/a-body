@@ -1260,7 +1260,7 @@ PERFIL:
 Retorne SOMENTE JSON válido sem markdown:
 {"planName":"X","planDescription":"Y","weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
-REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações). Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
+REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
     try {
       const blocosDocs = await blocosDeDocumentos(docsIA);
@@ -2501,7 +2501,7 @@ PERFIL DO ALUNO:
 Retorne SOMENTE JSON válido sem markdown:
 {"planName":"X","planDescription":"Y","weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
-REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações). Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
+REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
       const blocosDocs = await blocosDeDocumentos(docsSel);
       if (blocosDocs.length) track("docs_usados_ia", { qtd: blocosDocs.length, contexto: "pro" });
