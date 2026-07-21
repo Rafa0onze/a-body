@@ -578,6 +578,7 @@ async function fetchAlunosPro() {
   return (await proFetch(`/rest/v1/alunos?select=id,nome,status&order=nome.asc`)) || [];
 }
 async function salvarAula(aula) {
+  track(aula.id ? "aula_editada" : "aula_criada", {tipo: aula.tipo});
   const { id, alunos, ...campos } = aula;
   if (id) return proFetch(`/rest/v1/aulas?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(campos) });
   const uid = await uidAtual(); if (!uid) return null;
@@ -593,6 +594,7 @@ async function fetchTreinoAtivoDoAluno(alunoId) {
 
 // ─── B2B BLOCO 4: GESTÃO DE ALUNOS E TREINOS ─────────────────────────────────
 async function criarAluno({ nome, email }) {
+  track("aluno_criado");
   const uid = await uidAtual(); if (!uid) return null;
   const rows = await proFetch(`/rest/v1/alunos`, { method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ personal_id: uid, nome, email }) });
@@ -604,9 +606,11 @@ async function atualizarAluno(id, campos) {
 async function salvarTreinoAluno(alunoId, plano, treinoId) {
   const uid = await uidAtual(); if (!uid) return null;
   if (treinoId) {
+    track("treino_publicado",{modo:"atualizado"});
     return proFetch(`/rest/v1/treinos_alunos?id=eq.${treinoId}`, { method: "PATCH",
       body: JSON.stringify({ plano, atualizado_em: new Date().toISOString() }) });
   }
+  track("treino_publicado",{modo:"novo"});
   await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&ativo=eq.true`, { method: "PATCH", body: JSON.stringify({ ativo: false }) });
   const rows = await proFetch(`/rest/v1/treinos_alunos`, { method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ aluno_id: alunoId, personal_id: uid, plano, ativo: true }) });
@@ -620,6 +624,7 @@ async function fetchExerciciosCustom() {
   return (await proFetch(`/rest/v1/exercicios_custom?select=*&order=criado_em.desc`)) || [];
 }
 async function criarExercicioCustom(campos) {
+  track("exercicio_custom_criado",{cronometro: !!campos.usa_cronometro});
   const uid = await uidAtual(); if (!uid) return null;
   const rows = await proFetch(`/rest/v1/exercicios_custom`, { method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ ...campos, personal_id: uid }) });
@@ -694,6 +699,7 @@ async function registrarCheckin(alunoId, treinoLabel) {
     body: JSON.stringify({ aluno_id: alunoId, treino_label: treinoLabel || null }) });
 }
 async function enviarMensagem(alunoId, autor, texto, contexto) {
+  track(autor==="personal" ? "mensagem_respondida" : "mensagem_aluno", {contexto: contexto?.tipo||null});
   return proFetch(`/rest/v1/mensagens`, { method: "POST",
     body: JSON.stringify({ aluno_id: alunoId, autor, texto: texto.slice(0, 2000), contexto: contexto || null }) });
 }
@@ -725,6 +731,7 @@ function mimeDoPath(path) {
 function nomeDoDoc(doc) { return (doc.path.split("/").pop()||"documento").replace(/^\d+_/,""); }
 
 async function uploadDocumentoSaude(file, alunoId, tipo) {
+  track("doc_anexado",{tipo});
   if (!MIMES_DOC[file.type]) return { erro: "Formato não suportado. Envie PDF, JPG, PNG ou WebP." };
   if (file.size > TAM_MAX_DOC) return { erro: "Arquivo acima de 10 MB." };
   const s = await refreshIfNeeded(); const uid = await uidAtual();
@@ -2562,7 +2569,7 @@ function ConviteModal({ aluno, onClose }) {
   const [copiado, setCopiado] = useState(false);
   const [err, setErr] = useState(null);
   useEffect(() => { (async () => {
-    const c = await criarOuObterConvite(aluno.id);
+    track("convite_compartilhado"); const c = await criarOuObterConvite(aluno.id);
     if (c) { setConv(c); track("convite_gerado"); } else setErr("Não foi possível gerar o convite.");
   })(); }, []);
 
