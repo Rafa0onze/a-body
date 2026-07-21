@@ -1059,6 +1059,8 @@ export default function App() {
   const [setIdx, setSetIdx]             = useState(0);
   const [currentWeights, setCurrentWeights] = useState({});
   const [weightInput, setWeightInput]   = useState("");
+  const [repsInput, setRepsInput]       = useState("");
+  const [currentReps, setCurrentReps]   = useState({});
   const [currentDay, setCurrentDay]     = useState(null);
   const [showSubs, setShowSubs]         = useState(false);
 
@@ -1319,21 +1321,43 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     return "";
   };
 
-  // Sugestão de progressão: se fechou TODAS as séries na última execução, sugere incremento
+  const topoReps = (repsStr) => {
+    const m = String(repsStr||"").match(/(\d+)\s*[-–a]\s*(\d+)/);
+    if (m) return parseInt(m[2]);
+    const n = parseInt(repsStr); return isNaN(n) ? null : n;
+  };
+  const repsAnterior = (ex, sIdx) => {
+    if (!ex || ex.iso) return "";
+    for (let i = history.length - 1; i >= 0; i--) {
+      const s = history[i]; if (s.manual) continue;
+      const pEx = (s.completed || []).find(e => (ex.id && e.id === ex.id) || e.name === ex.name);
+      if (pEx && Array.isArray(pEx.reps) && pEx.reps.length) {
+        const r = pEx.reps[sIdx] ?? pEx.reps[pEx.reps.length - 1];
+        return r != null && !isNaN(r) ? String(r) : "";
+      }
+      if (pEx) return "";
+    }
+    return "";
+  };
+  // Dupla progressão: sugere aumentar carga APENAS se, na última execução,
+  // todas as séries foram feitas E todas atingiram o TOPO da faixa de repetições
   const sugestaoCarga = (ex) => {
     if (!ex || ex.iso) return null;
+    const topo = topoReps(ex.reps);
     for (let i = history.length - 1; i >= 0; i--) {
-      const s = history[i];
-      if (s.manual) continue;
+      const s = history[i]; if (s.manual) continue;
       const pEx = (s.completed || []).find(e => (ex.id && e.id === ex.id) || e.name === ex.name);
       if (pEx) {
         const w = (pEx.weights || []).filter(v => v != null && !isNaN(v));
-        if (w.length >= (pEx.sets || ex.sets)) {
+        const r = (pEx.reps || []).filter(v => v != null && !isNaN(v));
+        const todasSeries = w.length >= (pEx.sets || ex.sets);
+        const temReps = r.length >= (pEx.sets || ex.sets);
+        if (todasSeries && temReps && topo && r.every(v => v >= topo)) {
           const base = Math.max(...w);
           const inc = base >= 40 ? 2.5 : base >= 15 ? 2 : 1;
-          return { base, sugerido: Math.round((base + inc) * 2) / 2 };
+          return { base, sugerido: Math.round((base + inc) * 2) / 2, topo };
         }
-        return null; // não completou todas: manter a carga
+        return null; // sem reps registradas ou abaixo do topo: consolidar antes de subir
       }
     }
     return null;
@@ -1364,22 +1388,25 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     });
   }, [screen, queue[0]?._key, setIdx]);
 
-  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setWeightInput(pesoAnterior(exercises[0],0));setCardioChoice(null);setScreen("warmup"); };
+  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setCardioChoice(null);setScreen("warmup"); };
   const beginWorkout=()=>{ track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
-  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));initTimer(next); };
-  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));initTimer(newEx);setShowSubs(false); };
+  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));initTimer(next); };
+  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));initTimer(newEx);setShowSubs(false); };
 
   const completeSet=()=>{
     const cur=queue[0]; if(!cur)return;
     let value=cur.iso?(isoTotal-isoSec||isoTotal):parseFloat(weightInput.replace(",","."));
     if(!cur.iso&&(isNaN(value)||value<=0))return;
+    let reps=cur.iso?null:parseInt(repsInput);
+    if(!cur.iso&&(isNaN(reps)||reps<=0))return;
     setSeriesRunning(false);setIsoRunning(false);
     const updW={...currentWeights}; const arr=[...(updW[cur._key]||[])]; arr[setIdx]=value; updW[cur._key]=arr; setCurrentWeights(updW);
-    if(setIdx+1>=cur.sets){ const[done,...rest]=queue; const nc=[...completed,{id:done.id,name:done.name,sets:done.sets,iso:done.iso,weights:[...arr],skipped:done._skipped,substitutedFor:done._substitutedFor}]; setCompleted(nc); if(rest.length===0){finishWorkout(updW,nc);return;} setQueue(rest);setSetIdx(0);setWeightInput("");setRestTotal(done.rest);setRestSec(done.rest);setScreen("rest"); }
+    const updR={...currentReps}; const arrR=[...(updR[cur._key]||[])]; arrR[setIdx]=reps; updR[cur._key]=arrR; setCurrentReps(updR);
+    if(setIdx+1>=cur.sets){ const[done,...rest]=queue; const nc=[...completed,{id:done.id,name:done.name,sets:done.sets,reps:[...arrR],targetReps:done.reps,iso:done.iso,weights:[...arr],skipped:done._skipped,substitutedFor:done._substitutedFor}]; setCompleted(nc); if(rest.length===0){finishWorkout(updW,nc);return;} setQueue(rest);setSetIdx(0);setWeightInput("");setRepsInput("");setRestTotal(done.rest);setRestSec(done.rest);setScreen("rest"); }
     else { setRestTotal(cur.rest);setRestSec(cur.rest);setSetIdx(setIdx+1);setScreen("rest"); }
   };
 
-  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));initTimer(queue[0]);setScreen("workout"); };
+  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));initTimer(queue[0]);setScreen("workout"); };
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
@@ -1461,7 +1488,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
-        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
+        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
@@ -3561,13 +3588,13 @@ function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, ultimaCarga, sugestao, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, ultimaCarga, sugestao, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
   const isIso=exercise.iso;
   const isoCirc=2*Math.PI*52, isoOff=isoTotal>0?isoCirc*(isoSec/isoTotal):0;
-  const canComplete=isIso?(isoRunning||isoDone):weightInput.length>0;
+  const canComplete = (isIso?(isoRunning||isoDone):weightInput.length>0) && (exercise.iso || (parseInt(repsInput)||0) > 0);
   return (
     <div style={S.box}>
       <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label}{duracao?` · ⏱ ~${duracao}`:""}</div></div>
@@ -3597,15 +3624,18 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
       ):(
         <>
           <div style={S.seriesTimer}><span style={{fontSize:11,color:C.muted,letterSpacing:"0.08em"}}>SÉRIE {setIdx+1}/{exercise.sets}</span><span style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(elapsed)}</span><span style={{fontSize:11,color:C.muted}}>{running?"em execução":"pausado"}</span></div>
-          <label style={{...S.sectionLabel,marginTop:12}}>Peso nesta série (kg){ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
+          <label style={{...S.sectionLabel,marginTop:12}}>Peso e repetições desta série{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
           {sugestao && String(sugestao.sugerido) !== weightInput && (
             <button onClick={()=>setWeightInput(String(sugestao.sugerido))}
               style={{display:"block",width:"100%",textAlign:"left",background:"#0d2a1c",border:`1.5px dashed ${C.acc}`,borderRadius:12,padding:"10px 12px",margin:"8px 0 2px",cursor:"pointer"}}>
-              <span style={{fontSize:12,fontWeight:700,color:C.acc}}>💡 Você fechou todas as séries com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
+              <span style={{fontSize:12,fontWeight:700,color:C.acc}}>💡 Você atingiu {sugestao.topo} reps em todas as séries com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
               <span style={{fontSize:11,color:C.muted,display:"block",marginTop:2}}>toque para aplicar</span>
             </button>
           )}
-          <input type="number" inputMode="decimal" style={S.input} value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="Ex: 40" autoFocus/>
+          <div style={{display:"flex",gap:10}}>
+            <input type="number" inputMode="decimal" style={{...S.input,flex:1}} value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="Peso (kg)" autoFocus/>
+            <input type="number" inputMode="numeric" style={{...S.input,flex:1}} value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder={`Reps (meta ${exercise.reps})`}/>
+          </div>
         </>
       )}
       <button style={{...S.btn,opacity:canComplete?1:0.35,marginBottom:10}} disabled={!canComplete} onClick={onComplete}>Concluir série</button>
