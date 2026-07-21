@@ -1297,6 +1297,21 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   const resetPlan = async () => { await saveStorage("abody:plan",null); setPlan(null); setForm(ANAMNESIS_INIT); setPhotos(PHOTOS_INIT); setBodyAnalysis(null); setStep(1); setSelectedSplit(null); setDayExercises({}); setScreen("onboarding"); };
 
+  // Peso da última execução do exercício, para pré-preencher e guiar a progressão
+  const pesoAnterior = (ex, sIdx) => {
+    if (!ex || ex.iso) return "";
+    for (let i = history.length - 1; i >= 0; i--) {
+      const s = history[i];
+      if (s.manual) continue;
+      const pEx = (s.completed || []).find(e => (ex.id && e.id === ex.id) || e.name === ex.name);
+      if (pEx && Array.isArray(pEx.weights) && pEx.weights.length) {
+        const w = pEx.weights[sIdx] ?? pEx.weights[pEx.weights.length - 1];
+        if (w != null && !isNaN(w)) return String(w);
+      }
+    }
+    return "";
+  };
+
   // ── TREINO ────────────────────────────────────────────────────────────────
 
   const initTimer=(ex)=>{ setSeriesElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);setSeriesRunning(false);}else{setSeriesRunning(true);setIsoRunning(false);setIsoDone(false);}};
@@ -1322,10 +1337,10 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     });
   }, [screen, queue[0]?._key, setIdx]);
 
-  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setWeightInput("");setCardioChoice(null);setScreen("warmup"); };
+  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setWeightInput(pesoAnterior(exercises[0],0));setCardioChoice(null);setScreen("warmup"); };
   const beginWorkout=()=>{ track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
-  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput("");initTimer(next); };
-  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput("");initTimer(newEx);setShowSubs(false); };
+  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));initTimer(next); };
+  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));initTimer(newEx);setShowSubs(false); };
 
   const completeSet=()=>{
     const cur=queue[0]; if(!cur)return;
@@ -1337,7 +1352,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     else { setRestTotal(cur.rest);setRestSec(cur.rest);setSetIdx(setIdx+1);setScreen("rest"); }
   };
 
-  const advanceAfterRest=()=>{ setWeightInput("");initTimer(queue[0]);setScreen("workout"); };
+  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));initTimer(queue[0]);setScreen("workout"); };
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
