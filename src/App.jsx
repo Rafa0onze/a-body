@@ -1484,7 +1484,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} hasBody={bodyHistory.length>0}/>}
+      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
@@ -1503,6 +1503,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         setHistory(novo); await saveStorage("abody:history", novo);
       }}/>}
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
+      {screen==="evolucao"     && <EvolucaoScreen history={history} onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
       {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo}/>}
     </div>
@@ -3507,7 +3508,7 @@ function SettingsModal({ onClose, user, onLogout }) {
   );
 }
 
-function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, hasBody }) {
+function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, onEvolucao, hasBody }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
@@ -3531,21 +3532,26 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
       <h1 style={S.h1}>Olá, {plan.userName}!</h1>
       <p style={S.sub}>Escolha o treino do dia.</p>
 
-      <div style={{display:"flex",gap:10,marginBottom:18}}>
-        <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px"}} onClick={onCalendar}>
+      <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:18}}>
+        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onCalendar}>
           <div style={{fontSize:22,marginBottom:4}}>📅</div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Frequência</div>
           <div style={{fontSize:11,color:C.acc,marginTop:2}}>{weekCount} treino{weekCount!==1?"s":""} esta semana</div>
         </button>
-        <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px",opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
+        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px",opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
           <div style={{fontSize:22,marginBottom:4}}>📊</div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Avaliação corporal</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>{hasBody?"ver relatório":"sem avaliação"}</div>
         </button>
-        <button style={{...S.card,flex:1,alignItems:"center",padding:"14px 8px"}} onClick={onLibrary}>
+        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onLibrary}>
           <div style={{fontSize:22,marginBottom:4}}>📚</div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Biblioteca</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>146 exercícios</div>
+        </button>
+        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onEvolucao}>
+          <div style={{fontSize:22,marginBottom:4}}>📈</div>
+          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Evolução</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:2}}>cargas por exercício</div>
         </button>
       </div>
 
@@ -4230,6 +4236,87 @@ function ABodyCard({ ex }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function EvolucaoScreen({ history, onBack }) {
+  // séries temporais por exercício (apenas sessões reais)
+  const porExercicio = {};
+  history.filter(s=>!s.manual).forEach(s => {
+    (s.completed||[]).forEach(e => {
+      if (e.iso || !Array.isArray(e.weights) || !e.weights.length) return;
+      const w = e.weights.filter(v=>v!=null&&!isNaN(v));
+      if (!w.length) return;
+      const r = (e.reps||[]).filter(v=>v!=null&&!isNaN(v));
+      (porExercicio[e.name] = porExercicio[e.name]||[]).push({
+        date: s.date, max: Math.max(...w),
+        vol: w.reduce((a,b,i)=>a+b*(r[i]||0),0) || null,
+        repsMin: r.length ? Math.min(...r) : null,
+      });
+    });
+  });
+  const nomes = Object.keys(porExercicio).sort((a,b)=>porExercicio[b].length-porExercicio[a].length);
+  const [sel, setSel] = useState(nomes[0]||null);
+  if (!nomes.length) return (
+    <div style={S.box}>
+      <button onClick={onBack} style={S.back}>← Voltar</button>
+      <h1 style={S.h1}>Evolução</h1>
+      <p style={S.sub}>Complete seu primeiro treino registrando pesos e repetições — os gráficos de progressão aparecem aqui.</p>
+    </div>
+  );
+  const dados = (porExercicio[sel]||[]).slice(-12); // últimas 12 sessões
+  const W=320, H=150, PX=14, PY=16;
+  const vals = dados.map(d=>d.max);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max-min) || 1;
+  const px = (i)=> dados.length>1 ? PX + i*(W-2*PX)/(dados.length-1) : W/2;
+  const py = (v)=> H-PY - (v-min)*(H-2*PY)/range;
+  const pts = dados.map((d,i)=>`${px(i)},${py(d.max)}`).join(" ");
+  const primeiro = dados[0], ultimo = dados[dados.length-1];
+  const delta = primeiro && ultimo && primeiro.max>0 ? ((ultimo.max-primeiro.max)/primeiro.max*100) : 0;
+  const fmtData = (iso)=> new Date(iso).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
+  return (
+    <div style={S.box}>
+      <button onClick={onBack} style={S.back}>← Voltar</button>
+      <h1 style={S.h1}>Evolução</h1>
+      <p style={S.sub}>Maior carga por sessão — últimas {dados.length} execuções.</p>
+      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:10,marginBottom:8}}>
+        {nomes.map(n=>(
+          <button key={n} onClick={()=>setSel(n)}
+            style={{flexShrink:0,padding:"7px 13px",borderRadius:18,fontSize:12,fontWeight:700,cursor:"pointer",
+              border:`1.5px solid ${n===sel?C.acc:C.border}`,background:n===sel?C.acc:"transparent",color:n===sel?"#06140e":C.muted}}>
+            {n}
+          </button>
+        ))}
+      </div>
+      <div style={{...S.card,marginBottom:12}}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
+          {[0.25,0.5,0.75].map(f=>(
+            <line key={f} x1={PX} x2={W-PX} y1={PY+f*(H-2*PY)} y2={PY+f*(H-2*PY)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
+          ))}
+          {dados.length>1 && <polyline points={pts} fill="none" stroke={C.acc} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>}
+          {dados.map((d,i)=>(
+            <g key={i}>
+              <circle cx={px(i)} cy={py(d.max)} r="4" fill={C.acc}/>
+              <text x={px(i)} y={py(d.max)-8} textAnchor="middle" fontSize="9" fontWeight="800" fill={C.text}>{d.max}</text>
+            </g>
+          ))}
+          <text x={PX} y={H-2} fontSize="8.5" fill={C.muted}>{fmtData(primeiro.date)}</text>
+          <text x={W-PX} y={H-2} textAnchor="end" fontSize="8.5" fill={C.muted}>{fmtData(ultimo.date)}</text>
+        </svg>
+      </div>
+      <div style={{...S.card,flexDirection:"row",gap:0,padding:"12px 6px"}}>
+        {[["início",`${primeiro.max}kg`],["atual",`${ultimo.max}kg`],["progresso",`${delta>=0?"+":""}${delta.toFixed(0)}%`],["sessões",`${(porExercicio[sel]||[]).length}`]].map(([l,v],i)=>(
+          <div key={i} style={{flex:1,textAlign:"center",borderLeft:i?`1px solid ${C.border}`:"none"}}>
+            <div style={{fontSize:15,fontWeight:800,color:i===2&&delta>0?C.acc:C.text}}>{v}</div>
+            <div style={{fontSize:10,color:C.muted,marginTop:2}}>{l}</div>
+          </div>
+        ))}
+      </div>
+      {ultimo.repsMin != null && <p style={{fontSize:12,color:C.muted,marginTop:10}}>
+        Última sessão: mínimo de {ultimo.repsMin} reps por série{ultimo.vol ? ` · volume total ${Math.round(ultimo.vol)}kg` : ""}.
+      </p>}
     </div>
   );
 }
