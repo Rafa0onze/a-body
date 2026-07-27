@@ -1,8 +1,8 @@
 (() => {
   const TEXT = {
     aluno: {
-      title: "Fundamentos usados pela IA",
-      body: "A geração considera recuperação muscular, volume e frequência semanal, sobreposição entre grupos musculares, ordem dos exercícios, nível de experiência, limitações e segurança. As regras seguem recomendações atuais do ACSM e da IUSCA e revisões sistemáticas sobre treinamento resistido."
+      title: "Treino baseado em evidências científicas",
+      body: "A IA considera recuperação muscular, volume e frequência semanal, sobreposição entre grupos musculares, ordem dos exercícios, nível de experiência, limitações e segurança. As regras seguem recomendações atuais do ACSM e da IUSCA, além de revisões sistemáticas sobre treinamento resistido."
     },
     personal: {
       title: "Fundamentos usados pela IA",
@@ -18,7 +18,7 @@
       "border:1px solid #244c38",
       "border-radius:12px",
       "padding:12px 14px",
-      "margin:12px 0 4px",
+      "margin:0 0 18px",
       "font-family:inherit",
       "line-height:1.45"
     ].join(";");
@@ -35,14 +35,18 @@
     return box;
   }
 
-  function aplicar() {
-    const buttons = [...document.querySelectorAll("button")];
+  function encontrarTitulo(texto) {
+    return [...document.querySelectorAll("h1,h2")]
+      .find(el => (el.textContent || "").trim().toLowerCase() === texto.toLowerCase());
+  }
 
-    const aluno = buttons.find(b => /gerar meu plano/i.test(b.textContent || ""));
-    if (aluno && !document.querySelector('[data-abody-scientific-notice="aluno"]')) {
-      aluno.parentElement?.insertBefore(criarAviso("aluno"), aluno);
+  function aplicar() {
+    const tituloDados = encontrarTitulo("Dados pessoais");
+    if (tituloDados && !document.querySelector('[data-abody-scientific-notice="aluno"]')) {
+      tituloDados.insertAdjacentElement("afterend", criarAviso("aluno"));
     }
 
+    const buttons = [...document.querySelectorAll("button")];
     const personal = buttons.find(b => /^\s*(✨\s*)?gerar treino\s*$/i.test((b.textContent || "").trim()));
     if (personal && !document.querySelector('[data-abody-scientific-notice="personal"]')) {
       personal.parentElement?.insertBefore(criarAviso("personal"), personal);
