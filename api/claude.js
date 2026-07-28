@@ -13,7 +13,7 @@ const QUOTA_PRO = 60;
 
 const MARCADORES = ["personal trainer", "ANÁLISE CORPORAL", "Analise as fotos", "analise corporal"];
 
-// Base científica apresentada ao usuário e aplicada a toda geração de treino.
+// Base científica apresentada ao usuário e aplicada somente à geração de treinos.
 // Atualização principal: ACSM Position Stand 2026 (DOI 10.1249/MSS.0000000000003897)
 // Complemento: IUSCA Position Stand 2021 (DOI 10.47206/ijsc.v1i1.81)
 const REGRAS_CIENTIFICAS = `
@@ -26,18 +26,26 @@ PADRÃO CIENTÍFICO A-BODY — REGRAS OBRIGATÓRIAS DE GERAÇÃO E VALIDAÇÃO:
 5. Não exija falha muscular em todas as séries. Prescreva predominantemente esforço próximo da falha, preservando técnica; use falha com parcimônia, sobretudo em exercícios multiarticulares e usuários iniciantes.
 6. Priorize exercícios multiarticulares e tecnicamente exigentes antes de isoladores, salvo quando houver justificativa explícita de prioridade, reabilitação ou pré-exaustão planejada pelo profissional.
 7. Respeite lesões, limitações, condições médicas, experiência, equipamentos e duração informados. Em risco ou informação insuficiente, escolha a opção mais conservadora e sinalize necessidade de avaliação profissional.
-8. Garanta equilíbrio semanal dos padrões: empurrar e puxar; dominância de joelho e de quadril; trabalho unilateral e de core quando compatíveis com o objetivo.
-9. O plano deve ser individualizável e sustentável. Consistência, progressão e aderência têm prioridade sobre complexidade desnecessária.
-10. Antes de responder, faça uma auditoria silenciosa de sequência, recuperação, volume, sobreposição muscular, duração e segurança. Se alguma regra crítica falhar, corrija o plano antes de retornar o JSON.
+8. Garanta equilíbrio semanal dos padrões: empurrar e puxar; dominância de joelho e de quadril; trabalho unilateral e trabalho direto de core.
+9. CORE É OBRIGATÓRIO: em planos de 3 a 6 dias, inclua pelo menos 2 exercícios diretos de abdômen/core, distribuídos em 2 dias diferentes e preferencialmente não consecutivos, com 2 a 4 séries por exercício. Em planos de 2 dias, inclua ao menos 1 exercício direto de core. Use somente exercícios presentes na lista disponibilizada. Não conte agachamentos, terras ou outros compostos como substitutos do trabalho direto de core.
+10. Para respeitar o limite de exercícios por sessão, substitua um acessório redundante por core; não exceda a duração informada apenas para acrescentá-lo.
+11. O plano deve ser individualizável e sustentável. Consistência, progressão e aderência têm prioridade sobre complexidade desnecessária.
+12. Antes de responder, faça uma auditoria silenciosa de sequência, recuperação, volume, core, sobreposição muscular, duração e segurança. Se alguma regra crítica falhar, corrija o plano antes de retornar o JSON.
 `;
 
 function corpoTexto(messages) {
   let t = "";
   for (const m of messages) {
     if (typeof m.content === "string") t += m.content + "\n";
-    else if (Array.isArray(m.content)) for (const c of m.content) if (c.type === "text") t += (c.text||"") + "\n";
+    else if (Array.isArray(m.content)) {
+      for (const c of m.content) if (c.type === "text") t += (c.text || "") + "\n";
+    }
   }
   return t;
+}
+
+function eGeracaoDeTreino(texto) {
+  return /crie plano de treino|montando treino para o aluno|api json de personal trainer/i.test(texto || "");
 }
 
 function anexarRegras(messages) {
@@ -49,7 +57,9 @@ function anexarRegras(messages) {
 }
 
 function textoResposta(data) {
-  return Array.isArray(data?.content) ? data.content.filter(x => x.type === "text").map(x => x.text || "").join("") : "";
+  return Array.isArray(data?.content)
+    ? data.content.filter(x => x.type === "text").map(x => x.text || "").join("")
+    : "";
 }
 
 function extrairJSON(texto) {
@@ -61,7 +71,7 @@ function extrairJSON(texto) {
 }
 
 function gruposDoDia(dia) {
-  const txt = `${dia?.label||""} ${dia?.sub||""} ${(dia?.exercises||[]).map(e=>e.name).join(" ")}`.toLowerCase();
+  const txt = `${dia?.label || ""} ${dia?.sub || ""} ${(dia?.exercises || []).map(e => e.name).join(" ")}`.toLowerCase();
   const g = new Set();
   if (/agach|leg press|extensora|afundo|avanço|búlgar|quadr[ií]ceps|perna/.test(txt)) g.add("lower");
   if (/terra|stiff|romeno|flexora|nordic|hip thrust|ponte|gl[uú]te|posterior/.test(txt)) g.add("lower");
@@ -73,30 +83,62 @@ function gruposDoDia(dia) {
   return g;
 }
 
+function eExercicioCore(exercicio) {
+  const nome = String(exercicio?.name || "").toLowerCase();
+  return /abdom|abd[oô]men|core|prancha|pallof|dead bug|bird.?dog|roda|eleva[cç][aã]o de pernas|leg raise/.test(nome);
+}
+
 function validarPlano(texto) {
   const plano = extrairJSON(texto);
-  if (!plano || !Array.isArray(plano.weekDays) || !plano.weekDays.length) return ["JSON ou estrutura weekDays inválida"];
+  if (!plano || !Array.isArray(plano.weekDays) || !plano.weekDays.length) {
+    return ["JSON ou estrutura weekDays inválida"];
+  }
+
   const erros = [];
   for (let i = 1; i < plano.weekDays.length; i++) {
-    const ant = gruposDoDia(plano.weekDays[i-1]);
+    const ant = gruposDoDia(plano.weekDays[i - 1]);
     const atu = gruposDoDia(plano.weekDays[i]);
-    if (ant.has("lower") && atu.has("lower")) erros.push(`dias ${i} e ${i+1} têm membros inferiores consecutivos`);
-    if (ant.has("push") && atu.has("push")) erros.push(`dias ${i} e ${i+1} repetem predominância de empurrar`);
-    if (ant.has("pull") && atu.has("pull")) erros.push(`dias ${i} e ${i+1} repetem predominância de puxar`);
+    if (ant.has("lower") && atu.has("lower")) erros.push(`dias ${i} e ${i + 1} têm membros inferiores consecutivos`);
+    if (ant.has("push") && atu.has("push")) erros.push(`dias ${i} e ${i + 1} repetem predominância de empurrar`);
+    if (ant.has("pull") && atu.has("pull")) erros.push(`dias ${i} e ${i + 1} repetem predominância de puxar`);
   }
+
+  const diasComCore = [];
+  let exerciciosCore = 0;
+  let seriesCore = 0;
+
   for (const [i, dia] of plano.weekDays.entries()) {
-    if (!Array.isArray(dia.exercises) || dia.exercises.length === 0) erros.push(`dia ${i+1} sem exercícios`);
-    if ((dia.exercises||[]).length > 5) erros.push(`dia ${i+1} excede 5 exercícios`);
-    const series = (dia.exercises||[]).reduce((s,e)=>s+(Number(e.sets)||0),0);
-    if (series > 25) erros.push(`dia ${i+1} concentra volume excessivo (${series} séries)`);
+    if (!Array.isArray(dia.exercises) || dia.exercises.length === 0) erros.push(`dia ${i + 1} sem exercícios`);
+    if ((dia.exercises || []).length > 5) erros.push(`dia ${i + 1} excede 5 exercícios`);
+
+    const series = (dia.exercises || []).reduce((s, e) => s + (Number(e.sets) || 0), 0);
+    if (series > 25) erros.push(`dia ${i + 1} concentra volume excessivo (${series} séries)`);
+
+    const coreDoDia = (dia.exercises || []).filter(eExercicioCore);
+    if (coreDoDia.length) {
+      diasComCore.push(i);
+      exerciciosCore += coreDoDia.length;
+      seriesCore += coreDoDia.reduce((s, e) => s + (Number(e.sets) || 0), 0);
+    }
   }
+
+  const minimoCore = plano.weekDays.length >= 3 ? 2 : 1;
+  const minimoDiasCore = plano.weekDays.length >= 3 ? 2 : 1;
+  if (exerciciosCore < minimoCore) erros.push(`plano tem ${exerciciosCore} exercício(s) direto(s) de core; mínimo ${minimoCore}`);
+  if (new Set(diasComCore).size < minimoDiasCore) erros.push(`core precisa estar distribuído em ${minimoDiasCore} dia(s) diferente(s)`);
+  if (seriesCore < minimoCore * 2) erros.push(`volume direto de core insuficiente (${seriesCore} séries)`);
+
   return erros;
 }
 
 async function chamarAnthropic(apiKey, safeBody) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
     body: JSON.stringify(safeBody),
   });
   return { status: r.status, data: await r.json() };
@@ -116,69 +158,112 @@ export default async function handler(req, res) {
 
   const jwt = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return res.status(401).json({ error: { message: "Faça login para usar a geração por IA." } });
-  const uResp = await fetch(`${SUPA_URL}/auth/v1/user`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
+  const uResp = await fetch(`${SUPA_URL}/auth/v1/user`, {
+    headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` },
+  });
   if (!uResp.ok) return res.status(401).json({ error: { message: "Sessão inválida ou expirada. Faça login novamente." } });
 
   let quota = QUOTA_DIARIA;
   try {
-    const pResp = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
+    const pResp = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, {
+      headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` },
+    });
     if (pResp.ok && (await pResp.json()).length > 0) quota = QUOTA_PRO;
   } catch {}
 
   const qResp = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
     method: "POST",
-    headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+    headers: {
+      apikey: SUPA_ANON,
+      Authorization: `Bearer ${jwt}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ limite: quota }),
   });
   const permitido = qResp.ok ? await qResp.json() : false;
-  if (permitido !== true) return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
+  if (permitido !== true) {
+    return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
+  }
 
   const body = req.body || {};
-  if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 4) return res.status(400).json({ error: { message: "Payload inválido" } });
+  if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 4) {
+    return res.status(400).json({ error: { message: "Payload inválido" } });
+  }
+
   const texto = corpoTexto(body.messages);
-  if (!MARCADORES.some(m => texto.includes(m))) return res.status(400).json({ error: { message: "Requisição não reconhecida" } });
+  if (!MARCADORES.some(m => texto.includes(m))) {
+    return res.status(400).json({ error: { message: "Requisição não reconhecida" } });
+  }
 
   const MIMES_IMG = ["image/jpeg", "image/png", "image/webp"];
   const MAX_B64_BLOCO = 5_000_000;
   const MAX_BLOCOS_BIN = 5;
   let blocosBin = 0;
+
   for (const m of body.messages) {
     if (typeof m.content === "string") continue;
     if (!Array.isArray(m.content)) return res.status(400).json({ error: { message: "Payload inválido" } });
     for (const c of m.content) {
       if (c.type === "text") continue;
       if (c.type === "image") {
-        if (c.source?.type !== "base64" || !MIMES_IMG.includes(c.source?.media_type) || typeof c.source?.data !== "string" || c.source.data.length > MAX_B64_BLOCO) return res.status(400).json({ error: { message: "Imagem inválida ou acima do limite" } });
+        if (c.source?.type !== "base64" || !MIMES_IMG.includes(c.source?.media_type) || typeof c.source?.data !== "string" || c.source.data.length > MAX_B64_BLOCO) {
+          return res.status(400).json({ error: { message: "Imagem inválida ou acima do limite" } });
+        }
         blocosBin++;
       } else if (c.type === "document") {
-        if (c.source?.type !== "base64" || c.source?.media_type !== "application/pdf" || typeof c.source?.data !== "string" || c.source.data.length > MAX_B64_BLOCO) return res.status(400).json({ error: { message: "Documento inválido: apenas PDF até o limite de tamanho" } });
+        if (c.source?.type !== "base64" || c.source?.media_type !== "application/pdf" || typeof c.source?.data !== "string" || c.source.data.length > MAX_B64_BLOCO) {
+          return res.status(400).json({ error: { message: "Documento inválido: apenas PDF até o limite de tamanho" } });
+        }
         blocosBin++;
-      } else return res.status(400).json({ error: { message: "Tipo de bloco não permitido" } });
-      if (blocosBin > MAX_BLOCOS_BIN) return res.status(400).json({ error: { message: "Excesso de anexos na requisição" } });
+      } else {
+        return res.status(400).json({ error: { message: "Tipo de bloco não permitido" } });
+      }
+      if (blocosBin > MAX_BLOCOS_BIN) {
+        return res.status(400).json({ error: { message: "Excesso de anexos na requisição" } });
+      }
     }
   }
 
-  const messagesComRegras = anexarRegras(body.messages);
-  const safeBody = { model: "claude-sonnet-4-6", max_tokens: Math.min(Number(body.max_tokens) || 2000, 8192), messages: messagesComRegras };
+  const geracaoTreino = eGeracaoDeTreino(texto);
+  const messagesFinais = geracaoTreino ? anexarRegras(body.messages) : body.messages;
+  const safeBody = {
+    model: "claude-sonnet-4-6",
+    max_tokens: Math.min(Number(body.max_tokens) || 2000, 8192),
+    messages: messagesFinais,
+  };
 
   try {
     let result = await chamarAnthropic(apiKey, safeBody);
     if (result.status >= 400) return res.status(result.status).json(result.data);
 
-    const erros = validarPlano(textoResposta(result.data));
-    if (erros.length) {
-      const correcao = `A resposta anterior falhou na validação científica automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido, corrigindo todos os erros e obedecendo integralmente ao PADRÃO CIENTÍFICO A-BODY. Não explique.`;
-      const retryBody = {
-        ...safeBody,
-        messages: [...messagesComRegras, { role: "assistant", content: textoResposta(result.data) }, { role: "user", content: correcao }],
-      };
-      result = await chamarAnthropic(apiKey, retryBody);
-      if (result.status >= 400) return res.status(result.status).json(result.data);
-      const errosRetry = validarPlano(textoResposta(result.data));
-      if (errosRetry.length) return res.status(422).json({ error: { message: "O treino não passou na validação científica automática. Gere novamente.", validation: errosRetry } });
+    if (geracaoTreino) {
+      const erros = validarPlano(textoResposta(result.data));
+      if (erros.length) {
+        const correcao = `A resposta anterior falhou na validação científica automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido, corrigindo todos os erros. É obrigatório incluir trabalho direto de abdômen/core conforme o PADRÃO CIENTÍFICO A-BODY, sem exceder 5 exercícios por sessão; substitua acessórios redundantes quando necessário. Não explique.`;
+        const retryBody = {
+          ...safeBody,
+          messages: [
+            ...messagesFinais,
+            { role: "assistant", content: textoResposta(result.data) },
+            { role: "user", content: correcao },
+          ],
+        };
+        result = await chamarAnthropic(apiKey, retryBody);
+        if (result.status >= 400) return res.status(result.status).json(result.data);
+
+        const errosRetry = validarPlano(textoResposta(result.data));
+        if (errosRetry.length) {
+          return res.status(422).json({
+            error: {
+              message: "O treino não passou na validação científica automática. Gere novamente.",
+              validation: errosRetry,
+            },
+          });
+        }
+      }
+      res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-2021-CORE");
     }
 
-    res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-2021");
     return res.status(result.status).json(result.data);
   } catch (e) {
     return res.status(502).json({ error: { message: "Falha ao contatar a IA: " + e.message } });
