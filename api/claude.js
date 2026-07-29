@@ -11,25 +11,24 @@ const MARCADORES = ["personal trainer", "ANÁLISE CORPORAL", "Analise as fotos",
 const REGRAS_CIENTIFICAS = `
 
 PADRÃO CIENTÍFICO A-BODY — REGRAS OBRIGATÓRIAS:
-1. Não programe dois dias consecutivos com predominância de membros inferiores.
-2. Não repita o mesmo grupo muscular principal em dias consecutivos. Considere as sobreposições peito/ombros/tríceps, costas/bíceps e quadríceps/glúteos/posteriores.
-3. Distribua o volume semanal e evite mais de 10 séries diretas para um mesmo músculo na mesma sessão.
-4. Priorize exercícios multiarticulares e tecnicamente exigentes antes dos isoladores, salvo justificativa individual.
-5. Respeite experiência, equipamentos, lesões, limitações, condições médicas e duração informada.
-6. Inclua trabalho direto de core: em planos de 3 a 6 dias, ao menos 2 exercícios em 2 dias diferentes; em planos de 2 dias, ao menos 1 exercício. Compostos não substituem esse trabalho.
-7. A DURAÇÃO INFORMADA REPRESENTA A SESSÃO COMPLETA: reserve aproximadamente 5 minutos para aquecimento e 10 a 15 minutos para o aeróbico pós-treino. Preencha o restante com musculação.
-8. NÃO USE LIMITE FIXO DE 5 EXERCÍCIOS. Ajuste entre 4 e 8 exercícios por sessão conforme duração, número de séries e descansos. Treinos de 75 a 90 minutos geralmente precisam de 6 a 8 exercícios, salvo quando houver muitas séries ou descansos longos.
-9. Estime o tempo de musculação considerando execução das séries, descansos prescritos e cerca de 1 a 2 minutos de transição entre exercícios. Não entregue um treino significativamente mais curto que o solicitado.
-10. Antes de responder, audite sequência, recuperação, volume, core, duração total e segurança. Corrija qualquer falha antes de retornar o JSON.
+1. A prioridade é obedecer ao objetivo já escolhido na anamnese. Não trate a duração como meta a ser preenchida com exercícios redundantes.
+2. Não programe dois dias consecutivos com predominância de membros inferiores nem repita o mesmo grupo principal em dias consecutivos. Considere sobreposição peito/ombros/tríceps, costas/bíceps e quadríceps/glúteos/posteriores.
+3. Distribua o volume semanal. Por sessão, grandes grupos devem ficar normalmente entre 8 e 14 séries diretas; pequenos grupos entre 4 e 8 séries diretas. Não ultrapasse 14 séries diretas de peito, costas, quadríceps, posteriores ou glúteos, nem 8 séries diretas de bíceps, tríceps ou panturrilhas. Deltoides podem chegar a 10 séries diretas quando forem o foco principal.
+4. Considere volume indireto: puxadas e remadas já recrutam bíceps; supinos recrutam tríceps e deltoide anterior; desenvolvimentos recrutam tríceps; remadas e face pull recrutam deltoide posterior. Após costas pesadas, use normalmente no máximo 2 exercícios diretos de bíceps. Após peito/ombro pesados, use normalmente no máximo 2 exercícios diretos de tríceps.
+5. Evite redundância. Em um mesmo treino, use no máximo 2 puxadas verticais e 2 remadas horizontais; no máximo 2 supinos/presses semelhantes; no máximo 2 variações equivalentes de agachamento/leg press; no máximo 2 isoladores do mesmo pequeno grupo. Não use três exercícios que cumpram essencialmente a mesma função.
+6. Para costas ou peito, use normalmente no máximo 4 exercícios diretos por sessão. Para bíceps e tríceps, normalmente no máximo 2 exercícios diretos; 3 somente se forem prioridade explícita da anamnese e o volume total permanecer adequado.
+7. Priorize exercícios multiarticulares e tecnicamente exigentes antes dos isoladores, salvo justificativa individual.
+8. Inclua trabalho direto de core: em planos de 3 a 6 dias, ao menos 2 exercícios em 2 dias diferentes; em planos de 2 dias, ao menos 1 exercício. Compostos não substituem core direto.
+9. A duração informada representa a sessão completa: aproximadamente 5 minutos de aquecimento e 10 a 15 minutos de aeróbico pós-treino. O restante é musculação. Se o treino de qualidade terminar antes, complete com core, mobilidade ou aeróbico — nunca com volume redundante.
+10. Use entre 4 e 8 exercícios conforme duração, séries e descansos. Estime execução, descansos e 1 a 2 minutos de transição. A qualidade e a aderência ao objetivo têm prioridade sobre ocupar cada minuto.
+11. Faça uma auditoria da semana inteira: volume por músculo, volume indireto, padrões repetidos, equilíbrio agonista/antagonista, frequência, recuperação, core, duração e aderência ao objetivo. Corrija qualquer falha antes de retornar o JSON.
 `;
 
 function corpoTexto(messages) {
   let texto = "";
   for (const m of messages || []) {
     if (typeof m.content === "string") texto += m.content + "\n";
-    else if (Array.isArray(m.content)) {
-      for (const c of m.content) if (c.type === "text") texto += (c.text || "") + "\n";
-    }
+    else if (Array.isArray(m.content)) for (const c of m.content) if (c.type === "text") texto += (c.text || "") + "\n";
   }
   return texto;
 }
@@ -42,13 +41,11 @@ function prepararMensagens(messages, treino) {
   const copia = JSON.parse(JSON.stringify(messages));
   if (!treino) return copia;
   for (const m of copia) {
-    if (typeof m.content === "string") {
-      m.content = m.content.replace(/Max\s*5\s*exercícios\/dia\.?/gi, "Quantidade variável de 4 a 8 exercícios/dia conforme a duração total solicitada.");
-    } else if (Array.isArray(m.content)) {
-      for (const c of m.content) if (c.type === "text") {
-        c.text = String(c.text || "").replace(/Max\s*5\s*exercícios\/dia\.?/gi, "Quantidade variável de 4 a 8 exercícios/dia conforme a duração total solicitada.");
-      }
-    }
+    const trocar = t => String(t || "")
+      .replace(/Max\s*5\s*exercícios\/dia\.?/gi, "Quantidade variável de 4 a 8 exercícios/dia conforme duração, objetivo e qualidade do programa.")
+      .replace(/exatamente\s+5\s+exercícios/gi, "quantidade adequada de exercícios");
+    if (typeof m.content === "string") m.content = trocar(m.content);
+    else if (Array.isArray(m.content)) for (const c of m.content) if (c.type === "text") c.text = trocar(c.text);
   }
   const ultima = copia[copia.length - 1];
   if (typeof ultima.content === "string") ultima.content += REGRAS_CIENTIFICAS;
@@ -96,22 +93,48 @@ function estimarMinutosDia(dia) {
     segundos += series * execucao + Math.max(0, series - 1) * descanso;
     if (i > 0) segundos += 90;
   });
-  const cardio = Number(dia?.postCardio?.minMinutes || 10) + Number(dia?.postCardio?.maxMinutes || 15);
-  const cardioMedio = cardio / 2;
-  return Math.round((segundos / 60) + 5 + cardioMedio);
+  const cardioMedio = (Number(dia?.postCardio?.minMinutes || 10) + Number(dia?.postCardio?.maxMinutes || 15)) / 2;
+  return Math.round(segundos / 60 + 5 + cardioMedio);
+}
+
+function nomeNorm(ex) {
+  return String(ex?.name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function classificar(ex) {
+  const n = nomeNorm(ex);
+  const grupos = new Set();
+  const padroes = new Set();
+  if (/barra fixa|puxada|pulldown|pull.?down/.test(n)) { grupos.add("costas"); padroes.add("puxada_vertical"); }
+  if (/remada|serrote|cavalinho/.test(n)) { grupos.add("costas"); padroes.add("remada_horizontal"); }
+  if (/face pull|pullover/.test(n)) { grupos.add("costas"); padroes.add("acessorio_costas"); }
+  if (/supino|flexao de braco|chest press/.test(n)) { grupos.add("peito"); padroes.add("press_peito"); }
+  if (/crucifixo|peck deck|cross.?over|voador/.test(n)) { grupos.add("peito"); padroes.add("isolador_peito"); }
+  if (/desenvolvimento|shoulder press/.test(n)) { grupos.add("ombro"); padroes.add("press_ombro"); }
+  if (/elevacao lateral|elevacao frontal/.test(n)) { grupos.add("ombro"); padroes.add("isolador_ombro"); }
+  if (/rosca|biceps/.test(n)) { grupos.add("biceps"); padroes.add("isolador_biceps"); }
+  if (/triceps|mergulho/.test(n)) { grupos.add("triceps"); padroes.add("isolador_triceps"); }
+  if (/agachamento|hack squat|leg press|afundo|avanco|bulgar/.test(n)) { grupos.add("quadriceps"); padroes.add("dominancia_joelho"); }
+  if (/terra|stiff|romeno|flexora|nordic/.test(n)) { grupos.add("posterior"); padroes.add("dominancia_quadril"); }
+  if (/hip thrust|ponte|gluteo/.test(n)) { grupos.add("gluteos"); padroes.add("extensao_quadril"); }
+  if (/panturrilha/.test(n)) { grupos.add("panturrilha"); padroes.add("panturrilha"); }
+  if (/abdom|abdomen|core|prancha|pallof|dead bug|bird.?dog|roda|elevacao de pernas|leg raise/.test(n)) { grupos.add("core"); padroes.add("core"); }
+  return { grupos, padroes };
 }
 
 function gruposDoDia(dia) {
-  const txt = `${dia?.label || ""} ${dia?.sub || ""} ${(dia?.exercises || []).map(e => e.name).join(" ")}`.toLowerCase();
-  const g = new Set();
-  if (/agach|leg press|extensora|afundo|avanço|búlgar|quadr[ií]ceps|perna|terra|stiff|romeno|flexora|nordic|hip thrust|ponte|gl[uú]te|posterior/.test(txt)) g.add("lower");
-  if (/supino|peito|crucifixo|peck|cross.?over|flex[aã]o|desenvolvimento|ombro|eleva[cç][aã]o lateral|tr[ií]ceps|mergulho/.test(txt)) g.add("push");
-  if (/puxada|barra fixa|remada|costas|face pull|rosca|b[ií]ceps/.test(txt)) g.add("pull");
-  return g;
-}
-
-function eCore(ex) {
-  return /abdom|abd[oô]men|core|prancha|pallof|dead bug|bird.?dog|roda|eleva[cç][aã]o de pernas|leg raise/i.test(String(ex?.name || ""));
+  const totais = { lower: 0, push: 0, pull: 0 };
+  for (const ex of dia?.exercises || []) {
+    const s = Number(ex.sets) || 0;
+    const { grupos } = classificar(ex);
+    if (["quadriceps", "posterior", "gluteos"].some(g => grupos.has(g))) totais.lower += s;
+    if (["peito", "ombro", "triceps"].some(g => grupos.has(g))) totais.push += s;
+    if (["costas", "biceps"].some(g => grupos.has(g))) totais.pull += s;
+  }
+  const predominantes = new Set();
+  const max = Math.max(totais.lower, totais.push, totais.pull);
+  if (max > 0) for (const [g, v] of Object.entries(totais)) if (v === max || v >= max * 0.8) predominantes.add(g);
+  return predominantes;
 }
 
 function validarPlano(textoRespostaIA, textoPedido) {
@@ -120,6 +143,7 @@ function validarPlano(textoRespostaIA, textoPedido) {
   const erros = [];
   const alvo = minutosSolicitados(textoPedido);
   const maxEx = limiteExercicios(alvo);
+  const volumeSemanal = {};
 
   for (let i = 1; i < plano.weekDays.length; i++) {
     const ant = gruposDoDia(plano.weekDays[i - 1]);
@@ -131,20 +155,53 @@ function validarPlano(textoRespostaIA, textoPedido) {
 
   let exerciciosCore = 0;
   const diasCore = new Set();
+
   for (const [i, dia] of plano.weekDays.entries()) {
     const exs = Array.isArray(dia.exercises) ? dia.exercises : [];
     if (!exs.length) erros.push(`dia ${i + 1} sem exercícios`);
-    if (exs.length > maxEx) erros.push(`dia ${i + 1} excede o limite de ${maxEx} exercícios para ${alvo || "a"} minutos`);
-    const series = exs.reduce((s, e) => s + (Number(e.sets) || 0), 0);
-    if (series > 32) erros.push(`dia ${i + 1} concentra volume excessivo (${series} séries)`);
-    const core = exs.filter(eCore);
-    if (core.length) { exerciciosCore += core.length; diasCore.add(i); }
+    if (exs.length > maxEx) erros.push(`dia ${i + 1} excede ${maxEx} exercícios para ${alvo || "a duração escolhida"}`);
+
+    const volume = {};
+    const contagemPadrao = {};
+    const exerciciosGrupo = {};
+    let seriesTotais = 0;
+
+    for (const ex of exs) {
+      const s = Number(ex.sets) || 0;
+      seriesTotais += s;
+      const { grupos, padroes } = classificar(ex);
+      for (const g of grupos) {
+        volume[g] = (volume[g] || 0) + s;
+        volumeSemanal[g] = (volumeSemanal[g] || 0) + s;
+        exerciciosGrupo[g] = (exerciciosGrupo[g] || 0) + 1;
+      }
+      for (const p of padroes) contagemPadrao[p] = (contagemPadrao[p] || 0) + 1;
+    }
+
+    if (seriesTotais > 32) erros.push(`dia ${i + 1} concentra volume excessivo (${seriesTotais} séries)`);
+    for (const g of ["peito", "costas", "quadriceps", "posterior", "gluteos"]) if ((volume[g] || 0) > 14) erros.push(`dia ${i + 1} excede 14 séries diretas de ${g} (${volume[g]})`);
+    for (const g of ["biceps", "triceps", "panturrilha"]) if ((volume[g] || 0) > 8) erros.push(`dia ${i + 1} excede 8 séries diretas de ${g} (${volume[g]})`);
+    if ((volume.ombro || 0) > 10) erros.push(`dia ${i + 1} excede 10 séries diretas de ombro (${volume.ombro})`);
+
+    if ((exerciciosGrupo.costas || 0) > 4) erros.push(`dia ${i + 1} tem mais de 4 exercícios diretos de costas`);
+    if ((exerciciosGrupo.peito || 0) > 4) erros.push(`dia ${i + 1} tem mais de 4 exercícios diretos de peito`);
+    if ((exerciciosGrupo.biceps || 0) > 2 && (volume.costas || 0) >= 8) erros.push(`dia ${i + 1} tem mais de 2 exercícios de bíceps após volume alto de costas`);
+    if ((exerciciosGrupo.triceps || 0) > 2 && ((volume.peito || 0) + (volume.ombro || 0)) >= 8) erros.push(`dia ${i + 1} tem mais de 2 exercícios de tríceps após volume alto de empurrar`);
+
+    if ((contagemPadrao.puxada_vertical || 0) > 2) erros.push(`dia ${i + 1} repete mais de 2 puxadas verticais`);
+    if ((contagemPadrao.remada_horizontal || 0) > 2) erros.push(`dia ${i + 1} repete mais de 2 remadas horizontais`);
+    if ((contagemPadrao.press_peito || 0) > 2) erros.push(`dia ${i + 1} repete mais de 2 presses de peito semelhantes`);
+    if ((contagemPadrao.dominancia_joelho || 0) > 3) erros.push(`dia ${i + 1} concentra exercícios redundantes de dominância de joelho`);
+    if ((contagemPadrao.isolador_biceps || 0) > 2 && (volume.costas || 0) >= 8) erros.push(`dia ${i + 1} tem isoladores redundantes de bíceps`);
+    if ((contagemPadrao.isolador_triceps || 0) > 2 && ((volume.peito || 0) + (volume.ombro || 0)) >= 8) erros.push(`dia ${i + 1} tem isoladores redundantes de tríceps`);
+
+    if ((volume.core || 0) > 0) { exerciciosCore += exerciciosGrupo.core || 0; diasCore.add(i); }
 
     if (alvo) {
       const estimado = estimarMinutosDia(dia);
-      const minimo = Math.max(30, alvo - 15);
+      const minimo = Math.max(30, alvo - 20);
       const maximo = alvo + 10;
-      if (estimado < minimo) erros.push(`dia ${i + 1} está curto: estimado ${estimado} min para meta de ${alvo} min`);
+      if (estimado < minimo && exs.length < maxEx) erros.push(`dia ${i + 1} está curto: estimado ${estimado} min para meta de ${alvo} min`);
       if (estimado > maximo) erros.push(`dia ${i + 1} está longo: estimado ${estimado} min para meta de ${alvo} min`);
     }
   }
@@ -153,6 +210,11 @@ function validarPlano(textoRespostaIA, textoPedido) {
   const minimoDiasCore = plano.weekDays.length >= 3 ? 2 : 1;
   if (exerciciosCore < minimoCore) erros.push(`plano tem ${exerciciosCore} exercício(s) direto(s) de core; mínimo ${minimoCore}`);
   if (diasCore.size < minimoDiasCore) erros.push(`core precisa estar distribuído em ${minimoDiasCore} dia(s) diferente(s)`);
+
+  // Auditoria semanal conservadora: evita concentrar volume absurdo mesmo distribuído.
+  for (const g of ["peito", "costas", "quadriceps", "posterior", "gluteos"]) if ((volumeSemanal[g] || 0) > 28) erros.push(`volume semanal excessivo de ${g} (${volumeSemanal[g]} séries diretas)`);
+  for (const g of ["biceps", "triceps", "ombro"]) if ((volumeSemanal[g] || 0) > 20) erros.push(`volume semanal excessivo de ${g} (${volumeSemanal[g]} séries diretas)`);
+
   return erros;
 }
 
@@ -188,7 +250,9 @@ export default async function handler(req, res) {
     if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
   } catch {}
   const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
-    method: "POST", headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" }, body: JSON.stringify({ limite: quota }),
+    method: "POST",
+    headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ limite: quota }),
   });
   if (!(q.ok && await q.json() === true)) return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
 
@@ -220,14 +284,14 @@ export default async function handler(req, res) {
     if (treino) {
       let erros = validarPlano(textoResposta(result.data), texto);
       if (erros.length) {
-        const correcao = `A resposta falhou na validação automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido, corrigindo tudo. A duração informada inclui 5 min de aquecimento e 10–15 min de aeróbico; ajuste a musculação para completar o restante. Use de 4 a 8 exercícios conforme necessário. Não explique.`;
+        const correcao = `A resposta falhou na auditoria científica automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido. Obedeça ao objetivo da anamnese, reduza redundâncias, respeite limites por músculo e considere volume indireto. A duração inclui aquecimento e aeróbico; não preencha tempo com exercícios repetidos. Não explique.`;
         result = await chamarAnthropic(apiKey, { ...safeBody, messages: [...mensagens, { role: "assistant", content: textoResposta(result.data) }, { role: "user", content: correcao }] });
         if (result.status >= 400) return res.status(result.status).json(result.data);
         erros = validarPlano(textoResposta(result.data), texto);
-        if (erros.length) return res.status(422).json({ error: { message: "O treino não passou na validação de duração e segurança. Gere novamente.", validation: erros } });
+        if (erros.length) return res.status(422).json({ error: { message: "O treino não passou na auditoria científica de volume, redundância e duração. Gere novamente.", validation: erros } });
       }
     }
-    res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-duration-v2");
+    res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-quality-v3");
     return res.status(result.status).json(result.data);
   } catch (e) {
     return res.status(502).json({ error: { message: "Falha ao contatar a IA: " + e.message } });
