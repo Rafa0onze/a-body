@@ -1,4 +1,5 @@
-// api/claude.js — geração estruturada e validação interna de treinos
+// api/claude.js — Vercel Serverless Function
+// Geração estruturada de treinos com auditoria interna e respostas sempre em JSON.
 
 export const config = { maxDuration: 60 };
 
@@ -9,26 +10,30 @@ const QUOTA_DIARIA = 20;
 const QUOTA_PRO = 60;
 const MARCADORES = ["personal trainer", "ANÁLISE CORPORAL", "Analise as fotos", "analise corporal"];
 
-const REGRAS_BASE = `
-PADRÃO CIENTÍFICO A-BODY — REGRAS OBRIGATÓRIAS:
-1. Obedeça ao objetivo, nível, limitações, equipamentos e disponibilidade informados na anamnese.
-2. A duração informada é da sessão completa: cerca de 5 min de aquecimento, musculação e 10–15 min de aeróbico pós-treino.
-3. Não use exercícios redundantes apenas para preencher tempo.
-4. Grandes grupos: normalmente 8–14 séries diretas por sessão. Pequenos grupos: 4–8. Ombros: até 10 quando forem prioridade.
-5. Em uma sessão, no máximo 4 exercícios diretos para peito ou costas; normalmente 2 para bíceps ou tríceps quando já houver alto volume indireto.
-6. No máximo 2 puxadas verticais, 2 remadas horizontais, 2 presses semelhantes e 2 isoladores equivalentes para o mesmo pequeno grupo.
-7. Considere volume indireto de bíceps em puxadas/remadas e de tríceps/ombro em supinos e desenvolvimentos.
-8. Inclua core direto: em planos de 3–6 dias, ao menos 2 exercícios distribuídos em 2 dias; em planos de 2 dias, ao menos 1.
-9. Evite repetir o mesmo grupo predominante em dias consecutivos e não programe dois dias predominantes de pernas em sequência.
-10. Use somente exercícios da lista disponibilizada e copie os nomes literalmente.
+const PIPELINE_INTERNO = `
+FLUXO OBRIGATÓRIO DE RACIOCÍNIO DO A-BODY — EXECUTE INTERNAMENTE E RETORNE APENAS O JSON FINAL:
+1. DIAGNÓSTICO: combine anamnese, fotos e documentos disponíveis. Identifique objetivo principal, nível, limitações, até 3 prioridades de melhoria e grupos apenas de manutenção. Não escolha exercícios ainda.
+2. ESTRATÉGIA SEMANAL: escolha a divisão compatível com os dias disponíveis, distribua os grupos sem repetir predominância em dias consecutivos e reserve recuperação adequada.
+3. VOLUME: defina primeiro as séries semanais e por sessão de cada grupo. Grandes grupos normalmente 8–14 séries diretas por sessão; pequenos grupos 4–8; ombros até 10. Considere volume indireto.
+4. EXERCÍCIOS: somente depois selecione exercícios exclusivamente da biblioteca fornecida. Evite redundância: máximo 2 puxadas verticais, 2 remadas horizontais, 2 presses semelhantes e 2 isoladores do mesmo pequeno grupo quando ele já recebe alto volume indireto.
+5. SESSÃO: ordene multiarticulares antes de isoladores, defina séries, repetições e descanso. A duração informada inclui cerca de 5 min de aquecimento e 10–15 min de aeróbico. Não preencha tempo com exercícios repetidos.
+6. CORE: em planos de 3 ou mais dias, inclua trabalho direto em pelo menos 2 dias; em planos de 2 dias, em pelo menos 1 dia.
+7. AUDITORIA FINAL: confira semana inteira, volume, redundância, duração, recuperação, objetivo e limitações. Corrija silenciosamente qualquer falha.
+Retorne somente JSON válido, sem markdown e sem explicações.
 `;
+
+function json(res, status, payload) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  return res.end(JSON.stringify(payload));
+}
 
 function corpoTexto(messages) {
   let texto = "";
   for (const m of messages || []) {
     if (typeof m.content === "string") texto += m.content + "\n";
     else if (Array.isArray(m.content)) {
-      for (const c of m.content) if (c.type === "text") texto += (c.text || "") + "\n";
+      for (const c of m.content) if (c?.type === "text") texto += String(c.text || "") + "\n";
     }
   }
   return texto;
@@ -38,216 +43,104 @@ function eGeracaoDeTreino(texto) {
   return /crie plano de treino|montando treino para o aluno|api json de personal trainer/i.test(texto || "");
 }
 
-function anexarTexto(messages, textoExtra) {
+function prepararMensagens(messages, treino) {
   const copia = JSON.parse(JSON.stringify(messages));
+  if (!treino) return copia;
+  for (const m of copia) {
+    const limpar = t => String(t || "")
+      .replace(/Max\s*5\s*exercícios\/dia\.?/gi, "Use quantidade variável de exercícios conforme objetivo, volume e duração.")
+      .replace(/exatamente\s+5\s+exercícios/gi, "quantidade adequada de exercícios");
+    if (typeof m.content === "string") m.content = limpar(m.content);
+    else if (Array.isArray(m.content)) for (const c of m.content) if (c?.type === "text") c.text = limpar(c.text);
+  }
   const ultima = copia[copia.length - 1];
-  if (typeof ultima.content === "string") ultima.content += "\n\n" + textoExtra;
-  else if (Array.isArray(ultima.content)) ultima.content.push({ type: "text", text: textoExtra });
+  if (typeof ultima.content === "string") ultima.content += PIPELINE_INTERNO;
+  else if (Array.isArray(ultima.content)) ultima.content.push({ type: "text", text: PIPELINE_INTERNO });
   return copia;
 }
 
 function textoResposta(data) {
   return Array.isArray(data?.content)
-    ? data.content.filter(x => x.type === "text").map(x => x.text || "").join("")
+    ? data.content.filter(x => x?.type === "text").map(x => x.text || "").join("")
     : "";
 }
 
-function extrairJSON(texto) {
+function extrairPlano(texto) {
   const limpo = String(texto || "").replace(/```json|```/gi, "").trim();
   const ini = limpo.indexOf("{");
   const fim = limpo.lastIndexOf("}");
   if (ini < 0 || fim <= ini) return null;
-  try { return JSON.parse(limpo.slice(ini, fim + 1)); } catch { return null; }
-}
-
-function minutosSolicitados(texto) {
-  const trecho = String(texto || "").match(/Duração:\s*([^\n|]+)/i)?.[1]?.trim() || "";
-  let m = trecho.match(/(\d+)\s*h\s*(\d+)?/i);
-  if (m) return Number(m[1]) * 60 + Number(m[2] || 0);
-  m = trecho.match(/(\d+)\s*min/i);
-  if (m) return Number(m[1]);
-  return null;
-}
-
-function limiteExercicios(minutos) {
-  if (!minutos) return 8;
-  if (minutos <= 45) return 5;
-  if (minutos <= 60) return 6;
-  if (minutos <= 75) return 7;
-  return 8;
-}
-
-function estimarMinutosDia(dia) {
-  const exs = Array.isArray(dia?.exercises) ? dia.exercises : [];
-  let segundos = 0;
-  exs.forEach((ex, i) => {
-    const series = Math.max(1, Number(ex.sets) || 3);
-    const descanso = Math.max(30, Number(ex.rest) || 60);
-    const execucao = ex.isometric ? Math.max(30, Number(ex.isoSeconds) || 45) : 40;
-    segundos += series * execucao + Math.max(0, series - 1) * descanso;
-    if (i > 0) segundos += 90;
-  });
-  const cardio = (Number(dia?.postCardio?.minMinutes || 10) + Number(dia?.postCardio?.maxMinutes || 15)) / 2;
-  return Math.round(segundos / 60 + 5 + cardio);
-}
-
-function nomeNorm(ex) {
-  return String(ex?.name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function classificar(ex) {
-  const n = nomeNorm(ex);
-  const grupos = new Set();
-  const padroes = new Set();
-  if (/barra fixa|puxada|pulldown|pull.?down/.test(n)) { grupos.add("costas"); padroes.add("puxada_vertical"); }
-  if (/remada|serrote|cavalinho/.test(n)) { grupos.add("costas"); padroes.add("remada_horizontal"); }
-  if (/face pull|pullover/.test(n)) { grupos.add("costas"); padroes.add("acessorio_costas"); }
-  if (/supino|flexao de braco|chest press/.test(n)) { grupos.add("peito"); padroes.add("press_peito"); }
-  if (/crucifixo|peck deck|cross.?over|voador/.test(n)) { grupos.add("peito"); padroes.add("isolador_peito"); }
-  if (/desenvolvimento|shoulder press/.test(n)) { grupos.add("ombro"); padroes.add("press_ombro"); }
-  if (/elevacao lateral|elevacao frontal/.test(n)) { grupos.add("ombro"); padroes.add("isolador_ombro"); }
-  if (/rosca|biceps/.test(n)) { grupos.add("biceps"); padroes.add("isolador_biceps"); }
-  if (/triceps|mergulho/.test(n)) { grupos.add("triceps"); padroes.add("isolador_triceps"); }
-  if (/agachamento|hack squat|leg press|afundo|avanco|bulgar/.test(n)) { grupos.add("quadriceps"); padroes.add("dominancia_joelho"); }
-  if (/terra|stiff|romeno|flexora|nordic/.test(n)) { grupos.add("posterior"); padroes.add("dominancia_quadril"); }
-  if (/hip thrust|ponte|gluteo/.test(n)) { grupos.add("gluteos"); padroes.add("extensao_quadril"); }
-  if (/panturrilha/.test(n)) { grupos.add("panturrilha"); padroes.add("panturrilha"); }
-  if (/abdom|abdomen|core|prancha|pallof|dead bug|bird.?dog|roda|elevacao de pernas|leg raise/.test(n)) { grupos.add("core"); padroes.add("core"); }
-  return { grupos, padroes };
-}
-
-function gruposPredominantes(dia) {
-  const t = { lower: 0, push: 0, pull: 0 };
-  for (const ex of dia?.exercises || []) {
-    const s = Number(ex.sets) || 0;
-    const { grupos } = classificar(ex);
-    if (["quadriceps", "posterior", "gluteos"].some(g => grupos.has(g))) t.lower += s;
-    if (["peito", "ombro", "triceps"].some(g => grupos.has(g))) t.push += s;
-    if (["costas", "biceps"].some(g => grupos.has(g))) t.pull += s;
+  try {
+    const plano = JSON.parse(limpo.slice(ini, fim + 1));
+    return plano && Array.isArray(plano.weekDays) && plano.weekDays.length ? plano : null;
+  } catch {
+    return null;
   }
-  const out = new Set();
-  const max = Math.max(t.lower, t.push, t.pull);
-  if (max > 0) for (const [g, v] of Object.entries(t)) if (v === max || v >= max * 0.85) out.add(g);
-  return out;
 }
 
-function validarPlano(textoPlano, textoPedido) {
-  const plano = extrairJSON(textoPlano);
-  if (!plano || !Array.isArray(plano.weekDays) || !plano.weekDays.length) return ["estrutura inválida"];
+function normalizarNome(v) {
+  return String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 
+function auditarPlano(plano) {
   const erros = [];
-  const alvo = minutosSolicitados(textoPedido);
-  const maxEx = limiteExercicios(alvo);
-  const volumeSemanal = {};
-  let exerciciosCore = 0;
-  const diasCore = new Set();
-
-  for (let i = 1; i < plano.weekDays.length; i++) {
-    const ant = gruposPredominantes(plano.weekDays[i - 1]);
-    const atu = gruposPredominantes(plano.weekDays[i]);
-    if (ant.has("lower") && atu.has("lower")) erros.push(`dias ${i} e ${i + 1}: pernas consecutivas`);
-  }
-
-  for (const [i, dia] of plano.weekDays.entries()) {
-    const exs = Array.isArray(dia.exercises) ? dia.exercises : [];
-    if (!exs.length) erros.push(`dia ${i + 1}: sem exercícios`);
-    if (exs.length > maxEx) erros.push(`dia ${i + 1}: exercícios acima do limite`);
-
-    const volume = {};
-    const padroes = {};
-    const qtdGrupo = {};
-    let seriesTotais = 0;
-
+  let diasCore = 0;
+  for (const [i, dia] of (plano?.weekDays || []).entries()) {
+    const exs = Array.isArray(dia?.exercises) ? dia.exercises : [];
+    if (!exs.length) erros.push(`dia ${i + 1} sem exercícios`);
+    if (exs.length > 8) erros.push(`dia ${i + 1} com exercícios demais`);
+    const padroes = { vertical: 0, remada: 0, press: 0, biceps: 0, triceps: 0 };
+    const volume = { costas: 0, peito: 0, biceps: 0, triceps: 0, ombro: 0, pernas: 0, core: 0 };
+    let total = 0;
     for (const ex of exs) {
-      const s = Number(ex.sets) || 0;
-      seriesTotais += s;
-      const c = classificar(ex);
-      for (const g of c.grupos) {
-        volume[g] = (volume[g] || 0) + s;
-        volumeSemanal[g] = (volumeSemanal[g] || 0) + s;
-        qtdGrupo[g] = (qtdGrupo[g] || 0) + 1;
-      }
-      for (const p of c.padroes) padroes[p] = (padroes[p] || 0) + 1;
+      const n = normalizarNome(ex?.name);
+      const s = Math.max(0, Number(ex?.sets) || 0);
+      total += s;
+      if (/barra fixa|puxada|pulldown|pull.?down/.test(n)) { padroes.vertical++; volume.costas += s; }
+      if (/remada|serrote|cavalinho/.test(n)) { padroes.remada++; volume.costas += s; }
+      if (/supino|chest press|flexao/.test(n)) { padroes.press++; volume.peito += s; }
+      if (/crucifixo|peck deck|cross.?over|voador/.test(n)) volume.peito += s;
+      if (/rosca|biceps/.test(n)) { padroes.biceps++; volume.biceps += s; }
+      if (/triceps|mergulho/.test(n)) { padroes.triceps++; volume.triceps += s; }
+      if (/desenvolvimento|elevacao lateral|elevacao frontal|shoulder press/.test(n)) volume.ombro += s;
+      if (/agach|leg press|extensora|afundo|avanco|bulgar|terra|stiff|romeno|flexora|nordic|hip thrust|ponte|gluteo|panturrilha/.test(n)) volume.pernas += s;
+      if (/abdom|abdomen|core|prancha|pallof|dead bug|bird.?dog|roda|elevacao de pernas|leg raise/.test(n)) volume.core += s;
     }
-
-    if (seriesTotais > 30) erros.push(`dia ${i + 1}: séries totais excessivas`);
-    for (const g of ["peito", "costas", "quadriceps", "posterior", "gluteos"]) if ((volume[g] || 0) > 14) erros.push(`dia ${i + 1}: volume excessivo de ${g}`);
-    for (const g of ["biceps", "triceps", "panturrilha"]) if ((volume[g] || 0) > 8) erros.push(`dia ${i + 1}: volume excessivo de ${g}`);
-    if ((volume.ombro || 0) > 10) erros.push(`dia ${i + 1}: volume excessivo de ombro`);
-    if ((qtdGrupo.costas || 0) > 4 || (qtdGrupo.peito || 0) > 4) erros.push(`dia ${i + 1}: exercícios redundantes de grupo grande`);
-    if ((qtdGrupo.biceps || 0) > 2 && (volume.costas || 0) >= 8) erros.push(`dia ${i + 1}: bíceps redundante após costas`);
-    if ((qtdGrupo.triceps || 0) > 2 && ((volume.peito || 0) + (volume.ombro || 0)) >= 8) erros.push(`dia ${i + 1}: tríceps redundante após empurrar`);
-    for (const p of ["puxada_vertical", "remada_horizontal", "press_peito", "isolador_biceps", "isolador_triceps"]) if ((padroes[p] || 0) > 2) erros.push(`dia ${i + 1}: padrão redundante ${p}`);
-
-    if ((volume.core || 0) > 0) { exerciciosCore += qtdGrupo.core || 0; diasCore.add(i); }
-
-    if (alvo) {
-      const estimado = estimarMinutosDia(dia);
-      if (estimado > alvo + 12) erros.push(`dia ${i + 1}: duração excessiva`);
-      if (estimado < Math.max(30, alvo - 25) && exs.length < maxEx) erros.push(`dia ${i + 1}: duração insuficiente`);
-    }
+    if (total > 32) erros.push(`dia ${i + 1} com volume total excessivo`);
+    if (volume.costas > 14 || volume.peito > 14 || volume.pernas > 18) erros.push(`dia ${i + 1} com volume excessivo de grupo grande`);
+    if (volume.biceps > 8 || volume.triceps > 8 || volume.ombro > 10) erros.push(`dia ${i + 1} com volume excessivo de grupo pequeno`);
+    if (padroes.vertical > 2 || padroes.remada > 2 || padroes.press > 2) erros.push(`dia ${i + 1} com padrões redundantes`);
+    if (volume.costas >= 8 && padroes.biceps > 2) erros.push(`dia ${i + 1} com bíceps redundante após costas`);
+    if ((volume.peito + volume.ombro) >= 8 && padroes.triceps > 2) erros.push(`dia ${i + 1} com tríceps redundante após empurrar`);
+    if (volume.core > 0) diasCore++;
   }
-
-  const minimoCore = plano.weekDays.length >= 3 ? 2 : 1;
-  const minimoDiasCore = plano.weekDays.length >= 3 ? 2 : 1;
-  if (exerciciosCore < minimoCore || diasCore.size < minimoDiasCore) erros.push("core insuficiente ou mal distribuído");
-  for (const g of ["peito", "costas", "quadriceps", "posterior", "gluteos"]) if ((volumeSemanal[g] || 0) > 28) erros.push(`volume semanal excessivo de ${g}`);
-  for (const g of ["biceps", "triceps", "ombro"]) if ((volumeSemanal[g] || 0) > 20) erros.push(`volume semanal excessivo de ${g}`);
-
+  const minimoCore = (plano?.weekDays?.length || 0) >= 3 ? 2 : 1;
+  if (diasCore < minimoCore) erros.push("distribuição insuficiente de core");
   return erros;
 }
 
 async function chamarAnthropic(apiKey, body) {
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify(body),
-  });
-  return { status: r.status, data: await r.json() };
-}
-
-async function executarEtapa(apiKey, messages, maxTokens = 2500) {
-  return chamarAnthropic(apiKey, { model: "claude-sonnet-4-6", max_tokens: maxTokens, messages });
-}
-
-async function gerarTreinoEmEtapas(apiKey, mensagensOriginais, textoOriginal) {
-  const contextoCurto = textoOriginal.slice(0, 14000);
-
-  const diagnosticoPrompt = `Você é a etapa 1 de um sistema de prescrição de treino. Analise a anamnese, a análise corporal por fotos e documentos fornecidos. NÃO escolha exercícios e NÃO monte dias de treino. Retorne somente JSON válido neste formato:
-{"objetivoPrincipal":"...","objetivosSecundarios":["..."],"prioridadesMusculares":[{"grupo":"...","prioridade":1,"motivo":"..."}],"pontosDeManutencao":["..."],"restricoes":["..."],"nivel":"...","necessidadesPrincipais":["..."]}
-Priorize no máximo 3 necessidades principais. Seja conservador com inferências visuais.\n\nDADOS:\n${contextoCurto}`;
-  const dResp = await executarEtapa(apiKey, [{ role: "user", content: diagnosticoPrompt }], 1800);
-  if (dResp.status >= 400) throw new Error("diagnóstico indisponível");
-  const diagnostico = extrairJSON(textoResposta(dResp.data));
-  if (!diagnostico) throw new Error("diagnóstico inválido");
-
-  const estrategiaPrompt = `Você é a etapa 2 de um sistema de prescrição. Com base no diagnóstico e na anamnese abaixo, defina a divisão semanal e distribua séries por grupo muscular. NÃO escolha exercícios. Retorne somente JSON válido:
-{"split":"...","dias":[{"id":"d1","label":"A","foco":["..."],"seriesPorGrupo":{"costas":10},"core":false,"cardioMin":10}],"volumeSemanal":{"costas":14},"justificativaCurta":"..."}
-Regras: exatamente o número de dias solicitado; recuperação adequada; prioridades recebem maior volume sem exceder limites; core em pelo menos 2 dias quando houver 3 ou mais dias; a duração inclui aquecimento e aeróbico. ${REGRAS_BASE}\nDIAGNÓSTICO:\n${JSON.stringify(diagnostico)}\nANAMNESE:\n${contextoCurto}`;
-  const eResp = await executarEtapa(apiKey, [{ role: "user", content: estrategiaPrompt }], 2200);
-  if (eResp.status >= 400) throw new Error("estratégia indisponível");
-  const estrategia = extrairJSON(textoResposta(eResp.data));
-  if (!estrategia) throw new Error("estratégia inválida");
-
-  const montagemPrompt = `Você é a etapa 3 e final. Monte o plano usando obrigatoriamente o DIAGNÓSTICO e a ESTRATÉGIA aprovados abaixo. Escolha somente exercícios existentes na lista fornecida nas mensagens anteriores e copie seus nomes literalmente. Preserve exatamente o formato JSON solicitado originalmente pelo aplicativo. Não acrescente campos fora do formato. Não explique.\n\nDIAGNÓSTICO APROVADO:\n${JSON.stringify(diagnostico)}\n\nESTRATÉGIA APROVADA:\n${JSON.stringify(estrategia)}\n\n${REGRAS_BASE}`;
-  const mensagensMontagem = anexarTexto(mensagensOriginais, montagemPrompt);
-  let finalResp = await executarEtapa(apiKey, mensagensMontagem, 8192);
-  if (finalResp.status >= 400) throw new Error("montagem indisponível");
-
-  let erros = validarPlano(textoResposta(finalResp.data), textoOriginal);
-  for (let tentativa = 0; erros.length && tentativa < 2; tentativa++) {
-    const reparo = `Corrija internamente o plano anterior e retorne somente o JSON final no mesmo formato. Não altere diagnóstico nem estratégia. Falhas detectadas: ${erros.join("; ")}. Não explique.`;
-    finalResp = await executarEtapa(apiKey, [
-      ...mensagensMontagem,
-      { role: "assistant", content: textoResposta(finalResp.data) },
-      { role: "user", content: reparo },
-    ], 8192);
-    if (finalResp.status >= 400) throw new Error("correção indisponível");
-    erros = validarPlano(textoResposta(finalResp.data), textoOriginal);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000);
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(body),
+    });
+    const raw = await r.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch { data = { error: { message: "Resposta inválida do serviço de IA." } }; }
+    return { status: r.status, data };
+  } finally {
+    clearTimeout(timeout);
   }
-
-  if (erros.length) throw new Error("não foi possível concluir um plano válido");
-  return finalResp;
 }
 
 export default async function handler(req, res) {
@@ -256,58 +149,87 @@ export default async function handler(req, res) {
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: { message: "Method not allowed" } });
+  if (req.method === "OPTIONS") return json(res, 200, { ok: true });
+  if (req.method !== "POST") return json(res, 405, { error: { message: "Método não permitido." } });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: { message: "Serviço de IA indisponível." } });
-  const jwt = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (!jwt) return res.status(401).json({ error: { message: "Faça login para gerar seu plano." } });
-
-  const uResp = await fetch(`${SUPA_URL}/auth/v1/user`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
-  if (!uResp.ok) return res.status(401).json({ error: { message: "Sessão expirada. Faça login novamente." } });
-
-  let quota = QUOTA_DIARIA;
   try {
-    const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
-    if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
-  } catch {}
-  const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
-    method: "POST",
-    headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ limite: quota }),
-  });
-  if (!(q.ok && await q.json() === true)) return res.status(429).json({ error: { message: "Limite diário de geração atingido. Tente novamente amanhã." } });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return json(res, 503, { error: { message: "Serviço de geração temporariamente indisponível." } });
 
-  const body = req.body || {};
-  if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 4) return res.status(400).json({ error: { message: "Não foi possível processar os dados enviados." } });
-  const texto = corpoTexto(body.messages);
-  if (!MARCADORES.some(m => texto.includes(m))) return res.status(400).json({ error: { message: "Solicitação não reconhecida." } });
+    const jwt = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+    if (!jwt) return json(res, 401, { error: { message: "Faça login para gerar seu plano." } });
 
-  let anexos = 0;
-  for (const m of body.messages) {
-    if (typeof m.content === "string") continue;
-    if (!Array.isArray(m.content)) return res.status(400).json({ error: { message: "Dados inválidos." } });
-    for (const c of m.content) {
-      if (c.type === "text") continue;
-      const imagemOk = c.type === "image" && c.source?.type === "base64" && ["image/jpeg", "image/png", "image/webp"].includes(c.source?.media_type);
-      const pdfOk = c.type === "document" && c.source?.type === "base64" && c.source?.media_type === "application/pdf";
-      if ((!imagemOk && !pdfOk) || typeof c.source?.data !== "string" || c.source.data.length > 5_000_000) return res.status(400).json({ error: { message: "Um anexo não pôde ser processado." } });
-      if (++anexos > 5) return res.status(400).json({ error: { message: "Envie no máximo cinco anexos." } });
+    const uResp = await fetch(`${SUPA_URL}/auth/v1/user`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
+    if (!uResp.ok) return json(res, 401, { error: { message: "Sua sessão expirou. Entre novamente." } });
+
+    let quota = QUOTA_DIARIA;
+    try {
+      const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
+      if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
+    } catch {}
+
+    const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
+      method: "POST",
+      headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ limite: quota }),
+    });
+    if (!(q.ok && await q.json() === true)) return json(res, 429, { error: { message: "Limite diário de geração atingido. Tente amanhã." } });
+
+    const body = req.body || {};
+    if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 4) {
+      return json(res, 400, { error: { message: "Dados da anamnese incompletos." } });
     }
-  }
 
-  try {
+    const texto = corpoTexto(body.messages);
+    if (!MARCADORES.some(m => texto.includes(m))) return json(res, 400, { error: { message: "Solicitação não reconhecida." } });
+
+    let anexos = 0;
+    for (const m of body.messages) {
+      if (typeof m.content === "string") continue;
+      if (!Array.isArray(m.content)) return json(res, 400, { error: { message: "Dados inválidos." } });
+      for (const c of m.content) {
+        if (c?.type === "text") continue;
+        const imagemOk = c?.type === "image" && c.source?.type === "base64" && ["image/jpeg", "image/png", "image/webp"].includes(c.source?.media_type);
+        const pdfOk = c?.type === "document" && c.source?.type === "base64" && c.source?.media_type === "application/pdf";
+        if ((!imagemOk && !pdfOk) || typeof c.source?.data !== "string" || c.source.data.length > 5_000_000) {
+          return json(res, 400, { error: { message: "Uma foto ou documento é inválido ou excede o tamanho permitido." } });
+        }
+        if (++anexos > 5) return json(res, 400, { error: { message: "Envie no máximo cinco anexos." } });
+      }
+    }
+
     const treino = eGeracaoDeTreino(texto);
-    let result;
-    if (treino) result = await gerarTreinoEmEtapas(apiKey, body.messages, texto);
-    else result = await executarEtapa(apiKey, body.messages, Math.min(Number(body.max_tokens) || 2000, 8192));
+    const mensagens = prepararMensagens(body.messages, treino);
+    const base = {
+      model: "claude-sonnet-4-6",
+      max_tokens: Math.min(Number(body.max_tokens) || 6000, 8192),
+      messages: mensagens,
+    };
 
-    if (result.status >= 400) return res.status(result.status).json({ error: { message: "Não foi possível concluir agora. Tente novamente em instantes." } });
-    res.setHeader("X-A-Body-Validation", treino ? "staged-diagnosis-strategy-plan-v1" : "analysis-v1");
-    return res.status(200).json(result.data);
+    let resultado = await chamarAnthropic(apiKey, base);
+    if (resultado.status >= 400) return json(res, 502, { error: { message: "Não foi possível gerar seu plano agora. Tente novamente em instantes." } });
+
+    if (treino) {
+      let plano = extrairPlano(textoResposta(resultado.data));
+      let erros = plano ? auditarPlano(plano) : ["JSON inválido"];
+
+      if (erros.length) {
+        const correcao = `O plano anterior foi rejeitado internamente por: ${erros.join("; ")}. Refaça apenas a montagem final, mantendo anamnese, diagnóstico e estratégia. Retorne somente JSON válido e já auditado.`;
+        resultado = await chamarAnthropic(apiKey, {
+          ...base,
+          messages: [...mensagens, { role: "assistant", content: textoResposta(resultado.data) }, { role: "user", content: correcao }],
+        });
+        if (resultado.status >= 400) return json(res, 502, { error: { message: "Não foi possível concluir seu plano agora. Tente novamente em instantes." } });
+        plano = extrairPlano(textoResposta(resultado.data));
+        erros = plano ? auditarPlano(plano) : ["JSON inválido"];
+        if (erros.length) return json(res, 503, { error: { message: "A geração está temporariamente indisponível. Tente novamente em alguns minutos." } });
+      }
+    }
+
+    res.setHeader("X-A-Body-Validation", "pipeline-single-retry-v5");
+    return json(res, 200, resultado.data);
   } catch (e) {
-    console.error("A-Body generation:", e.message);
-    return res.status(503).json({ error: { message: "Não foi possível concluir seu plano agora. Tente novamente em instantes." } });
+    console.error("A-BODY generation error:", e);
+    return json(res, 500, { error: { message: "Não foi possível gerar seu plano agora. Tente novamente em instantes." } });
   }
 }
