@@ -3185,13 +3185,16 @@ function PhotoUploadStep({ photos, setPhotos }) {
     { key:"side",  label:"Lateral", icon:"↔️" },
   ];
 
-  const handleFile = (key, e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const multiRef = useRef(null);
+  const [statusMulti, setStatusMulti] = useState("");
+
+  // Comprime via canvas (max 1024px, JPEG 80%) e devolve o objeto da foto.
+  const prepararFoto = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onerror = () => reject(new Error("falha ao ler o arquivo"));
     reader.onload = (ev) => {
-      // Comprimir imagem via canvas: max 1024px, JPEG 80%
       const img = new Image();
+      img.onerror = () => reject(new Error("arquivo de imagem inválido"));
       img.onload = () => {
         const MAX = 1024;
         let w = img.width, h = img.height;
@@ -3203,12 +3206,52 @@ function PhotoUploadStep({ photos, setPhotos }) {
         canvas.width = w; canvas.height = h;
         canvas.getContext("2d").drawImage(img, 0, 0, w, h);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-        const data = dataUrl.split(",")[1];
-        setPhotos(prev => ({...prev, [key]: {data, type: "image/jpeg", preview: dataUrl}}));
+        resolve({ data: dataUrl.split(",")[1], type: "image/jpeg", preview: dataUrl });
       };
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
+  });
+
+  const handleFile = async (key, e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const foto = await prepararFoto(file);
+      setPhotos(prev => ({ ...prev, [key]: foto }));
+    } catch (err) { setStatusMulti("Não foi possível carregar essa imagem."); }
+  };
+
+  // Envio das três de uma vez: preenche frente → costas → lateral, nessa ordem,
+  // usando apenas os slots ainda vazios (assim não sobrescreve o que já entrou).
+  const handleMulti = async (e) => {
+    const arquivos = [...(e.target.files || [])].filter(f => f.type.startsWith("image/"));
+    e.target.value = "";
+    if (!arquivos.length) return;
+
+    const ordem = ["front", "back", "side"];
+    const vagos = ordem.filter(k => !photos[k]);
+    const destinos = (vagos.length ? vagos : ordem).slice(0, arquivos.length);
+    setStatusMulti(`Carregando ${Math.min(arquivos.length, destinos.length)} foto(s)…`);
+
+    const novas = {};
+    let falhas = 0;
+    for (let i = 0; i < destinos.length; i++) {
+      try { novas[destinos[i]] = await prepararFoto(arquivos[i]); }
+      catch { falhas++; }
+    }
+    setPhotos(prev => ({ ...prev, ...novas }));
+
+    const ok = Object.keys(novas).length;
+    const nomes = { front: "Frente", back: "Costas", side: "Lateral" };
+    setStatusMulti(
+      ok === 0 ? "Nenhuma imagem pôde ser carregada."
+      : `${ok} foto(s) em ${destinos.slice(0, ok).map(d => nomes[d]).join(", ")}.` +
+        (arquivos.length > destinos.length ? ` ${arquivos.length - destinos.length} ignorada(s) — são 3 posições.` : "") +
+        (falhas ? ` ${falhas} falhou(ram).` : "") +
+        " Confira a ordem e toque em qualquer foto para trocar."
+    );
   };
 
   const removePhoto = (key, e) => {
@@ -3216,7 +3259,29 @@ function PhotoUploadStep({ photos, setPhotos }) {
     setPhotos(prev => ({...prev, [key]: null}));
   };
 
+  const totalFotos = ["front","back","side"].filter(k => photos[k]).length;
+
   return (
+    <>
+    <input
+      ref={multiRef}
+      type="file"
+      accept="image/*"
+      multiple
+      style={{display:"none"}}
+      onChange={handleMulti}
+    />
+    <button
+      style={{...S.btnOutline, marginBottom:10, fontSize:13, padding:"12px",
+              borderColor: totalFotos === 3 ? C.acc : C.border,
+              color: totalFotos === 3 ? C.acc : C.text}}
+      onClick={() => multiRef.current && multiRef.current.click()}
+    >
+      {totalFotos === 3 ? "✓ 3 fotos carregadas — trocar todas" : "📷 Enviar as 3 fotos de uma vez"}
+    </button>
+    {statusMulti && (
+      <p style={{fontSize:11, color:C.muted, margin:"0 0 10px 0", lineHeight:1.5}}>{statusMulti}</p>
+    )}
     <div style={{display:"flex", gap:10, marginBottom:8}}>
       {slots.map(s => {
         const photo = photos[s.key];
@@ -3270,6 +3335,7 @@ function PhotoUploadStep({ photos, setPhotos }) {
         );
       })}
     </div>
+    </>
   );
 }
 
