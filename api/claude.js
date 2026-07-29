@@ -6,7 +6,9 @@ const SUPA_ANON = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR
 const ORIGENS = ["https://a-body.vercel.app", "http://localhost:5173"];
 const QUOTA_DIARIA = 20;
 const QUOTA_PRO = 60;
-const MARCADORES = ["personal trainer", "ANÁLISE CORPORAL", "Analise as fotos", "analise corporal"];
+// Marcadores explícitos emitidos pelo app. Os antigos ficam por compatibilidade
+// com bundles em cache durante o rollout.
+const MARCADORES = ["A-BODY:ANALISE_CORPORAL", "A-BODY:PLANO_TREINO", "personal trainer", "ANÁLISE CORPORAL", "Analise as fotos", "analise corporal"];
 
 const REGRAS_CIENTIFICAS = `
 
