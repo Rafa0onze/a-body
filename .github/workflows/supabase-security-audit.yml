@@ -1,0 +1,22 @@
+name: Supabase Security Audit
+
+on:
+  push:
+    branches: [codex/supabase-security]
+    paths:
+      - .github/workflows/supabase-security-audit.yml
+      - scripts/supabase-security-audit.sh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auditar esquema, RLS e storage
+        env:
+          SUPABASE_TOKEN: ${{ secrets.SUPABASE_TOKEN }}
+        run: bash scripts/supabase-security-audit.sh
