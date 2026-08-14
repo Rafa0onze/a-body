@@ -433,8 +433,9 @@ function track(evento, props) {
 // ─── FOTOS CORPORAIS (bucket privado, LGPD) ──────────────────────────────────
 async function uploadFotoCorporal(ts, tipo, foto) {
   const s = await refreshIfNeeded();
-  if (!s?.access_token || !s?.user?.id) return null;
-  const path = `${s.user.id}/${ts}_${tipo}.jpg`;
+  const user = s?.user || await authGetUser();
+  if (!s?.access_token || !user?.id) return null;
+  const path = `${user.id}/${ts}_${tipo}.jpg`;
   const bin = Uint8Array.from(atob(foto.data), c => c.charCodeAt(0));
   const r = await fetch(`${SUPA_URL}/storage/v1/object/fotos-corporais/${path}`, {
     method: "POST",
@@ -883,8 +884,8 @@ function montarPromptAnalise(perfil = {}, anterior = null, temDocs = false) {
 AVALIAÇÃO ANTERIOR (${new Date(anterior.date).toLocaleDateString("pt-BR")}): pontos fortes: ${(anterior.analysis?.strongPoints || []).join(", ") || "N/A"}; pontos a desenvolver: ${(anterior.analysis?.weakPoints || []).join(", ") || "N/A"}; síntese: ${anterior.analysis?.overallAnalysis || "N/A"}. Compare a evolução e preencha o campo comparison.` : "";
 
   const exComp = anterior
-    ? ',"comparison":{"improvements":["melhora observada"],"attentionPoints":["ponto estagnado ou em regressão"],"summary":"evolução em 2 frases"}'
-    : "";
+    ? '{"improvements":["melhora observada"],"attentionPoints":["ponto estagnado ou em regressão"],"summary":"evolução em 2 frases"}'
+    : "null";
 
   return `${MARCA_ANALISE}
 Você é uma API JSON de avaliação física. Analise as fotos (frente/costas/lateral, as presentes) e cruze com a anamnese${temDocs ? " e com os documentos de saúde anexados" : ""}.
@@ -911,7 +912,7 @@ REGRAS DE PRECISÃO (obrigatórias)
 
 Responda SOMENTE com JSON válido em aspas duplas, sem markdown e sem texto fora do JSON.
 FORMATO EXATO:
-{"notasPorGrupo":{"peito":3,"costas":2,"ombros":3,"bracos":3,"quadriceps":2,"posteriores":2,"gluteos":2,"panturrilhas":3,"core":2},"prioridades":[{"grupo":"posteriores","nota":2,"motivo":"pouco volume aparente frente ao quadríceps"}],"manutencao":["peito"],"restricoesMovimento":[],"postura":[{"achado":"ombros anteriorizados","implicacao":"priorizar puxar horizontal e rotação externa"}],"assimetrias":["lado direito levemente mais desenvolvido"],"distribuicaoGordura":"acúmulo central moderado","achadosDocumentos":[],"objetivoVsLeitura":"objetivo de massa é compatível com a leitura; base inferior é o gargalo","strongPoints":["peitoral desenvolvido"],"weakPoints":["posterior de coxa"],"postureNotes":["ombros anteriorizados"],"muscleImbalances":["assimetria lateral"],"overallAnalysis":"síntese em 2 frases"${exComp}}`;
+{"notasPorGrupo":{"peito":3,"costas":2,"ombros":3,"bracos":3,"quadriceps":2,"posteriores":2,"gluteos":2,"panturrilhas":3,"core":2},"prioridades":[{"grupo":"posteriores","nota":2,"motivo":"pouco volume aparente frente ao quadríceps"}],"manutencao":["peito"],"restricoesMovimento":[],"postura":[{"achado":"ombros anteriorizados","implicacao":"priorizar puxar horizontal e rotação externa"}],"assimetrias":["lado direito levemente mais desenvolvido"],"distribuicaoGordura":"acúmulo central moderado","achadosDocumentos":[],"objetivoVsLeitura":"objetivo de massa é compatível com a leitura; base inferior é o gargalo","strongPoints":["peitoral desenvolvido"],"weakPoints":["posterior de coxa"],"postureNotes":["ombros anteriorizados"],"muscleImbalances":["assimetria lateral"],"overallAnalysis":"síntese em 2 frases","comparison":${exComp}}`;
 }
 
 function blocosFotosAnalise(fotos) {
