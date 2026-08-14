@@ -1,0 +1,23 @@
+name: Apply Supabase Security
+
+on:
+  push:
+    branches: [codex/supabase-security]
+    paths:
+      - supabase-security-hardening.sql
+      - scripts/supabase-security-apply.sh
+      - .github/workflows/supabase-security-apply.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar e verificar segurança
+        env:
+          SUPABASE_TOKEN: ${{ secrets.SUPABASE_TOKEN }}
+        run: bash scripts/supabase-security-apply.sh
