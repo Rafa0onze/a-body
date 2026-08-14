@@ -36,11 +36,12 @@ jobs:
             echo '```'
             echo "--- GET / (frontend) ---"
             curl -s -o /dev/null -w "HTTP %{http_code} | %{time_total}s\n" https://a-body.vercel.app/
-            echo "--- POST /api/claude (backend IA) ---"
-            curl -s -X POST https://a-body.vercel.app/api/claude \
+            echo "--- POST /api/openai sem autenticação (deve retornar 401) ---"
+            STATUS=$(curl -s -o /tmp/api-response.json -w "%{http_code}" -X POST https://a-body.vercel.app/api/openai \
               -H "Content-Type: application/json" \
-              -d '{"max_tokens":50,"messages":[{"role":"user","content":"Responda apenas: OK"}]}' | head -c 600
-            echo ""
+              -d '{"max_tokens":50,"messages":[{"role":"user","content":"A-BODY:PLANO_TREINO"}]}')
+            echo "HTTP $STATUS | $(head -c 300 /tmp/api-response.json)"
+            test "$STATUS" = "401"
             echo '```'
           } | tee /tmp/report.md
 

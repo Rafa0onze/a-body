@@ -40,6 +40,46 @@ function eGeracaoDeTreino(texto) {
   return /crie plano de treino|montando treino para o aluno|api json de personal trainer/i.test(texto || "");
 }
 
+const ESQUEMA_TREINO = {
+  type: "object", additionalProperties: false,
+  required: ["planName", "planDescription", "weekDays"],
+  properties: {
+    planName: { type: "string" }, planDescription: { type: "string" },
+    weekDays: { type: "array", minItems: 1, maxItems: 7, items: {
+      type: "object", additionalProperties: false,
+      required: ["id", "label", "sub", "exercises", "mobility", "postCardio"],
+      properties: {
+        id:{type:"string"}, label:{type:"string"}, sub:{type:"string"},
+        exercises:{type:"array",minItems:1,maxItems:8,items:{type:"object",additionalProperties:false,required:["id","name","sets","reps","rest","isometric","isoSeconds"],properties:{id:{type:"string"},name:{type:"string"},sets:{type:"integer",minimum:1,maximum:10},reps:{type:"string"},rest:{type:"integer",minimum:0,maximum:600},isometric:{type:"boolean"},isoSeconds:{type:["integer","null"],minimum:1,maximum:3600}}}},
+        mobility:{type:"array",maxItems:2,items:{type:"object",additionalProperties:false,required:["name","duration"],properties:{name:{type:"string"},duration:{type:"string"}}}},
+        postCardio:{type:"object",additionalProperties:false,required:["text","minMinutes","maxMinutes","intensity"],properties:{text:{type:"string"},minMinutes:{type:"integer",minimum:0,maximum:120},maxMinutes:{type:"integer",minimum:0,maximum:120},intensity:{type:"string"}}}
+      }
+    }}
+  }
+};
+
+const GRUPOS_CORPORAIS = ["peito","costas","ombros","bracos","quadriceps","posteriores","gluteos","panturrilhas","core"];
+const ESQUEMA_ANALISE = {
+  type:"object", additionalProperties:false,
+  required:["notasPorGrupo","prioridades","manutencao","restricoesMovimento","postura","assimetrias","distribuicaoGordura","achadosDocumentos","objetivoVsLeitura","strongPoints","weakPoints","postureNotes","muscleImbalances","overallAnalysis","comparison"],
+  properties:{
+    notasPorGrupo:{type:"object",additionalProperties:false,required:GRUPOS_CORPORAIS,properties:Object.fromEntries(GRUPOS_CORPORAIS.map(g=>[g,{type:"integer",minimum:1,maximum:5}]))},
+    prioridades:{type:"array",maxItems:3,items:{type:"object",additionalProperties:false,required:["grupo","nota","motivo"],properties:{grupo:{type:"string",enum:GRUPOS_CORPORAIS},nota:{type:"integer",minimum:1,maximum:5},motivo:{type:"string"}}}},
+    manutencao:{type:"array",items:{type:"string",enum:GRUPOS_CORPORAIS}},
+    restricoesMovimento:{type:"array",items:{type:"string"}},
+    postura:{type:"array",items:{type:"object",additionalProperties:false,required:["achado","implicacao"],properties:{achado:{type:"string"},implicacao:{type:"string"}}}},
+    assimetrias:{type:"array",items:{type:"string"}}, distribuicaoGordura:{type:"string"}, achadosDocumentos:{type:"array",items:{type:"string"}}, objetivoVsLeitura:{type:"string"},
+    strongPoints:{type:"array",items:{type:"string"}}, weakPoints:{type:"array",items:{type:"string"}}, postureNotes:{type:"array",items:{type:"string"}}, muscleImbalances:{type:"array",items:{type:"string"}}, overallAnalysis:{type:"string"},
+    comparison:{anyOf:[{type:"null"},{type:"object",additionalProperties:false,required:["improvements","attentionPoints","summary"],properties:{improvements:{type:"array",items:{type:"string"}},attentionPoints:{type:"array",items:{type:"string"}},summary:{type:"string"}}}]}
+  }
+};
+
+function formatoEstruturado(treino, texto = "") {
+  if (treino) return { type:"json_schema", name:"abody_workout_plan", strict:true, schema:ESQUEMA_TREINO };
+  if (texto.includes("A-BODY:ANALISE_CORPORAL")) return { type:"json_schema", name:"abody_body_analysis", strict:true, schema:ESQUEMA_ANALISE };
+  return null;
+}
+
 function prepararMensagens(messages, treino) {
   const copia = JSON.parse(JSON.stringify(messages));
   if (!treino) return copia;
@@ -213,16 +253,6 @@ export default async function handler(req, res) {
   const uResp = await fetch(`${SUPA_URL}/auth/v1/user`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
   if (!uResp.ok) return res.status(401).json({ error: { message: "Sessão inválida ou expirada. Faça login novamente." } });
 
-  let quota = QUOTA_DIARIA;
-  try {
-    const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
-    if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
-  } catch {}
-  const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
-    method: "POST", headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" }, body: JSON.stringify({ limite: quota }),
-  });
-  if (!(q.ok && await q.json() === true)) return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
-
   const body = req.body || {};
   if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 4) return res.status(400).json({ error: { message: "Payload inválido" } });
   const texto = corpoTexto(body.messages);
@@ -242,12 +272,23 @@ export default async function handler(req, res) {
   }
 
   const treino = eGeracaoDeTreino(texto);
+  let quota = QUOTA_DIARIA;
+  try {
+    const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
+    if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
+  } catch {}
+  const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
+    method: "POST", headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" }, body: JSON.stringify({ limite: quota }),
+  });
+  if (!(q.ok && await q.json() === true)) return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
+
   const mensagens = prepararMensagens(body.messages, treino);
+  const formato = formatoEstruturado(treino, texto);
   const safeBody = {
     model: process.env.OPENAI_MODEL || "gpt-5.6",
     max_output_tokens: Math.min(Number(body.max_tokens) || 2000, 8192),
     reasoning: { effort: treino ? "medium" : "low" },
-    text: { verbosity: "low" },
+    text: { verbosity: "low", ...(formato ? { format: formato } : {}) },
     input: mensagens.map(m => ({ role: m.role, content: conteudoOpenAI(m.content) })),
   };
 
@@ -277,3 +318,5 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: { message: "Falha ao contatar a IA: " + e.message } });
   }
 }
+
+export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, conteudoOpenAI, formatoEstruturado };
