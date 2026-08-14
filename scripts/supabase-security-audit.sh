@@ -5,8 +5,7 @@ API="https://api.supabase.com/v1"
 AUTH="Authorization: Bearer $SUPABASE_TOKEN"
 # Falhar cedo quando o segredo estiver ausente ou expirado.
 test -n "${SUPABASE_TOKEN:-}"
-REF=$(curl --fail --silent --show-error -H "$AUTH" "$API/projects" | jq -r '.[] | select(.name=="a-body") | .id' | head -1)
-test -n "$REF"
+REF="zvmriqxigpwuggyhpoun"
 
 read -r -d '' QUERY <<'SQL' || true
 select jsonb_build_object(
