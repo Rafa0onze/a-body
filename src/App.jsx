@@ -326,6 +326,15 @@ async function authGetUser() {
 
 function authSignOut() { clearSession(); }
 
+async function authDeleteAccount() {
+  const s = await refreshIfNeeded();
+  if (!s?.access_token) throw new Error("Sessão expirada. Entre novamente.");
+  await supaFetch("/rest/v1/rpc/delete_my_account", {
+    method:"POST", headers:{ Authorization:`Bearer ${s.access_token}` }, body:"{}",
+  });
+  clearSession();
+}
+
 // ─── SYNC DE DADOS (tabela user_data: user_id, key, value) ──────────────────
 async function cloudSave(key, value) {
   const s = await refreshIfNeeded();
@@ -1510,7 +1519,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
       {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
       {screen==="proAlunos"    && pro && <ProAlunosScreen onBack={()=>setScreen("proHome")}/>}
-      {AUTH_ENABLED && user && screen!=="home" && <ContaGlobal user={user} onLogout={doLogout}/>}
+      {AUTH_ENABLED && user && <ContaGlobal user={user} onLogout={doLogout}/>}
       {screen==="aguardandoTreino" && vinculo && <AguardandoTreinoScreen vinculo={vinculo} personal={personal}
         onAtualizar={async()=>{ const v = await fetchVinculoAluno(); if (v?.treino?.plano) { setVinculo(v); setPlan({ ...v.treino.plano, locked: true }); setScreen("home"); } }}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
@@ -2937,6 +2946,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
 
 function ContaGlobal({ user, onLogout }) {
   const [aberto, setAberto] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const inicial = (user?.email || "?").charAt(0).toUpperCase();
   return (
     <>
@@ -2957,6 +2967,15 @@ function ContaGlobal({ user, onLogout }) {
             <button style={{...S.btnOutline,fontSize:13,padding:"10px",color:"#ff8080",borderColor:"#8b2a2a"}}
               onClick={()=>{ setAberto(false); onLogout(); }}>
               Sair da conta
+            </button>
+            <button disabled={excluindo} style={{...S.btnOutline,fontSize:12,padding:"9px",marginTop:8,color:"#ff8080",borderColor:"#8b2a2a",opacity:excluindo?0.5:1}}
+              onClick={async()=>{
+                if (!window.confirm("Excluir definitivamente sua conta, treinos, fotos e documentos? Esta ação não pode ser desfeita.")) return;
+                setExcluindo(true);
+                try { await authDeleteAccount(); onLogout(); }
+                catch(e) { alert("Não foi possível excluir a conta: "+e.message); setExcluindo(false); }
+              }}>
+              {excluindo ? "Excluindo…" : "Excluir minha conta"}
             </button>
           </div>
         </div>
