@@ -3,7 +3,7 @@ set -euo pipefail
 
 API="https://api.supabase.com/v1"
 AUTH="Authorization: Bearer $SUPABASE_TOKEN"
-# Falhar cedo quando o segredo temporário estiver ausente.
+# Validar a presença do segredo temporário antes da chamada administrativa.
 test -n "${SUPABASE_TOKEN:-}"
 REF="zvmriqxigpwuggyhpoun"
 
