@@ -351,13 +351,10 @@ async function cloudLoad(key) {
 }
 
 
-const getApiKey = () => localStorage.getItem("abody:apikey") || "";
-const setApiKey = (k) => localStorage.setItem("abody:apikey", k);
-
-async function callClaude(body) {
+async function callOpenAI(body) {
   const s = await refreshIfNeeded();
   if (!s?.access_token) throw new Error("Faça login para usar a geração por IA.");
-  const res = await fetch("/api/claude", {
+  const res = await fetch("/api/openai", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
     body: JSON.stringify(body),
@@ -948,7 +945,7 @@ async function analisarCorpoAlunoIA(fotos, perfil, anterior, docs = []) {
   const blocosDocs = docs && docs.length ? await blocosDeDocumentos(docs) : [];
   const blocos = [...blocosDocs, ...blocosFotosAnalise(fotos)];
   blocos.push({ type: "text", text: montarPromptAnalise(perfil, anterior, blocosDocs.length > 0) });
-  const data = await callClaude({ model: "claude-sonnet-4-6", max_tokens: 3000, messages: [{ role: "user", content: blocos }] });
+  const data = await callOpenAI({ max_tokens: 3000, messages: [{ role: "user", content: blocos }] });
   const raw = data.content.filter(b => b.type === "text").map(b => b.text).join("");
   return normalizarAnalise(extractJSON(raw));
 }
@@ -1251,7 +1248,7 @@ export default function App() {
     };
     const blocos = [...blocosDocs, ...blocosFotosAnalise(photosData)];
     blocos.push({ type: "text", text: montarPromptAnalise(perfil, null, blocosDocs.length > 0) });
-    const data = await callClaude({ model: "claude-sonnet-4-6", max_tokens: 3000, messages: [{ role: "user", content: blocos }] });
+    const data = await callOpenAI({ max_tokens: 3000, messages: [{ role: "user", content: blocos }] });
     const raw = data.content.filter(b => b.type === "text").map(b => b.text).join("");
     return normalizarAnalise(extractJSON(raw));
   };
@@ -1316,8 +1313,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       const blocosDocs = await blocosDeDocumentos(docsIA);
       if (blocosDocs.length) track("docs_usados_ia", { qtd: blocosDocs.length, contexto: "b2c" });
       const conteudo = blocosDocs.length ? [...blocosDocs, { type: "text", text: prompt + AVISO_DOCS }] : prompt;
-      const data = await callClaude({
-        model:"claude-sonnet-4-6",
+      const data = await callOpenAI({
         max_tokens:8192,
         messages:[{role:"user",content:conteudo}]
       });
@@ -1480,7 +1476,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       };
       const imageBlocks = blocosFotosAnalise(rePhotos);
       imageBlocks.push({ type: "text", text: montarPromptAnalise(perfilRe, last || null, false) });
-      const data = await callClaude({ model:"claude-sonnet-4-6", max_tokens:3000, messages:[{role:"user",content:imageBlocks}] });
+      const data = await callOpenAI({ max_tokens:3000, messages:[{role:"user",content:imageBlocks}] });
       const raw = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
       const analysis = normalizarAnalise(extractJSON(raw));
       let photoPaths = null;
@@ -2557,7 +2553,7 @@ REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de 
       const blocos = [...blocosDocs, ...blocosFotos];
       const textoFinal = prompt + (blocosDocs.length ? AVISO_DOCS : "");
       const content = blocos.length ? [...blocos, {type:"text",text:textoFinal}] : textoFinal;
-      const data = await callClaude({ model:"claude-sonnet-4-6", max_tokens:8192, messages:[{role:"user",content}] });
+      const data = await callOpenAI({ max_tokens:8192, messages:[{role:"user",content}] });
       const raw = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
       const plano = convertAIPlan(extractJSON(raw), aluno.nome);
       plano.mode = "pro";

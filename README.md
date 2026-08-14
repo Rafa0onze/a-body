@@ -1,13 +1,17 @@
 # A-BODY — Personal AI Trainer 💪
 
-App de treino com IA: anamnese completa, análise corporal por foto, plano personalizado gerado pelo Claude, cronômetros de série/descanso/isométrico, e relatório de evolução.
+App de treino com IA: anamnese completa, análise corporal por foto, plano personalizado gerado pela OpenAI, cronômetros de série/descanso/isométrico, e relatório de evolução.
 
-## ⚠️ Pré-requisito: API Key da Anthropic
+## ⚠️ Pré-requisito: API Key da OpenAI
 
-Fora do claude.ai, o app precisa da **sua** API key:
-1. Acesse https://console.anthropic.com → API Keys → Create Key
-2. No app, toque no ⚙️ na tela inicial e cole a chave
-3. A chave fica salva **apenas no seu dispositivo** (localStorage)
+Configure no ambiente do servidor (Vercel/Railway):
+
+```text
+OPENAI_API_KEY=sua_chave
+OPENAI_MODEL=gpt-5.6
+```
+
+`OPENAI_MODEL` é opcional. A chave nunca deve ser exposta no navegador.
 
 ## Opção 1 — Instalar como PWA (mais rápido, sem Android Studio)
 
@@ -51,10 +55,9 @@ npm run android:run
 Tudo é salvo localmente via `localStorage`:
 - `abody:plan` — plano de treino ativo
 - `abody:history` — histórico de sessões (pesos, tempos, comparativos)
-- `abody:apikey` — sua API key
 
 Para backup/sync em nuvem futuramente, os pontos de integração estão nas funções `loadStorage`/`saveStorage` (src/App.jsx) — basta trocar por chamadas ao Supabase.
 
 ## Custos de API
 
-Cada geração de plano usa ~3k tokens (≈ US$ 0,05 com Sonnet). Análise corporal com 3 fotos: ~5k tokens (≈ US$ 0,08). Uso pessoal fica em centavos por mês.
+O custo depende do modelo configurado e do volume de texto, imagens e PDFs. Consulte a página oficial de preços da OpenAI antes de publicar alterações de modelo.
