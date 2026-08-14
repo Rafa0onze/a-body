@@ -1,5 +1,5 @@
-// api/claude.js — Vercel Serverless Function
-// Proxy autenticado da Anthropic com validação científica dos treinos.
+// Compatibilidade para clientes antigos. A implementação usa OpenAI Responses API.
+// A rota principal está em /api/openai.
 
 const SUPA_URL = process.env.VITE_SUPABASE_URL || "https://zvmriqxigpwuggyhpoun.supabase.co";
 const SUPA_ANON = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXAiLCJyZWYiOiJ6dm1yaXF4aWdwd3VnZ3locG91biIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgzNTQzMTAwLCJleHAiOjIwOTkxMTkxMDB9.HrnVWaVSaWkGUXRc8MXKjM2Vj2N0xN6wwp95y7zmjbQ";
@@ -158,13 +158,42 @@ function validarPlano(textoRespostaIA, textoPedido) {
   return erros;
 }
 
-async function chamarAnthropic(apiKey, body) {
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
+function conteudoOpenAI(content) {
+  if (typeof content === "string") return [{ type: "input_text", text: content }];
+  return (content || []).map(item => {
+    if (item.type === "text") return { type: "input_text", text: item.text || "" };
+    if (item.type === "image") {
+      return {
+        type: "input_image",
+        image_url: `data:${item.source.media_type};base64,${item.source.data}`,
+        detail: "high",
+      };
+    }
+    return {
+      type: "input_file",
+      filename: item.source.filename || "documento.pdf",
+      file_data: `data:${item.source.media_type};base64,${item.source.data}`,
+    };
+  });
+}
+
+function respostaCompativelOpenAI(data) {
+  const texto = (data?.output || [])
+    .flatMap(item => Array.isArray(item.content) ? item.content : [])
+    .filter(item => item.type === "output_text")
+    .map(item => item.text || "")
+    .join("");
+  return { id: data?.id, model: data?.model, content: [{ type: "text", text: texto }], usage: data?.usage };
+}
+
+async function chamarOpenAI(apiKey, body) {
+  const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify(body),
   });
-  return { status: r.status, data: await r.json() };
+  const data = await r.json();
+  return { status: r.status, data: r.ok ? respostaCompativelOpenAI(data) : data };
 }
 
 export default async function handler(req, res) {
@@ -176,8 +205,8 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: { message: "Method not allowed" } });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: { message: "ANTHROPIC_API_KEY não configurada no servidor." } });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return res.status(500).json({ error: { message: "OPENAI_API_KEY não configurada no servidor." } });
   const jwt = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return res.status(401).json({ error: { message: "Faça login para usar a geração por IA." } });
 
@@ -214,16 +243,29 @@ export default async function handler(req, res) {
 
   const treino = eGeracaoDeTreino(texto);
   const mensagens = prepararMensagens(body.messages, treino);
-  const safeBody = { model: "claude-sonnet-4-6", max_tokens: Math.min(Number(body.max_tokens) || 2000, 8192), messages: mensagens };
+  const safeBody = {
+    model: process.env.OPENAI_MODEL || "gpt-5.6",
+    max_output_tokens: Math.min(Number(body.max_tokens) || 2000, 8192),
+    reasoning: { effort: treino ? "medium" : "low" },
+    text: { verbosity: "low" },
+    input: mensagens.map(m => ({ role: m.role, content: conteudoOpenAI(m.content) })),
+  };
 
   try {
-    let result = await chamarAnthropic(apiKey, safeBody);
+    let result = await chamarOpenAI(apiKey, safeBody);
     if (result.status >= 400) return res.status(result.status).json(result.data);
     if (treino) {
       let erros = validarPlano(textoResposta(result.data), texto);
       if (erros.length) {
         const correcao = `A resposta falhou na validação automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido, corrigindo tudo. A duração informada inclui 5 min de aquecimento e 10–15 min de aeróbico; ajuste a musculação para completar o restante. Use de 4 a 8 exercícios conforme necessário. Não explique.`;
-        result = await chamarAnthropic(apiKey, { ...safeBody, messages: [...mensagens, { role: "assistant", content: textoResposta(result.data) }, { role: "user", content: correcao }] });
+        result = await chamarOpenAI(apiKey, {
+          ...safeBody,
+          input: [
+            ...safeBody.input,
+            { role: "assistant", content: [{ type: "input_text", text: textoResposta(result.data) }] },
+            { role: "user", content: [{ type: "input_text", text: correcao }] },
+          ],
+        });
         if (result.status >= 400) return res.status(result.status).json(result.data);
         erros = validarPlano(textoResposta(result.data), texto);
         if (erros.length) return res.status(422).json({ error: { message: "O treino não passou na validação de duração e segurança. Gere novamente.", validation: erros } });
