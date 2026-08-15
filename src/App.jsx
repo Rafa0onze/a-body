@@ -202,6 +202,12 @@ const ICON_PATHS = {
   dumbbell: <><path d="m6.5 6.5 11 11M21 21l-1-1M3 3l1 1M18 22l4-4M2 6l4-4M3 10l7-7M14 21l7-7"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
   flame: <path d="M12 22c4 0 7-3 7-7 0-3-2-5-4-7 0 3-2 4-3 4 1-5-2-8-5-10 0 5-4 7-4 13 0 4 4 7 9 7Z"/>,
+  home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></>,
+  user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
+  play: <path d="m8 5 11 7-11 7Z"/>,
+  repeat: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></>,
+  swap: <><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></>,
+  zap: <path d="M13 2 3 14h8l-1 8 10-12h-8Z"/>,
 };
 
 function Icon({ name, size = 20, className = "" }) {
@@ -3707,7 +3713,7 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
         </button>
       </div>
 
-      <div className="ab-section-title"><h2>Seus treinos</h2><span>{plan.weekDays.length} sessões</span></div>
+      <div id="ab-workouts" className="ab-section-title"><h2>Seus treinos</h2><span>{plan.weekDays.length} sessões</span></div>
       <div className="ab-day-grid">
         {plan.duracao && <div style={{gridColumn:"1 / -1",fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
         {plan.weekDays.map((d,i)=>{ const last=lastByDay[d.id]; return(
@@ -3721,6 +3727,12 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
       {locked
         ? <p style={{fontSize:11,color:C.muted,textAlign:"center"}}>🔒 Treino gerenciado pelo seu personal. Alterações e substituições só por ele — use o campo de mensagem no descanso ou ao final do treino.</p>
         : <button style={{...S.btnOutline,fontSize:13,padding:"12px"}} onClick={onReset}>↺ Refazer anamnese / novo plano</button>}
+      <nav className="ab-bottom-nav" aria-label="Navegação principal">
+        <button className="ab-nav-item" data-active="true"><Icon name="home" size={19}/><span>Hoje</span></button>
+        <button className="ab-nav-item" onClick={()=>document.getElementById("ab-workouts")?.scrollIntoView({behavior:"smooth"})}><Icon name="dumbbell" size={19}/><span>Treinos</span></button>
+        <button className="ab-nav-item" onClick={onEvolucao}><Icon name="chart" size={19}/><span>Progresso</span></button>
+        <button className="ab-nav-item" onClick={onSettings}><Icon name="user" size={19}/><span>Perfil</span></button>
+      </nav>
     </div>
   );
 }
@@ -3729,19 +3741,26 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
 
 function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }) {
   return (
-    <div style={S.box}>
-      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label} · AQUECIMENTO</div></div>
-      <h1 style={S.h1}>Antes de começar</h1>
-      <p style={S.sub}>Escolha o cardio (5 min) e faça a mobilidade indicada.</p>
-      <div style={S.sectionLabel}>CARDIO DE AQUECIMENTO</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
-        {CARDIO_OPTIONS.map(c=><button key={c.id} style={{...S.card,...(cardioChoice===c.id?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>setCardioChoice(c.id)}><div style={{fontSize:22}}>{c.icon}</div><div style={{fontSize:13,fontWeight:600,marginTop:4}}>{c.name}</div></button>)}
+    <div className="ab-warmup">
+      <button className="ab-workout-exit" onClick={onBack}>← Sair do treino</button>
+      <header className="ab-warmup-heading">
+        <div className="ab-kicker">{day.label} · PREPARAÇÃO</div>
+        <h1>Prepare o corpo.<br/>Eleve a performance.</h1>
+        <p className="ab-copy">Cinco minutos de cardio e uma sequência rápida de mobilidade.</p>
+      </header>
+      <div className="ab-warmup-layout">
+        <section className="ab-warmup-card">
+          <h2>Cardio de aquecimento</h2><p>Escolha o equipamento disponível.</p>
+          <div className="ab-cardio-grid">
+            {CARDIO_OPTIONS.map(c=><button key={c.id} className="ab-cardio-choice" data-active={cardioChoice===c.id} onClick={()=>setCardioChoice(c.id)}><Icon name={c.id==="bike"?"repeat":c.id==="remo"?"users":"zap"}/><strong>{c.name}</strong></button>)}
+          </div>
+        </section>
+        <section className="ab-warmup-card">
+          <h2>Mobilidade orientada</h2><p>Complete os movimentos antes de avançar.</p>
+          {(day.mobility||[]).map((m,i)=><div key={i} className="ab-mobility-item"><div className="ab-mobility-number">{String(i+1).padStart(2,"0")}</div><div><strong>{m.name}</strong><span>{m.dur}</span></div></div>)}
+        </section>
       </div>
-      <div style={S.sectionLabel}>MOBILIDADE</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
-        {(day.mobility||[]).map((m,i)=><div key={i} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12}}><div style={{width:8,height:8,borderRadius:"50%",background:C.acc,flexShrink:0}}/><div><div style={{fontSize:13,fontWeight:600}}>{m.name}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.dur}</div></div></div>)}
-      </div>
-      <button style={{...S.btn,opacity:cardioChoice?1:0.35}} disabled={!cardioChoice} onClick={onContinue}>Iniciar treino</button>
+      <div className="ab-warmup-footer"><button className="ab-primary" disabled={!cardioChoice} onClick={onContinue}>Iniciar treino <Icon name="arrow" size={18}/></button></div>
     </div>
   );
 }
@@ -3756,19 +3775,25 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
   const isoCirc=2*Math.PI*52, isoOff=isoTotal>0?isoCirc*(isoSec/isoTotal):0;
   const canComplete = (isIso?(isoRunning||isoDone):weightInput.length>0) && (exercise.iso || (parseInt(repsInput)||0) > 0);
   return (
-    <div style={S.box}>
-      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label}{duracao?` · ⏱ ~${duracao}`:""}</div></div>
-      <div style={{height:4,background:C.border,borderRadius:2,marginBottom:4}}><div style={{height:4,background:C.acc,borderRadius:2,width:`${pct}%`,transition:"width .3s"}}/></div>
-      <div style={{fontSize:11,color:C.muted,marginBottom:14}}>{doneSets} série{doneSets!==1?"s":""} concluída{doneSets!==1?"s":""} · {totalSets-doneSets} restante{(totalSets-doneSets)!==1?"s":""}</div>
-      <FigureBlock exercise={exercise}/>
+    <div className="ab-workout-shell">
+      <div className="ab-workout-topbar">
+        <button className="ab-workout-exit" onClick={onBack}>← Sair</button>
+        <div className="ab-workout-progress"><div className="ab-workout-progress-copy"><span>{day.label}{duracao?` · ~${duracao}`:""}</span><span>{pct}% CONCLUÍDO</span></div><div className="ab-progress-track"><span style={{width:`${pct}%`}}/></div></div>
+      </div>
+      <div className="ab-workout-grid">
+      <section className="ab-exercise-stage">
+      <div className="ab-figure-wrap"><FigureBlock exercise={exercise}/></div>
       {exercise._substitutedFor&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>↔ Substituiu: {exercise._substitutedFor}</div>}
       {exercise._skipped&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>⏩ Reagendado</div>}
-      <div style={{fontSize:11,color:"#8fb8a2",marginBottom:4}}>{completed.length+1}º de {completed.length+queue.length} exercícios</div>
-      <h2 style={{fontSize:20,fontWeight:800,margin:"0 0 4px 0"}}>{exercise.name}</h2>
-      <p style={{...S.sub,marginBottom:10}}>{exercise.reps} {isIso?"· isométrico":"reps"} · descanso {exercise.rest}s</p>
-      <div style={{display:"flex",gap:6,marginBottom:12}}>
-        {Array.from({length:exercise.sets}).map((_,i)=><div key={i} style={{width:24,height:6,borderRadius:3,background:i<setIdx?C.acc:i===setIdx?"#e8a23a":C.border}}/>)}
+      <div className="ab-exercise-count">EXERCÍCIO {completed.length+1} DE {completed.length+queue.length}</div>
+      <h1>{exercise.name}</h1>
+      <div className="ab-exercise-sub"><span>{exercise.reps} {isIso?"· isométrico":"repetições"}</span><span>·</span><span>{exercise.rest}s de descanso</span></div>
+      <div className="ab-set-dots">
+        {Array.from({length:exercise.sets}).map((_,i)=><div key={i} className="ab-set-dot" data-state={i<setIdx?"done":i===setIdx?"current":"pending"}/>)}
       </div>
+      </section>
+      <aside className="ab-workout-panel">
+      <div className="ab-series-heading"><strong>Série {setIdx+1} de {exercise.sets}</strong><span>{totalSets-doneSets} restantes</span></div>
       {isIso?(
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,marginBottom:14}}>
           <div style={{position:"relative",width:130,height:130,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -3783,25 +3808,26 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
         </div>
       ):(
         <>
-          <div style={S.seriesTimer}><span style={{fontSize:11,color:C.muted,letterSpacing:"0.08em"}}>SÉRIE {setIdx+1}/{exercise.sets}</span><span style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(elapsed)}</span><span style={{fontSize:11,color:C.muted}}>{running?"em execução":"pausado"}</span></div>
+          <div className="ab-series-clock"><div><span>TEMPO DA SÉRIE</span><strong style={{display:"block"}}>{fmt(elapsed)}</strong></div><span>{running?"em execução":"pausado"}</span></div>
           <label style={{...S.sectionLabel,marginTop:12}}>Peso e repetições desta série{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
           {sugestao && String(sugestao.sugerido) !== weightInput && (
-            <button onClick={()=>setWeightInput(String(sugestao.sugerido))}
-              style={{display:"block",width:"100%",textAlign:"left",background:"#0d2a1c",border:`1.5px dashed ${C.acc}`,borderRadius:12,padding:"10px 12px",margin:"8px 0 2px",cursor:"pointer"}}>
-              <span style={{fontSize:12,fontWeight:700,color:C.acc}}>💡 Você atingiu {sugestao.topo} reps em todas as séries com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
-              <span style={{fontSize:11,color:C.muted,display:"block",marginTop:2}}>toque para aplicar</span>
+            <button onClick={()=>setWeightInput(String(sugestao.sugerido))} className="ab-suggestion">
+              <span>Você atingiu {sugestao.topo} reps com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
+              <small>TOQUE PARA APLICAR A SUGESTÃO</small>
             </button>
           )}
-          <div style={{display:"flex",gap:10}}>
-            <input type="number" inputMode="decimal" style={{...S.input,flex:1}} value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="Peso (kg)" autoFocus/>
-            <input type="number" inputMode="numeric" style={{...S.input,flex:1}} value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder={`Reps (meta ${exercise.reps})`}/>
+          <div className="ab-load-grid">
+            <div className="ab-load-field"><label>PESO (KG)</label><input aria-label="Peso em quilogramas" type="number" inputMode="decimal" className="ab-load-input" value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="0" autoFocus/></div>
+            <div className="ab-load-field"><label>REPETIÇÕES</label><input aria-label="Número de repetições" type="number" inputMode="numeric" className="ab-load-input" value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder="0"/></div>
           </div>
         </>
       )}
-      <button style={{...S.btn,opacity:canComplete?1:0.35,marginBottom:10}} disabled={!canComplete} onClick={onComplete}>Concluir série</button>
-      <div style={{display:"flex",gap:8}}>
-        <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"12px 6px",opacity:canSkip?1:0.35}} disabled={!canSkip} onClick={onSkip}>⏩ Equipamento ocupado</button>
-        <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"12px 6px"}} onClick={onShowSubs}>↔ Substituir</button>
+      <button className="ab-primary" disabled={!canComplete} onClick={onComplete}>Concluir série <Icon name="arrow" size={18}/></button>
+      <div className="ab-secondary-actions">
+        <button className="ab-secondary-action" disabled={!canSkip} onClick={onSkip}><Icon name="repeat" size={15}/> Ocupado</button>
+        <button className="ab-secondary-action" onClick={onShowSubs}><Icon name="swap" size={15}/> Substituir</button>
+      </div>
+      </aside>
       </div>
     </div>
   );
@@ -3854,34 +3880,31 @@ function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercic
   const circ=2*Math.PI*52, off=circ*(1-seconds/(total||1));
   const allItems=[...completed.map(e=>({...e,status:"done"})),...queue.map((e,i)=>({...e,status:i===0?"current":e._skipped?"skipped":"pending"}))];
   return (
-    <div style={S.box}>
-      <div style={S.eyebrow}>DESCANSO</div>
-      <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
-        <div style={{position:"relative",width:130,height:130,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <svg width="130" height="130" viewBox="0 0 130 130">
+    <div className="ab-rest">
+      <section className="ab-rest-hero">
+        <div className="ab-rest-timer">
+          <svg viewBox="0 0 130 130">
             <circle cx="65" cy="65" r="52" stroke={C.border} strokeWidth="7" fill="none"/>
             <circle cx="65" cy="65" r="52" stroke={C.acc} strokeWidth="7" fill="none" strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" transform="rotate(-90 65 65)" style={{transition:"stroke-dashoffset 1s linear"}}/>
           </svg>
-          <div style={{position:"absolute",textAlign:"center"}}><div style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(seconds)}</div><div style={{fontSize:10,color:C.muted}}>descanso</div></div>
+          <div className="ab-rest-time"><strong>{fmt(seconds)}</strong><span>DESCANSO</span></div>
         </div>
-      </div>
-      {duracao && <div style={{fontSize:11,color:C.muted,marginBottom:10,textAlign:"center"}}>⏱ tempo previsto do treino: ~{duracao}</div>}
+        <div className="ab-rest-copy"><div className="ab-kicker">RECUPERE E RESPIRE</div><h1>Boa série.</h1><p>Prepare-se para a próxima. {exercicioAtual?`Você continua em ${exercicioAtual}.`:"O próximo exercício começa em breve."}</p><button className="ab-primary" style={{width:"auto"}} onClick={onSkip}>Pular descanso <Icon name="arrow" size={17}/></button>{duracao&&<p>Tempo previsto do treino: ~{duracao}</p>}</div>
+      </section>
       {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"descanso",exercicio:exercicioAtual||null}} placeholder="observação para o personal (dúvida, dor, pedido de troca)…"/>}
-      <div style={S.sectionLabel}>EXERCÍCIOS DO TREINO</div>
-      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+      <section className="ab-queue"><h2>Sequência do treino</h2>
         {allItems.map((ex,i)=>{ const isDone=ex.status==="done",isCurrent=ex.status==="current",isSkipped=ex.status==="skipped"; return(
-          <div key={i} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,padding:"10px 14px",border:isCurrent?`1.5px solid #e8a23a`:isSkipped?`1px dashed #8fb8a2`:`1px solid ${C.border}`,opacity:ex.status==="pending"?0.45:1}}>
-            <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,background:isDone?C.acc:isCurrent?"#e8a23a":isSkipped?"#2a4a34":C.border,color:(isDone||isCurrent)?"#06140e":C.muted}}>
+          <div key={i} className="ab-queue-item" data-status={ex.status}>
+            <div className="ab-queue-state">
               {isDone?"✓":isCurrent?"▶":isSkipped?"⏩":"○"}
             </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:600,color:isDone?C.muted:C.text}}>{ex.name}{isSkipped&&<span style={{fontSize:10,color:"#e8a23a",marginLeft:6}}>· reagendado</span>}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{isDone?`${ex.sets}/${ex.sets} séries ✓`:isCurrent?`em andamento · ${Math.min(nextSet||1,ex.sets)-1}/${ex.sets} séries · próxima: ${Math.min(nextSet||1,ex.sets)}ª`:`${ex.sets} séries · ${ex.reps}`}</div>
+            <div className="ab-queue-copy">
+              <strong>{ex.name}{isSkipped&&<span> · reagendado</span>}</strong>
+              <span>{isDone?`${ex.sets}/${ex.sets} séries concluídas`:isCurrent?`em andamento · ${Math.min(nextSet||1,ex.sets)-1}/${ex.sets} séries · próxima: ${Math.min(nextSet||1,ex.sets)}ª`:`${ex.sets} séries · ${ex.reps}`}</span>
             </div>
           </div>
         );})}
-      </div>
-      <button style={S.btnOutline} onClick={onSkip}>Pular descanso</button>
+      </section>
     </div>
   );
 }
