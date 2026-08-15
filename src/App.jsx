@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import "./app.css";
 
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
 
@@ -189,6 +190,23 @@ const S={
   modalOverlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100},
   modal:{background:"#0f2419",borderRadius:"20px 20px 0 0",padding:"24px 20px 36px",width:"100%",maxWidth:480},
 };
+
+const ICON_PATHS = {
+  arrow: <><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
+  chart: <><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></>,
+  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
+  book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></>,
+  sparkles: <><path d="m12 3-1.4 3.6L7 8l3.6 1.4L12 13l1.4-3.6L17 8l-3.6-1.4Z"/><path d="m19 14-.8 2.2L16 17l2.2.8L19 20l.8-2.2L22 17l-2.2-.8Z"/><path d="m5 14-.8 2.2L2 17l2.2.8L5 20l.8-2.2L8 17l-2.2-.8Z"/></>,
+  settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.15.37.36.7.64.98.3.28.68.42 1.06.42h.1v4h-.1A1.7 1.7 0 0 0 19.4 15Z"/></>,
+  dumbbell: <><path d="m6.5 6.5 11 11M21 21l-1-1M3 3l1 1M18 22l4-4M2 6l4-4M3 10l7-7M14 21l7-7"/></>,
+  clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  flame: <path d="M12 22c4 0 7-3 7-7 0-3-2-5-4-7 0 3-2 4-3 4 1-5-2-8-5-10 0 5-4 7-4 13 0 4 4 7 9 7Z"/>,
+};
+
+function Icon({ name, size = 20, className = "" }) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>;
+}
 async function loadStorage(key) {
   // Nuvem primeiro (se logado), fallback local
   if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
@@ -1506,7 +1524,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
   if(screen==="boot") return <div style={S.page}><p style={{color:C.acc,marginTop:80,fontFamily:"sans-serif"}}>Carregando…</p></div>;
 
   return (
-    <div style={S.page}>
+    <div style={S.page} className="ab-app-shell">
       <UpdateBanner/>
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
@@ -1597,13 +1615,26 @@ function AuthScreen({ onDone, onSkip }) {
   };
 
   return (
-    <div style={{...S.box, paddingTop: 40}}>
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:32}}>
+    <div className="ab-auth">
+      <section className="ab-auth-hero" aria-label="A-Body Personal AI Trainer">
+        <div className="ab-logo-lockup">
+          <div className="ab-logo-mark">A</div>
+          <div className="ab-logo-copy"><strong>A-BODY</strong><span>PERSONAL AI TRAINER</span></div>
+        </div>
+        <h2>Seu treino evolui.<br/><em>Você também.</em></h2>
+        <p>Treinos inteligentes, acompanhamento profissional e evolução mensurável em uma experiência feita para manter você em movimento.</p>
+        <div className="ab-auth-proof" aria-label="Benefícios do A-Body">
+          <span>Treino personalizado</span><span>Progresso em tempo real</span><span>IA com contexto</span>
+        </div>
+      </section>
+      <section className="ab-auth-panel">
+      <div className="ab-kicker">BEM-VINDO AO A-BODY</div>
+      <div style={{display:"none"}}>
         <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:16,marginBottom:14}}>A</div>
         <div style={S.brand}>A-BODY</div>
       </div>
 
-      <h1 style={{...S.h1,fontSize:24}}>{mode==="login" ? "Entrar" : "Criar conta"}</h1>
+      <h1>{mode==="login" ? "Entre para continuar" : "Crie sua conta"}</h1>
       {convitePendente ? (
         <div style={{background:"#0d2218",border:`1px solid ${C.acc}`,borderRadius:12,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
           🎟️ <b>Você foi convidado pelo seu personal.</b> {mode==="signup" ? "Crie sua conta abaixo" : "Entre com sua conta"} e seu acesso será ativado automaticamente.
@@ -1614,60 +1645,54 @@ function AuthScreen({ onDone, onSkip }) {
 
       {mode==="signup" && !convitePendente && (
         <>
-          <label style={S.fieldLabel}>EU SOU</label>
-          <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <label className="ab-label">EU SOU</label>
+          <div className="ab-role-grid">
             {[["aluno","🏋️ Aluno"],["pro","📋 Personal Trainer"]].map(([k,rotulo])=>(
-              <button key={k} onClick={()=>setTipo(k)}
-                style={{...S.card,flex:1,alignItems:"center",padding:"12px 8px",fontSize:13,fontWeight:700,
-                  color: tipo===k ? C.acc : C.muted,
-                  border: `1px solid ${tipo===k ? C.acc : C.border}`}}>
+              <button key={k} onClick={()=>setTipo(k)} className="ab-role" data-active={tipo===k}>
                 {rotulo}
               </button>
             ))}
           </div>
           {tipo==="pro" && (
             <>
-              <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
-              <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem" autoComplete="name"/>
+              <label className="ab-label">NOME PROFISSIONAL</label>
+              <input className="ab-input" type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem" autoComplete="name"/>
               <p style={{fontSize:11,color:C.muted,margin:"6px 2px 10px"}}>Seus alunos verão este nome e sua foto no A-Body. Se entrar com Google e deixar em branco, usamos o nome da sua conta Google (dá pra ajustar depois no perfil).</p>
             </>
           )}
         </>
       )}
 
-      <button style={{...S.card, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:10, marginBottom:16, fontWeight:600, fontSize:14, color:C.text}} onClick={()=>{ if(mode==="signup" && tipo==="pro") localStorage.setItem("abody:pendingpro", nome.trim()); authSignInGoogle(); }}>
+      <button className="ab-google" onClick={()=>{ if(mode==="signup" && tipo==="pro") localStorage.setItem("abody:pendingpro", nome.trim()); authSignInGoogle(); }}>
         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.4-11.3-8H6.1l-6.5 5C6.9 39.6 14.8 44 24 44z" transform="translate(6.5,0) scale(0.87)"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41.4 35.3 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
         Continuar com Google
       </button>
 
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-        <div style={{flex:1,height:1,background:C.border}}/>
-        <span style={{fontSize:11,color:C.muted}}>ou com e-mail</span>
-        <div style={{flex:1,height:1,background:C.border}}/>
-      </div>
+      <div className="ab-divider">OU COM E-MAIL</div>
 
-      <label style={S.fieldLabel}>E-MAIL</label>
-      <input style={S.field} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
-      <label style={S.fieldLabel}>SENHA</label>
-      <input style={S.field} type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
+      <label className="ab-label">E-MAIL</label>
+      <input className="ab-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
+      <label className="ab-label">SENHA</label>
+      <input className="ab-input" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
 
       {err  && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
       {info && <div style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
 
-      <button style={{...S.btn,marginTop:18,opacity:(email&&pass.length>=6&&!busy)?1:0.4}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
+      <button className="ab-primary" style={{marginTop:18}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
         {busy ? "Aguarde…" : (mode==="login" ? "Entrar" : "Criar conta")}
       </button>
 
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:600,marginTop:16,width:"100%",textAlign:"center"}}
+      <button className="ab-link"
         onClick={()=>{setMode(mode==="login"?"signup":"login");setErr(null);setInfo(null);}}>
         {mode==="login" ? "Não tem conta? Cadastre-se" : "Já tem conta? Entrar"}
       </button>
 
       {!convitePendente && (
-        <button style={{...S.btnOutline,marginTop:20,fontSize:13}} onClick={onSkip}>
+        <button className="ab-guest" onClick={onSkip}>
           Continuar sem conta (dados só neste aparelho)
         </button>
       )}
+      </section>
     </div>
   );
 }
@@ -1714,67 +1739,53 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
   ];
   const incompleto = passos && passos.some(p=>!p.ok);
   return (
-    <div style={S.box}>
-      <div style={S.brandRow}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={S.logo}>A</div><span style={S.brand}>A-BODY</span>
-          <span style={{fontSize:10,fontWeight:800,color:C.acc,letterSpacing:"0.12em",border:`1px solid ${C.acc}`,borderRadius:8,padding:"3px 7px"}}>PRO</span>
-        </div>
-      </div>
+    <div className="ab-dashboard">
+      <header className="ab-dashboard-header">
+        <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY PRO</strong><span>GESTÃO DE PERFORMANCE</span></div></div>
+        <button className="ab-icon-button" onClick={onPerfil} aria-label="Editar perfil"><AvatarFoto url={pro.foto_url} nome={pro.nome} size={34}/></button>
+      </header>
 
-      <button style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:20}} onClick={onPerfil}>
+      <section className="ab-hero-card">
+      <div className="ab-kicker">PAINEL PROFISSIONAL</div>
+      <h1>Bom trabalho começa<br/>com uma visão clara.</h1>
+      <p className="ab-copy">Gerencie seus alunos, agenda e treinos em um só lugar.</p>
+      <button className="ab-personal-chip" style={{background:"none",border:0,padding:0,marginTop:22}} onClick={onPerfil}>
         <AvatarFoto url={pro.foto_url} nome={pro.nome} size={52}/>
         <div style={{textAlign:"left"}}>
           <div style={{fontSize:16,fontWeight:800,color:C.text}}>{pro.nome}</div>
           <div style={{fontSize:12,color:C.muted}}>Personal Trainer · editar perfil</div>
         </div>
-        <span style={{marginLeft:"auto",color:C.acc,fontSize:18}}>→</span>
+        <Icon name="arrow" size={18}/>
       </button>
-
-      <h1 style={S.h1}>Seu espaço profissional</h1>
-      <p style={S.sub}>Gerencie agenda, alunos e treinos em um só lugar.</p>
+      </section>
 
       {incompleto && (
-        <div style={{...S.card,marginBottom:14,border:`1.5px solid ${C.acc}`}}>
-          <div style={{fontSize:12,fontWeight:800,color:C.acc,letterSpacing:"0.06em",marginBottom:8}}>🚀 PRIMEIROS PASSOS</div>
+        <div className="ab-onboarding-list">
+          <h3>PRIMEIROS PASSOS</h3>
           {passos.map((p,i)=>(
-            <button key={i} onClick={p.acao} disabled={p.ok}
-              style={{display:"flex",alignItems:"center",gap:10,background:"none",border:"none",padding:"6px 0",width:"100%",textAlign:"left",cursor:p.ok?"default":"pointer"}}>
-              <span style={{fontSize:15}}>{p.ok?"✅":"⬜"}</span>
-              <span style={{fontSize:13,fontWeight:600,color:p.ok?C.muted:C.text,textDecoration:p.ok?"line-through":"none"}}>{p.t}</span>
+            <button key={i} onClick={p.acao} disabled={p.ok} className="ab-onboarding-item" data-done={p.ok}>
+              <i>{p.ok?"✓":i+1}</i><span>{p.t}</span>
             </button>
           ))}
         </div>
       )}
 
       {resumo && !incompleto && (
-        <div style={{...S.card,flexDirection:"row",gap:0,marginBottom:14,padding:"12px 6px"}}>
-          {[["👥",resumo.ativos,"ativos"],["📋",resumo.comTreino,"com treino"],["🔥",resumo.treinosSemana,"treinos na semana"]].map(([ic,v,l],i)=>(
-            <div key={i} style={{flex:1,textAlign:"center",borderLeft:i?`1px solid ${C.border}`:"none"}}>
-              <div style={{fontSize:17,fontWeight:800,color:C.acc}}>{ic} {v}</div>
-              <div style={{fontSize:10,color:C.muted,marginTop:2}}>{l}</div>
+        <div className="ab-pro-summary">
+          {[["users",resumo.ativos,"Alunos ativos"],["dumbbell",resumo.comTreino,"Com treino"],["flame",resumo.treinosSemana,"Treinos na semana"]].map(([ic,v,l],i)=>(
+            <div key={i} className="ab-metric">
+              <div className="ab-metric-icon"><Icon name={ic}/></div>
+              <strong>{v}</strong><span>{l}</span>
             </div>
           ))}
         </div>
       )}
 
-      <button style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}} onClick={onAgenda}>
-        <div style={{textAlign:"left"}}>
-          <div style={{fontSize:17,fontWeight:800,color:C.text}}>📅 Agenda semanal</div>
-          <div style={{fontSize:12,color:C.muted,marginTop:2}}>horários, alunos e locais das aulas</div>
-        </div>
-        <span style={{color:C.acc,fontSize:18}}>→</span>
-      </button>
-
-      <button style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}} onClick={onAlunos}>
-        <div style={{textAlign:"left"}}>
-          <div style={{fontSize:17,fontWeight:800,color:C.text,display:"flex",alignItems:"center",gap:8}}>👥 Meus alunos
-            {naoLidas>0 && <span style={{background:"#e05555",color:"#fff",borderRadius:12,fontSize:11,fontWeight:800,padding:"2px 8px"}}>{naoLidas} nova{naoLidas>1?"s":""}</span>}
-          </div>
-          <div style={{fontSize:12,color:C.muted,marginTop:2}}>{naoLidas>0?"mensagens de alunos aguardando resposta":"cadastro e montagem de treinos"}</div>
-        </div>
-        <span style={{color:C.acc,fontSize:18}}>→</span>
-      </button>
+      <div className="ab-section-title"><h2>Acesso rápido</h2><span>Gestão diária</span></div>
+      <div className="ab-pro-actions">
+        <button className="ab-pro-action" onClick={onAgenda}><div className="ab-pro-action-top"><Icon name="calendar"/><Icon name="arrow" size={18}/></div><strong>Agenda semanal</strong><p>Horários, alunos e locais das aulas.</p></button>
+        <button className="ab-pro-action" onClick={onAlunos}><div className="ab-pro-action-top"><Icon name="users"/>{naoLidas>0?<span className="ab-badge">{naoLidas} nova{naoLidas>1?"s":""}</span>:<Icon name="arrow" size={18}/>}</div><strong>Meus alunos</strong><p>{naoLidas>0?"Mensagens aguardando resposta.":"Cadastro, evolução e montagem de treinos."}</p></button>
+      </div>
 
       <button style={{...S.btnOutline,width:"100%",marginTop:8}} onClick={onLogout}>Sair da conta</button>
     </div>
@@ -3648,13 +3659,14 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
   const weekCount = history.filter(s=>new Date(s.date)>=ws).length;
   return (
-    <div style={S.box}>
-      <div style={{...S.brandRow,justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
-        <button onClick={onSettings} style={{background:"none",border:"none",fontSize:20,cursor:"pointer"}}>⚙️</button>
-      </div>
+    <div className="ab-dashboard">
+      <header className="ab-dashboard-header">
+        <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>PERFORMANCE INTELLIGENCE</span></div></div>
+        <button onClick={onSettings} className="ab-icon-button" aria-label="Configurações"><Icon name="settings"/></button>
+      </header>
+      <section className="ab-hero-card">
       {personal && (
-        <div style={{display:"flex",alignItems:"center",gap:10,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 14px",marginBottom:16}}>
+        <div className="ab-personal-chip">
           <AvatarFoto url={personal.foto_url} nome={personal.nome} size={38}/>
           <div>
             <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>SEU PERSONAL</div>
@@ -3662,39 +3674,47 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
           </div>
         </div>
       )}
-      <div style={S.eyebrow}>{plan.planName}</div>
-      <h1 style={S.h1}>Olá, {plan.userName}!</h1>
-      <p style={S.sub}>Escolha o treino do dia.</p>
+      <div className="ab-kicker">{plan.planName}</div>
+      <h1>Olá, {plan.userName}!</h1>
+      <p className="ab-copy">Seu próximo treino está pronto. Continue construindo sua melhor sequência.</p>
+      <div className="ab-week-progress">
+        <div className="ab-week-progress-label"><span>PROGRESSO SEMANAL</span><span>{weekCount} TREINO{weekCount!==1?"S":""}</span></div>
+        <div className="ab-progress-track"><span style={{width:`${Math.min(100,weekCount*25)}%`}}/></div>
+      </div>
+      </section>
 
-      <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:18}}>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onCalendar}>
-          <div style={{fontSize:22,marginBottom:4}}>📅</div>
+      <div className="ab-section-title"><h2>Visão geral</h2><span>Esta semana</span></div>
+      <div className="ab-metric-grid">
+        <button className="ab-metric" onClick={onCalendar}>
+          <div className="ab-metric-icon"><Icon name="calendar"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Frequência</div>
           <div style={{fontSize:11,color:C.acc,marginTop:2}}>{weekCount} treino{weekCount!==1?"s":""} esta semana</div>
         </button>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px",opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
-          <div style={{fontSize:22,marginBottom:4}}>📊</div>
+        <button className="ab-metric" style={{opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
+          <div className="ab-metric-icon"><Icon name="chart"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Avaliação corporal</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>{hasBody?"ver relatório":"sem avaliação"}</div>
         </button>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onLibrary}>
-          <div style={{fontSize:22,marginBottom:4}}>📚</div>
+        <button className="ab-metric" onClick={onLibrary}>
+          <div className="ab-metric-icon"><Icon name="book"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Biblioteca</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>146 exercícios</div>
         </button>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onEvolucao}>
-          <div style={{fontSize:22,marginBottom:4}}>📈</div>
+        <button className="ab-metric" onClick={onEvolucao}>
+          <div className="ab-metric-icon"><Icon name="sparkles"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Evolução</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>cargas por exercício</div>
         </button>
       </div>
 
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
-        {plan.duracao && <div style={{fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>⏱ TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
+      <div className="ab-section-title"><h2>Seus treinos</h2><span>{plan.weekDays.length} sessões</span></div>
+      <div className="ab-day-grid">
+        {plan.duracao && <div style={{gridColumn:"1 / -1",fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
         {plan.weekDays.map((d,i)=>{ const last=lastByDay[d.id]; return(
-          <button key={i} style={S.dayCard} onClick={()=>onStart(d)}>
-            <div><div style={{fontSize:17,fontWeight:700}}>{d.label}</div><div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.sub}{plan.duracao?` · ⏱ ~${plan.duracao}`:""}</div>{last&&<div style={{fontSize:11,color:"#8fb8a2",marginTop:5}}>Último: {new Date(last).toLocaleDateString("pt-BR")}</div>}</div>
-            <span style={{color:C.acc,fontSize:20}}>→</span>
+          <button key={i} className="ab-day-card" onClick={()=>onStart(d)}>
+            <div className="ab-day-number">{String(i+1).padStart(2,"0")}</div>
+            <div className="ab-day-copy"><strong>{d.label}</strong><span>{d.sub}{plan.duracao?` · ~${plan.duracao}`:""}</span>{last&&<span>Último: {new Date(last).toLocaleDateString("pt-BR")}</span>}</div>
+            <Icon name="arrow" size={20}/>
           </button>
         );})}
       </div>
