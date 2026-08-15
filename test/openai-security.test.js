@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { conteudoOpenAI, eGeracaoDeTreino, formatoEstruturado, validarPlano } from "../api/claude.js";
-import { SCIENCE_VERSION, scientificContext, scientificProfile, validateScientificMetadata } from "../api/science.js";
+import { SCIENCE_VERSION, SCIENCE_VERSIONS, scientificContext, scientificProfile, validateScientificMetadata } from "../api/science.js";
 import { adaptiveInsight } from "../src/adaptation.js";
 
 test("detecta somente geração de treino", () => {
@@ -69,4 +69,15 @@ test("adaptação usa RIR para sugerir progressão ou redução", () => {
   const pesado = adaptiveInsight([{date:"2026-08-14",completed:[{name:"Remada",rirs:[0,0,1]}]}]);
   assert.equal(leve.action,"progress");
   assert.equal(pesado.action,"reduce_load");
+});
+
+test("seleciona protocolos específicos por objetivo", () => {
+  const emagrecimento = scientificProfile("Objetivos: Emagrecimento");
+  const qualidade = scientificProfile("Objetivos: Qualidade de vida");
+  const cardio = scientificProfile("Objetivos: Condicionamento físico");
+  assert.equal(emagrecimento.version, SCIENCE_VERSIONS.weight);
+  assert.equal(qualidade.version, SCIENCE_VERSIONS.health);
+  assert.equal(cardio.version, SCIENCE_VERSIONS.cardio);
+  assert.deepEqual(emagrecimento.aerobic, [150,300]);
+  assert.match(scientificContext("Objetivos: Emagrecimento"), /não prometa perda de peso/i);
 });

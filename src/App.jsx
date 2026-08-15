@@ -1021,6 +1021,7 @@ const convertAIPlan = (aiPlan, userName) => ({
   userName: userName||"Atleta", planName: aiPlan.planName||"Meu Plano", planDescription: aiPlan.planDescription||"",
   mode:"ai", evidenceVersion:aiPlan.evidenceVersion||null, progressionStrategy:aiPlan.progressionStrategy||"",
   safetyNotes:Array.isArray(aiPlan.safetyNotes)?aiPlan.safetyNotes:[], requiresMedicalClearance:!!aiPlan.requiresMedicalClearance,
+  weeklyPrescription:aiPlan.weeklyPrescription||null,
   weekDays:(aiPlan.weekDays||[]).map((d,di)=>({
     id:d.id||`day${di+1}`, label:d.label||`Dia ${di+1}`, sub:d.sub||"",
     exercises:(d.exercises||[]).map((ex,ei)=>({
@@ -1038,6 +1039,7 @@ const buildManualPlan = (name, splitDays, dayExercises) => ({
   userName: name||"Atleta", planName:"Meu Plano Personalizado", planDescription:"Plano montado por você.",
   mode:"manual", evidenceVersion:"ABODY-ACSM-2026.1", progressionStrategy:"Dupla progressão orientada por repetições e RIR",
   safetyNotes:[], requiresMedicalClearance:false,
+  weeklyPrescription:{aerobicMinutesTarget:75,aerobicMinutesUpper:150,strengthDaysTarget:2,flexibilityDaysTarget:2,intensityMethod:"RPE 3–6/10 ou teste da fala",sedentaryGuidance:"Interromper períodos prolongados sentado",notes:["Complete a meta aeróbica com atividades adicionais na semana."]},
   weekDays: splitDays.map(d=>{
     const exs = (dayExercises[d.id]||[]).map(ex=>({...ex,rir:Number.isInteger(ex.rir)?ex.rir:3,progressionRule:ex.progressionRule||"Aumentar após atingir o topo da faixa com RIR 3"}));
     const groups = [...new Set(d.suggestedGroups)];
@@ -3615,6 +3617,7 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
         </div>
       )}
       {plan.evidenceVersion&&<div className="ab-science-card"><Icon name="sparkles" size={18}/><div><strong>Protocolo {plan.evidenceVersion}</strong><span>{plan.progressionStrategy||"Progressão orientada por desempenho e RIR"}</span></div></div>}
+      {plan.weeklyPrescription&&<div className="ab-safety-notes"><strong>Meta semanal do protocolo</strong><span>• {plan.weeklyPrescription.aerobicMinutesTarget}–{plan.weeklyPrescription.aerobicMinutesUpper} min aeróbicos</span><span>• Força em pelo menos {plan.weeklyPrescription.strengthDaysTarget} dias</span><span>• Intensidade: {plan.weeklyPrescription.intensityMethod}</span><span>• {plan.weeklyPrescription.sedentaryGuidance}</span></div>}
       {(plan.safetyNotes||[]).length>0&&<div className="ab-safety-notes"><strong>Cuidados do plano</strong>{plan.safetyNotes.map((note,i)=><span key={i}>• {note}</span>)}</div>}
       {plan.requiresMedicalClearance&&<div className="ab-clearance-warning" role="alert"><strong>Avaliação necessária</strong><span>Antes de iniciar, procure liberação de um profissional de saúde para as condições informadas.</span></div>}
       <button className="ab-primary" style={{marginTop:20}} disabled={plan.requiresMedicalClearance} onClick={onStart}>{plan.requiresMedicalClearance?"Aguardando liberação":"Iniciar treinamento"} <Icon name="arrow" size={18}/></button>

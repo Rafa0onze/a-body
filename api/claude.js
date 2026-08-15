@@ -1,6 +1,6 @@
 // Compatibilidade para clientes antigos. A implementação usa OpenAI Responses API.
 // A rota principal está em /api/openai.
-import { SCIENCE_VERSION, scientificContext, validateScientificMetadata } from "./science.js";
+import { SCIENCE_VERSIONS, scientificContext, validateScientificMetadata } from "./science.js";
 
 const SUPA_URL = process.env.VITE_SUPABASE_URL || "https://zvmriqxigpwuggyhpoun.supabase.co";
 const SUPA_ANON = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXAiLCJyZWYiOiJ6dm1yaXF4aWdwd3VnZ3locG91biIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgzNTQzMTAwLCJleHAiOjIwOTkxMTkxMDB9.HrnVWaVSaWkGUXRc8MXKjM2Vj2N0xN6wwp95y7zmjbQ";
@@ -12,6 +12,8 @@ const QUOTA_PRO = 60;
 const MARCADORES = ["A-BODY:ANALISE_CORPORAL", "A-BODY:PLANO_TREINO", "personal trainer", "ANÁLISE CORPORAL", "Analise as fotos", "analise corporal"];
 
 const REGRAS_CIENTIFICAS = `
+
+A versão e as metas definidas no PROTOCOLO CIENTÍFICO VERSIONADO ao final da solicitação prevalecem sobre qualquer exemplo JSON anterior.
 
 PADRÃO CIENTÍFICO A-BODY — REGRAS OBRIGATÓRIAS:
 1. Não programe dois dias consecutivos com predominância de membros inferiores.
@@ -43,13 +45,21 @@ function eGeracaoDeTreino(texto) {
 
 const ESQUEMA_TREINO = {
   type: "object", additionalProperties: false,
-  required: ["planName", "planDescription", "evidenceVersion", "progressionStrategy", "safetyNotes", "requiresMedicalClearance", "weekDays"],
+  required: ["planName", "planDescription", "evidenceVersion", "progressionStrategy", "safetyNotes", "requiresMedicalClearance", "weeklyPrescription", "weekDays"],
   properties: {
     planName: { type: "string" }, planDescription: { type: "string" },
-    evidenceVersion: { type:"string", enum:[SCIENCE_VERSION] },
+    evidenceVersion: { type:"string", enum:Object.values(SCIENCE_VERSIONS) },
     progressionStrategy: { type:"string" },
     safetyNotes: { type:"array", items:{type:"string"} },
     requiresMedicalClearance: { type:"boolean" },
+    weeklyPrescription: { type:"object", additionalProperties:false,
+      required:["aerobicMinutesTarget","aerobicMinutesUpper","strengthDaysTarget","flexibilityDaysTarget","intensityMethod","sedentaryGuidance","notes"],
+      properties:{
+        aerobicMinutesTarget:{type:"integer",minimum:0,maximum:600}, aerobicMinutesUpper:{type:"integer",minimum:0,maximum:600},
+        strengthDaysTarget:{type:"integer",minimum:0,maximum:7}, flexibilityDaysTarget:{type:"integer",minimum:0,maximum:7},
+        intensityMethod:{type:"string"}, sedentaryGuidance:{type:"string"}, notes:{type:"array",items:{type:"string"}}
+      }
+    },
     weekDays: { type: "array", minItems: 1, maxItems: 7, items: {
       type: "object", additionalProperties: false,
       required: ["id", "label", "sub", "exercises", "mobility", "postCardio"],
