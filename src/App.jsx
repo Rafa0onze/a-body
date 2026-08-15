@@ -208,6 +208,7 @@ const ICON_PATHS = {
   repeat: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></>,
   swap: <><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></>,
   zap: <path d="M13 2 3 14h8l-1 8 10-12h-8Z"/>,
+  search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
 };
 
 function Icon({ name, size = 20, className = "" }) {
@@ -3977,17 +3978,8 @@ function FotoComparativo({ bodyHistory, onFotosExcluidas }) {
   );
 }
 
-function BarraNota({ nota }) {
-  const n = Math.min(5, Math.max(1, Number(nota) || 3));
-  const cor = n <= 2 ? "#e8a23a" : n >= 4 ? C.acc : "#6fa88a";
-  return (
-    <div style={{display:"flex",gap:3,alignItems:"center"}}>
-      {[1,2,3,4,5].map(i=>(
-        <div key={i} style={{width:14,height:7,borderRadius:2,background:i<=n?cor:C.border}}/>
-      ))}
-      <span style={{fontSize:11,color:cor,fontWeight:800,marginLeft:4}}>{n}</span>
-    </div>
-  );
+function BodyInsightCard({ titulo, accent = false, children }) {
+  return <section className="ab-insight-card" data-accent={accent}><h2>{titulo}</h2>{children}</section>;
 }
 
 function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas }) {
@@ -4004,61 +3996,50 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
     ? a.postura
     : (a.postureNotes || []).map(p => ({ achado: p, implicacao: "" }));
 
-  const Bloco = ({ titulo, cor, children }) => (
-    <div style={{...S.card, marginBottom:14}}>
-      <div style={{fontSize:11,color:cor||C.muted,fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>{titulo}</div>
-      {children}
-    </div>
-  );
-
   return (
-    <div style={S.box}>
-      <div style={S.topRow}>
-        <button style={S.back} onClick={onBack}>← Voltar</button>
-        <div style={S.eyebrow}>AVALIAÇÃO CORPORAL</div>
-      </div>
-      <h1 style={S.h1}>Seu relatório</h1>
-      <p style={S.sub}>Avaliação de {new Date(last.date).toLocaleDateString("pt-BR")} · há {daysSince} dia{daysSince!==1?"s":""}{bodyHistory.length>1?` · ${bodyHistory.length}ª avaliação`:""}</p>
+    <div className="ab-data-page">
+      <button className="ab-workout-exit" onClick={onBack}>← Voltar</button>
+      <header className="ab-page-head"><div><div className="ab-kicker">AVALIAÇÃO CORPORAL</div><h1>Seu relatório inteligente</h1><p className="ab-copy">Avaliação de {new Date(last.date).toLocaleDateString("pt-BR")} · há {daysSince} dia{daysSince!==1?"s":""}{bodyHistory.length>1?` · ${bodyHistory.length}ª avaliação`:""}</p></div></header>
 
       {comp && (
-        <div style={{...S.card,marginBottom:14,border:`1.5px solid ${C.acc}`}}>
+        <section className="ab-insight-card" data-accent="true">
           <div style={{fontSize:11,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>EVOLUÇÃO vs AVALIAÇÃO ANTERIOR</div>
           {comp.summary && <p style={{fontSize:13,color:C.text,margin:"0 0 10px 0",lineHeight:1.5}}>{comp.summary}</p>}
           {(comp.improvements||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.acc,marginBottom:4}}>▲ {p}</div>)}
           {(comp.attentionPoints||[]).map((p,i)=><div key={i} style={{fontSize:13,color:"#e8a23a",marginBottom:4}}>⚠ {p}</div>)}
-        </div>
+        </section>
       )}
 
       {a.overallAnalysis && (
-        <Bloco titulo="SÍNTESE">
+        <BodyInsightCard titulo="SÍNTESE" accent>
           <p style={{fontSize:13,color:C.text,margin:0,lineHeight:1.5}}>{a.overallAnalysis}</p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {temNotas && (
-        <Bloco titulo="DESENVOLVIMENTO POR GRUPO">
+        <BodyInsightCard titulo="DESENVOLVIMENTO POR GRUPO">
           {["peito","costas","ombros","bracos","quadriceps","posteriores","gluteos","panturrilhas","core"].map(g=>{
             const ant = Number(anteriorNotas[g]);
             const at  = Number(notas[g]);
             const delta = Number.isFinite(ant) && Number.isFinite(at) ? at - ant : 0;
             return (
-              <div key={g} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
-                <span style={{fontSize:13,color:C.text}}>
+              <div key={g} className="ab-score-row">
+                <span>
                   {ROTULO_GRUPO[g]}
                   {delta !== 0 && <span style={{fontSize:11,fontWeight:700,marginLeft:6,color:delta>0?C.acc:"#e8a23a"}}>{delta>0?`▲${delta}`:`▼${Math.abs(delta)}`}</span>}
                 </span>
-                <BarraNota nota={notas[g]}/>
+                <div className="ab-score-track"><span style={{width:`${Math.min(100,Math.max(0,at*20))}%`}}/></div><b>{at}/5</b>
               </div>
             );
           })}
           <p style={{fontSize:11,color:C.muted,margin:"10px 0 0 0",lineHeight:1.5}}>
             Leitura visual comparando cada grupo com o restante do seu próprio corpo — 1 muito abaixo, 3 proporcional, 5 destaque. Não substitui medição.
           </p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.prioridades||[]).length > 0 && (
-        <Bloco titulo="PRIORIDADES DO SEU TREINO" cor={C.acc}>
+        <BodyInsightCard titulo="PRIORIDADES DO SEU TREINO" accent>
           {a.prioridades.map((p,i)=>(
             <div key={i} style={{marginBottom:10}}>
               <div style={{fontSize:13,fontWeight:700,color:C.text}}>{i+1}. {ROTULO_GRUPO[p.grupo]||p.grupo}</div>
@@ -4070,7 +4051,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
               Em manutenção: {a.manutencao.map(g=>ROTULO_GRUPO[g]||g).join(", ")}
             </div>
           )}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.restricoesMovimento||[]).length > 0 && (
@@ -4084,38 +4065,38 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
       )}
 
       {postura.length > 0 && (
-        <Bloco titulo="POSTURA">
+        <BodyInsightCard titulo="POSTURA">
           {postura.map((p,i)=>(
             <div key={i} style={{marginBottom:8}}>
               <div style={{fontSize:13,color:C.text}}>• {p.achado}</div>
               {p.implicacao && <div style={{fontSize:12,color:C.acc,marginLeft:12,marginTop:2}}>→ {p.implicacao}</div>}
             </div>
           ))}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.assimetrias||a.muscleImbalances||[]).length > 0 && (
-        <Bloco titulo="ASSIMETRIAS">
+        <BodyInsightCard titulo="ASSIMETRIAS">
           {(a.assimetrias||a.muscleImbalances||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.text,marginBottom:4}}>• {p}</div>)}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {a.distribuicaoGordura && (
-        <Bloco titulo="DISTRIBUIÇÃO DE GORDURA">
+        <BodyInsightCard titulo="DISTRIBUIÇÃO DE GORDURA">
           <p style={{fontSize:13,color:C.text,margin:0,lineHeight:1.5}}>{a.distribuicaoGordura}</p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.achadosDocumentos||[]).length > 0 && (
-        <Bloco titulo="ACHADOS DOS DOCUMENTOS">
+        <BodyInsightCard titulo="ACHADOS DOS DOCUMENTOS">
           {a.achadosDocumentos.map((p,i)=><div key={i} style={{fontSize:13,color:C.text,marginBottom:4}}>• {p}</div>)}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {a.objetivoVsLeitura && (
-        <Bloco titulo="OBJETIVO x LEITURA CORPORAL">
+        <BodyInsightCard titulo="OBJETIVO x LEITURA CORPORAL">
           <p style={{fontSize:13,color:C.text,margin:0,lineHeight:1.5}}>{a.objetivoVsLeitura}</p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       <div style={{display:"flex",gap:10,marginBottom:14}}>
@@ -4345,30 +4326,41 @@ function PostCardioScreen({ day, onContinue }) {
 }
 
 function ReportScreen({ report, onHome, vinculo }) {
+  const totalVolume = report.rows.filter(r=>!r.iso).reduce((sum,r)=>sum+(Number(r.curVolume)||0),0);
+  const evolucoes = report.rows.filter(r=>r.diffPct!=null&&r.diffPct>0).length;
   return (
-    <div style={S.box}>
-      <div style={S.eyebrow}>RELATÓRIO</div>
-      <h1 style={S.h1}>{report.dayLabel}</h1>
+    <div className="ab-data-page">
+      <section className="ab-report-hero">
+        <div className="ab-kicker">TREINO CONCLUÍDO · ÓTIMO TRABALHO</div>
+        <h1>{report.dayLabel}</h1>
+        <p>{report.hasPrev?`${evolucoes} exercício${evolucoes!==1?"s":""} com evolução em relação à sessão anterior.`:"Sua primeira sessão foi registrada. Este é o começo da sua linha de evolução."}</p>
+        <div className="ab-stat-grid">
+          <div className="ab-stat-tile"><strong>{report.rows.length}</strong><span>Exercícios</span></div>
+          <div className="ab-stat-tile"><strong>{Math.round(totalVolume)}</strong><span>Volume em kg</span></div>
+          <div className="ab-stat-tile"><strong>{evolucoes}</strong><span>Evoluções</span></div>
+          <div className="ab-stat-tile"><strong>100%</strong><span>Concluído</span></div>
+        </div>
+      </section>
       {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"fim_treino",treino:report.dayLabel||null}} placeholder="fale com seu personal: dúvidas, feedback, pedido de substituição…"/>}
-      {!report.hasPrev&&<p style={S.sub}>Primeira sessão registrada. Comparação disponível no próximo treino.</p>}
-      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+      <div className="ab-section-title"><h2>Desempenho por exercício</h2><span>{report.hasPrev?"Comparado à sessão anterior":"Primeira referência"}</span></div>
+      <div className="ab-report-grid">
         {report.rows.map((r,i)=>(
-          <div key={i} style={S.card}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{r.name}</div>
-            <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,flexWrap:"wrap"}}>
-              {r.iso?<><span>Melhor: <b style={{color:C.text}}>{r.curMax}s</b></span><span>Total: <b style={{color:C.text}}>{r.curVolume}s</b></span></>:<><span>Volume: <b style={{color:C.text}}>{r.curVolume}kg</b></span><span>Máx: <b style={{color:C.text}}>{r.curMax}kg</b></span></>}
-              {r.diffPct!=null&&<span style={{color:r.diffPct>=0?C.acc:"#e8a23a",fontWeight:700}}>{r.diffPct>=0?"▲":"▼"} {Math.abs(r.diffPct).toFixed(0)}%</span>}
+          <div key={i} className="ab-report-row">
+            <div className="ab-report-row-top"><strong>{r.name}</strong>{r.diffPct!=null&&<span className="ab-delta" data-negative={r.diffPct<0}>{r.diffPct>=0?"▲":"▼"} {Math.abs(r.diffPct).toFixed(0)}%</span>}</div>
+            <div className="ab-report-stats">
+              <div className="ab-report-stat"><span>{r.iso?"MELHOR":"VOLUME"}</span><b>{r.iso?`${r.curMax}s`:`${r.curVolume}kg`}</b></div>
+              <div className="ab-report-stat"><span>{r.iso?"TOTAL":"CARGA MÁX."}</span><b>{r.iso?`${r.curVolume}s`:`${r.curMax}kg`}</b></div>
             </div>
           </div>
         ))}
       </div>
       {report.strongest&&report.weakest&&(
-        <div style={{display:"flex",gap:10,marginBottom:24}}>
-          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#8fb8a2",letterSpacing:"0.08em",marginBottom:6}}>PONTO FORTE</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.strongest.name}</div><div style={{color:C.acc,fontSize:13,fontWeight:700}}>+{report.strongest.diffPct.toFixed(0)}%</div></div>
-          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#8fb8a2",letterSpacing:"0.08em",marginBottom:6}}>A MELHORAR</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.weakest.name}</div><div style={{color:"#e8a23a",fontSize:13,fontWeight:700}}>{report.weakest.diffPct.toFixed(0)}%</div></div>
+        <div className="ab-highlight-grid">
+          <div className="ab-highlight"><span>MAIOR EVOLUÇÃO</span><strong>{report.strongest.name}</strong><b>+{report.strongest.diffPct.toFixed(0)}%</b></div>
+          <div className="ab-highlight" data-tone="attention"><span>PRÓXIMO FOCO</span><strong>{report.weakest.name}</strong><b>{report.weakest.diffPct.toFixed(0)}%</b></div>
         </div>
       )}
-      <button style={S.btn} onClick={onHome}>Voltar ao início</button>
+      <button className="ab-primary" onClick={onHome}>Voltar para hoje <Icon name="arrow" size={18}/></button>
     </div>
   );
 }
@@ -4483,37 +4475,10 @@ function ABSilhueta({ regiao }) {
 
 function ABodyCard({ ex }) {
   return (
-    <div style={{fontFamily:AB.fonte,background:AB.preto,borderRadius:18,padding:"0 8px 8px",width:"100%"}}>
-      <div style={{display:"flex",alignItems:"center",gap:9,padding:"11px 3px"}}>
-        <div style={{background:AB.verdeEsc,border:"2px solid #fff",borderRadius:10,color:"#fff",fontWeight:800,fontSize:19,lineHeight:1,padding:"7px 10px",minWidth:40,textAlign:"center"}}>{ex.numero}</div>
-        <div style={{border:`2px solid ${AB.verde}`,borderRadius:10,color:"#2ecc63",fontWeight:800,fontSize:14,letterSpacing:1,padding:"7px 10px"}}>{ex.categoria}</div>
-        <h2 style={{color:"#fff",fontWeight:800,fontSize:"clamp(15px,4vw,21px)",letterSpacing:0.4,textTransform:"uppercase",margin:0,flex:1,lineHeight:1.05}}>{ex.nome}</h2>
-      </div>
-      <div style={{background:AB.fundo,borderRadius:13,padding:"13px 14px 10px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
-          <ABSilhueta regiao={ex.regiao_destaque}/>
-          <div style={{width:2,alignSelf:"stretch",background:AB.verde,opacity:0.85}}/>
-          <div>
-            <div style={{color:AB.verde,fontWeight:800,fontSize:15}}>Grupo muscular:</div>
-            <div style={{color:AB.texto,fontWeight:700,fontSize:14}}>{ex.grupo_muscular}</div>
-          </div>
-        </div>
-        {ex.imagem_url && <div style={{display:"flex",justifyContent:"center",padding:"4px 0 10px"}}>
-          <div style={{aspectRatio:"4/3",width:"100%",maxWidth:420}}><img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/></div>
-        </div>}
-        <div style={{borderTop:"1.5px solid #d8d8dc",paddingTop:9,display:"flex",alignItems:"center"}}>
-          <div style={{flex:1}}>
-            <div style={{color:AB.verde,fontWeight:800,fontSize:13}}>Equipamento:</div>
-            <div style={{color:AB.texto,fontWeight:700,fontSize:12.5}}>{ex.equipamento}</div>
-          </div>
-          <div style={{width:1.5,height:32,background:"#c9c9ce"}}/>
-          <div style={{flex:1,paddingLeft:14}}>
-            <div style={{color:AB.verde,fontWeight:800,fontSize:13}}>Acessório:</div>
-            <div style={{color:AB.texto,fontWeight:700,fontSize:12.5}}>{ex.acessorio}</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <article className="ab-library-card">
+      <div className="ab-library-media">{ex.imagem_url?<img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}}/>:<ABSilhueta regiao={ex.regiao_destaque}/>}</div>
+      <div className="ab-library-body"><div className="ab-library-number">EXERCÍCIO {ex.numero||"—"} · {ex.categoria}</div><h2>{ex.nome}</h2><div className="ab-library-meta"><span>{ex.grupo_muscular}</span>{ex.equipamento&&<span>{ex.equipamento}</span>}{ex.acessorio&&<span>{ex.acessorio}</span>}</div></div>
+    </article>
   );
 }
 
@@ -4536,10 +4501,9 @@ function EvolucaoScreen({ history, onBack }) {
   const nomes = Object.keys(porExercicio).sort((a,b)=>porExercicio[b].length-porExercicio[a].length);
   const [sel, setSel] = useState(nomes[0]||null);
   if (!nomes.length) return (
-    <div style={S.box}>
-      <button onClick={onBack} style={S.back}>← Voltar</button>
-      <h1 style={S.h1}>Evolução</h1>
-      <p style={S.sub}>Complete seu primeiro treino registrando pesos e repetições — os gráficos de progressão aparecem aqui.</p>
+    <div className="ab-data-page">
+      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="chart" size={28}/></div><h1>Sua evolução começa no primeiro treino.</h1><p>Registre pesos e repetições durante uma sessão. Seus gráficos, recordes e tendências aparecerão automaticamente aqui.</p></div></div>
     </div>
   );
   const dados = (porExercicio[sel]||[]).slice(-12); // últimas 12 sessões
@@ -4554,20 +4518,15 @@ function EvolucaoScreen({ history, onBack }) {
   const delta = primeiro && ultimo && primeiro.max>0 ? ((ultimo.max-primeiro.max)/primeiro.max*100) : 0;
   const fmtData = (iso)=> new Date(iso).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
   return (
-    <div style={S.box}>
-      <button onClick={onBack} style={S.back}>← Voltar</button>
-      <h1 style={S.h1}>Evolução</h1>
-      <p style={S.sub}>Maior carga por sessão — últimas {dados.length} execuções.</p>
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:10,marginBottom:8}}>
+    <div className="ab-data-page">
+      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <header className="ab-page-head"><div><div className="ab-kicker">PROGRESSO</div><h1>Evolução de carga</h1><p className="ab-copy">Acompanhe recordes, consistência e tendência das últimas {dados.length} execuções.</p></div></header>
+      <div className="ab-filter-row">
         {nomes.map(n=>(
-          <button key={n} onClick={()=>setSel(n)}
-            style={{flexShrink:0,padding:"7px 13px",borderRadius:18,fontSize:12,fontWeight:700,cursor:"pointer",
-              border:`1.5px solid ${n===sel?C.acc:C.border}`,background:n===sel?C.acc:"transparent",color:n===sel?"#06140e":C.muted}}>
-            {n}
-          </button>
+          <button key={n} onClick={()=>setSel(n)} className="ab-filter-chip" data-active={n===sel}>{n}</button>
         ))}
       </div>
-      <div style={{...S.card,marginBottom:12}}>
+      <div className="ab-chart-card">
         <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
           {[0.25,0.5,0.75].map(f=>(
             <line key={f} x1={PX} x2={W-PX} y1={PY+f*(H-2*PY)} y2={PY+f*(H-2*PY)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
@@ -4582,18 +4541,17 @@ function EvolucaoScreen({ history, onBack }) {
           <text x={PX} y={H-2} fontSize="8.5" fill={C.muted}>{fmtData(primeiro.date)}</text>
           <text x={W-PX} y={H-2} textAnchor="end" fontSize="8.5" fill={C.muted}>{fmtData(ultimo.date)}</text>
         </svg>
-      </div>
-      <div style={{...S.card,flexDirection:"row",gap:0,padding:"12px 6px"}}>
+      <div className="ab-stat-grid">
         {[["início",`${primeiro.max}kg`],["atual",`${ultimo.max}kg`],["progresso",`${delta>=0?"+":""}${delta.toFixed(0)}%`],["sessões",`${(porExercicio[sel]||[]).length}`]].map(([l,v],i)=>(
-          <div key={i} style={{flex:1,textAlign:"center",borderLeft:i?`1px solid ${C.border}`:"none"}}>
-            <div style={{fontSize:15,fontWeight:800,color:i===2&&delta>0?C.acc:C.text}}>{v}</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:2}}>{l}</div>
+          <div key={i} className="ab-stat-tile">
+            <strong style={{color:i===2&&delta>0?C.acc:C.text}}>{v}</strong><span>{l}</span>
           </div>
         ))}
       </div>
       {ultimo.repsMin != null && <p style={{fontSize:12,color:C.muted,marginTop:10}}>
         Última sessão: mínimo de {ultimo.repsMin} reps por série{ultimo.vol ? ` · volume total ${Math.round(ultimo.vol)}kg` : ""}.
       </p>}
+      </div>
     </div>
   );
 }
@@ -4602,6 +4560,7 @@ function LibraryScreen({ onBack }) {
   const [exs, setExs] = useState(null);
   const [err, setErr] = useState(null);
   const [grupo, setGrupo] = useState("Todos");
+  const [busca, setBusca] = useState("");
   useEffect(()=>{
     (async()=>{
       try{
@@ -4610,24 +4569,22 @@ function LibraryScreen({ onBack }) {
     })();
   },[]);
   const grupos = exs ? ["Todos", ...Array.from(new Set(exs.map(e=>e.grupo_muscular)))] : [];
-  const lista = exs ? (grupo==="Todos" ? exs : exs.filter(e=>e.grupo_muscular===grupo)) : [];
+  const termo = busca.trim().toLocaleLowerCase("pt-BR");
+  const lista = exs ? exs.filter(e=>(grupo==="Todos"||e.grupo_muscular===grupo)&&(!termo||`${e.nome} ${e.grupo_muscular} ${e.equipamento||""}`.toLocaleLowerCase("pt-BR").includes(termo))) : [];
   return (
-    <div style={S.box}>
-      <button onClick={onBack} style={S.back}>← Voltar</button>
-      <h1 style={S.h1}>Biblioteca</h1>
-      <p style={S.sub}>{exs ? `${lista.length} exercício${lista.length!==1?"s":""}` : "Carregando exercícios…"}</p>
+    <div className="ab-data-page">
+      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <header className="ab-page-head"><div><div className="ab-kicker">MOVIMENTOS</div><h1>Biblioteca de exercícios</h1><p className="ab-copy">Explore execuções, grupos musculares e equipamentos disponíveis.</p></div><div className="ab-stat-tile"><strong>{exs?lista.length:"—"}</strong><span>Resultados</span></div></header>
       {err && <p style={{color:"#ff8a8a",fontSize:13}}>Não foi possível carregar a biblioteca ({err}). Verifique sua conexão e tente novamente.</p>}
-      {exs && <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:10,marginBottom:12}}>
+      <div className="ab-library-toolbar"><div className="ab-search"><Icon name="search" size={18}/><input aria-label="Buscar exercícios" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por exercício, grupo ou equipamento"/></div></div>
+      {exs && <div className="ab-filter-row">
         {grupos.map(g=>(
-          <button key={g} onClick={()=>setGrupo(g)}
-            style={{flexShrink:0,padding:"7px 13px",borderRadius:20,fontSize:12.5,fontWeight:700,cursor:"pointer",
-              border:`1.5px solid ${g===grupo?C.acc:C.border}`,
-              background:g===grupo?C.acc:"transparent",color:g===grupo?"#0b1f17":C.muted}}>{g}</button>
+          <button key={g} onClick={()=>setGrupo(g)} className="ab-filter-chip" data-active={g===grupo}>{g}</button>
         ))}
       </div>}
-      <div style={{display:"flex",flexDirection:"column",gap:14,paddingBottom:30}}>
-        {lista.map(ex=><ABodyCard key={ex.id} ex={ex}/>)}
-      </div>
+      {!exs&&!err&&<div className="ab-library-grid">{[1,2,3,4,5,6].map(i=><div className="ab-skeleton" key={i}/>)}</div>}
+      {exs&&lista.length>0&&<div className="ab-library-grid">{lista.map(ex=><ABodyCard key={ex.id} ex={ex}/>)}</div>}
+      {exs&&lista.length===0&&<div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="search" size={28}/></div><h1>Nenhum exercício encontrado.</h1><p>Tente outro nome, equipamento ou grupo muscular.</p></div></div>}
     </div>
   );
 }
