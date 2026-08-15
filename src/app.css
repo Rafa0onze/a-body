@@ -446,3 +446,120 @@ button.ab-metric:hover { transform:translateY(-3px); background:var(--ab-surface
   .ab-field-grid,.ab-option-grid { grid-template-columns:1fr; }
   .ab-form-actions .ab-primary { flex:1; min-width:0; }
 }
+
+/* Professional workspace */
+.ab-pro-page { width:min(1060px,100%); padding:10px 0 54px; }
+.ab-back-link { border:0; background:none; color:var(--ab-accent); padding:8px 0; font-size:11px; font-weight:800; cursor:pointer; }
+.ab-pro-page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; margin:22px 0 28px; }
+.ab-pro-page-head h1 { color:var(--ab-text); font-size:clamp(38px,6vw,58px); letter-spacing:-.055em; line-height:1; margin:8px 0 9px; }
+.ab-pro-page-head p { color:var(--ab-muted); font-size:13px; margin:0; }
+.ab-compact-button { width:auto; min-width:150px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 17px; }
+.ab-icon-button { width:38px; height:38px; flex:none; display:grid; place-items:center; border:1px solid var(--ab-border); border-radius:12px; background:rgba(4,14,9,.32); color:var(--ab-muted); cursor:pointer; }
+.ab-icon-button:hover { color:var(--ab-text); border-color:var(--ab-border-strong); }
+.ab-loading-row { border:1px solid var(--ab-border); border-radius:17px; background:var(--ab-surface); color:var(--ab-muted); font-size:12px; padding:18px; }
+.ab-form-error { border:1px solid #8b2a2a; border-radius:12px; background:#2a0a0a; color:#ff9292; font-size:12px; padding:11px 14px; margin-top:13px; }
+.ab-field-help { color:var(--ab-muted); font-size:10px; line-height:1.5; margin:8px 2px 0; }
+
+.ab-calendar-shell { border:1px solid var(--ab-border); border-radius:var(--ab-radius-lg); background:var(--ab-surface); padding:clamp(16px,4vw,28px); }
+.ab-calendar-month { display:grid; grid-template-columns:38px 1fr 38px; align-items:center; gap:12px; margin-bottom:18px; }
+.ab-calendar-month > strong { color:var(--ab-text); text-align:center; text-transform:capitalize; font-size:17px; }
+.ab-calendar-weeks { display:flex; gap:8px; overflow:auto; scrollbar-width:none; padding-bottom:15px; }
+.ab-calendar-weeks::-webkit-scrollbar { display:none; }
+.ab-calendar-days { display:grid; grid-template-columns:repeat(7,1fr); gap:7px; border-top:1px solid var(--ab-border); padding-top:18px; }
+.ab-calendar-days button { min-height:70px; border:1px solid var(--ab-border); border-radius:15px; background:rgba(4,14,9,.28); color:var(--ab-muted); cursor:pointer; }
+.ab-calendar-days button span,.ab-calendar-days button strong { display:block; }
+.ab-calendar-days button span { font-size:9px; font-weight:800; letter-spacing:.08em; }
+.ab-calendar-days button strong { color:var(--ab-text); font-size:17px; margin-top:6px; }
+.ab-calendar-days button[data-today="true"] { border-color:var(--ab-border-strong); }
+.ab-calendar-days button[data-active="true"] { border-color:var(--ab-accent); background:var(--ab-accent); color:#06140e; }
+.ab-calendar-days button[data-active="true"] strong { color:#06140e; }
+.ab-appointments { margin-top:23px; }
+.ab-appointments-label { color:var(--ab-muted); font-size:9px; font-weight:800; letter-spacing:.11em; margin-bottom:10px; }
+.ab-appointments-label[data-today="true"] { color:var(--ab-accent); }
+.ab-appointment { display:flex; align-items:center; gap:15px; border:1px solid var(--ab-border); border-left:3px solid #d9a441; border-radius:17px; background:var(--ab-surface); padding:13px 14px; margin-bottom:8px; }
+.ab-appointment[data-type="presencial"] { border-left-color:var(--ab-accent); }
+.ab-appointment-time { width:62px; text-align:center; }
+.ab-appointment-time strong,.ab-appointment-time span { display:block; }
+.ab-appointment-time strong { color:var(--ab-text); font-size:17px; }
+.ab-appointment-time span { color:var(--ab-muted); font-size:9px; margin-top:2px; }
+.ab-appointment-main { flex:1; border:0; background:none; text-align:left; padding:4px 0; cursor:pointer; }
+.ab-appointment-main strong,.ab-appointment-main span { display:block; }
+.ab-appointment-main strong { color:var(--ab-text); font-size:13px; }
+.ab-appointment-main span { color:var(--ab-muted); font-size:10px; margin-top:4px; }
+.ab-empty-inline { display:flex; align-items:center; gap:13px; border:1px dashed var(--ab-border-strong); border-radius:17px; color:var(--ab-accent); padding:17px; }
+.ab-empty-inline strong,.ab-empty-inline span { display:block; }
+.ab-empty-inline strong { color:var(--ab-text); font-size:13px; }
+.ab-empty-inline span { color:var(--ab-muted); font-size:10px; margin-top:3px; }
+
+.ab-profile-layout { display:grid; grid-template-columns:.72fr 1.28fr; gap:16px; align-items:stretch; }
+.ab-profile-preview,.ab-profile-form { border:1px solid var(--ab-border); border-radius:var(--ab-radius-lg); background:var(--ab-surface); padding:clamp(22px,4vw,32px); }
+.ab-profile-preview { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; background:linear-gradient(145deg,rgba(71,232,140,.09),var(--ab-surface)); }
+.ab-profile-preview > span { color:var(--ab-muted); font-size:9px; font-weight:800; letter-spacing:.11em; margin-bottom:20px; }
+.ab-profile-preview h2 { color:var(--ab-text); font-size:21px; margin:15px 0 3px; }
+.ab-profile-preview p { color:var(--ab-muted); font-size:10px; margin:0 0 17px; }
+.ab-profile-form { display:flex; flex-direction:column; justify-content:center; }
+.ab-profile-form .ab-section-title { margin-bottom:20px; }
+
+.ab-student-list-head { display:flex; justify-content:space-between; color:var(--ab-muted); font-size:9px; font-weight:800; letter-spacing:.1em; padding:0 14px 9px; }
+.ab-student-list { display:flex; flex-direction:column; gap:8px; }
+.ab-student-row { display:flex; align-items:center; gap:13px; width:100%; border:1px solid var(--ab-border); border-radius:17px; background:var(--ab-surface); color:var(--ab-muted); padding:12px 14px; text-align:left; cursor:pointer; transition:.2s ease; }
+.ab-student-row:hover { transform:translateX(3px); border-color:var(--ab-border-strong); background:var(--ab-surface-hover); }
+.ab-student-row-main { flex:1; min-width:0; }
+.ab-student-row-main strong,.ab-student-row-main span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ab-student-row-main strong { color:var(--ab-text); font-size:13px; }
+.ab-student-row-main strong b { display:inline-block; margin-left:8px; border-radius:99px; background:#d84f4f; color:white; padding:3px 7px; font-size:8px; }
+.ab-student-row-main span { color:var(--ab-muted); font-size:10px; margin-top:4px; }
+.ab-student-frequency { min-width:110px; }
+.ab-student-frequency strong,.ab-student-frequency span { display:block; }
+.ab-student-frequency strong { color:var(--ab-text); font-size:15px; }
+.ab-student-frequency span { color:var(--ab-muted); font-size:9px; margin-top:2px; }
+.ab-status-pill { border:1px solid; border-radius:99px; padding:5px 8px; font-size:8px; font-weight:800; letter-spacing:.06em; }
+.ab-student-profile-head { display:flex; align-items:center; gap:16px; border:1px solid var(--ab-border-strong); border-radius:var(--ab-radius-lg); background:linear-gradient(145deg,rgba(71,232,140,.08),var(--ab-surface)); padding:clamp(18px,4vw,28px); margin:18px 0 16px; }
+.ab-student-identity { flex:1; min-width:0; }
+.ab-student-identity h1 { color:var(--ab-text); font-size:clamp(25px,4vw,36px); letter-spacing:-.04em; margin:5px 0 3px; }
+.ab-student-identity > span { color:var(--ab-muted); font-size:11px; }
+.ab-student-head-actions { display:flex; gap:8px; }
+.ab-student-head-actions button { display:inline-flex; align-items:center; gap:7px; }
+.ab-student-workspace { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr); gap:16px; align-items:start; }
+.ab-student-workspace > main,.ab-student-sidebar { border:1px solid var(--ab-border); border-radius:var(--ab-radius-lg); background:var(--ab-surface); padding:clamp(18px,4vw,26px); }
+.ab-active-plan-card { display:grid; grid-template-columns:48px 1fr 20px; align-items:center; gap:13px; width:100%; border:1px solid var(--ab-border-strong); border-radius:17px; background:rgba(71,232,140,.06); padding:15px; color:var(--ab-muted); text-align:left; cursor:pointer; }
+.ab-active-plan-icon { width:48px; height:48px; display:grid; place-items:center; border-radius:15px; background:var(--ab-accent); color:#06140e; }
+.ab-active-plan-card span,.ab-active-plan-card strong,.ab-active-plan-card p { display:block; }
+.ab-active-plan-card span { color:var(--ab-accent); font-size:8px; font-weight:800; letter-spacing:.09em; }
+.ab-active-plan-card strong { color:var(--ab-text); font-size:14px; margin-top:5px; }
+.ab-active-plan-card p { color:var(--ab-muted); font-size:9px; margin:4px 0 0; }
+.ab-student-action-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:12px; }
+.ab-student-action-grid button { min-height:130px; border:1px solid var(--ab-border); border-radius:16px; background:rgba(4,14,9,.28); color:var(--ab-accent); padding:15px; text-align:left; cursor:pointer; }
+.ab-student-action-grid button:hover { border-color:var(--ab-border-strong); }
+.ab-student-action-grid strong,.ab-student-action-grid span { display:block; }
+.ab-student-action-grid strong { color:var(--ab-text); font-size:12px; margin-top:17px; }
+.ab-student-action-grid span { color:var(--ab-muted); font-size:9px; line-height:1.4; margin-top:4px; }
+.ab-danger-zone { display:flex; justify-content:flex-end; margin-top:13px; }
+.ab-danger-zone button { border:0; background:none; color:#e87c7c; font-size:10px; padding:7px; cursor:pointer; }
+
+@media (max-width: 760px) {
+  .ab-profile-layout,.ab-student-workspace { grid-template-columns:1fr; }
+  .ab-student-profile-head { flex-wrap:wrap; }
+  .ab-student-head-actions { width:100%; }
+  .ab-student-head-actions button { flex:1; }
+}
+@media (max-width: 600px) {
+  .ab-pro-page { padding-top:0; }
+  .ab-pro-page-head { align-items:flex-start; margin-top:15px; }
+  .ab-pro-page-head .ab-compact-button { min-width:44px; font-size:0; padding:12px; }
+  .ab-pro-page-head .ab-compact-button svg { width:18px; height:18px; }
+  .ab-calendar-shell { padding:14px; }
+  .ab-calendar-days { gap:4px; }
+  .ab-calendar-days button { min-height:58px; border-radius:12px; }
+  .ab-calendar-days button span { font-size:7px; }
+  .ab-calendar-days button strong { font-size:14px; }
+  .ab-appointment { gap:8px; padding:11px 9px; }
+  .ab-appointment-time { width:50px; }
+  .ab-student-frequency { display:none; }
+  .ab-student-row { padding:11px; }
+  .ab-student-row .ab-status-pill { display:none; }
+  .ab-student-action-grid { grid-template-columns:1fr; }
+  .ab-student-action-grid button { min-height:92px; }
+  .ab-student-action-grid strong { margin-top:10px; }
+  .ab-student-profile-head .ab-status-pill { order:3; }
+}

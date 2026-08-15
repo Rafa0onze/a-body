@@ -1828,27 +1828,29 @@ function ProPerfilScreen({ pro, onSaved, onBack }) {
   };
 
   return (
-    <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:16,padding:0}} onClick={onBack}>← Voltar</button>
-      <h1 style={{...S.h1,fontSize:22}}>Perfil profissional</h1>
-      <p style={S.sub}>É assim que seus alunos verão você no app.</p>
-
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:20}}>
-        <AvatarFoto url={foto} nome={nome} size={92}/>
-        <button style={{...S.btnOutline,marginTop:12,fontSize:13,padding:"10px 18px",width:"auto"}} disabled={busy} onClick={()=>fileRef.current?.click()}>
-          {foto ? "Trocar foto" : "Adicionar foto"}
-        </button>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
+    <div className="ab-pro-page ab-pro-profile-page">
+      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <div className="ab-page-head">
+        <div><div className="ab-eyebrow">SUA IDENTIDADE</div><h1>Perfil profissional</h1><p className="ab-copy">Mantenha sua apresentação reconhecível e consistente para todos os alunos.</p></div>
       </div>
-
-      <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
-      <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem"/>
-
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-
-      <button style={{...S.btn,marginTop:18,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>
-        {busy ? "Aguarde…" : "Salvar perfil"}
-      </button>
+      <div className="ab-profile-layout">
+        <aside className="ab-profile-preview">
+          <span>VISÃO DO ALUNO</span>
+          <AvatarFoto url={foto} nome={nome} size={104}/>
+          <h2>{nome || "Seu nome"}</h2>
+          <p>Profissional A-Body</p>
+          <button className="ab-secondary-action" disabled={busy} onClick={()=>fileRef.current?.click()}>{foto ? "Trocar fotografia" : "Adicionar fotografia"}</button>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
+        </aside>
+        <section className="ab-profile-form">
+          <div className="ab-section-title"><div><span>INFORMAÇÕES PÚBLICAS</span><h2>Como você aparece no app</h2></div></div>
+          <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
+          <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem"/>
+          <p className="ab-field-help">Use o mesmo nome pelo qual seus alunos já conhecem você.</p>
+          {err && <div className="ab-form-error">{err}</div>}
+          <div className="ab-form-actions"><button className="ab-primary" disabled={busy} onClick={salvar}>{busy ? "Salvando…" : "Salvar alterações"}</button></div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1885,28 +1887,29 @@ function ProAgendaScreen({ onBack }) {
   const novaAula = () => setEditando({ dia_semana: 1, data: null, hora: "07:00", duracao_min: 60, local: "", tipo: "presencial", aluno_id: null });
 
   return (
-    <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onBack}>← Voltar</button>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-        <h1 style={{...S.h1,fontSize:22,margin:0}}>Agenda semanal</h1>
-        <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13}} onClick={novaAula}>+ Aula</button>
+    <div className="ab-pro-page">
+      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <div className="ab-pro-page-head">
+        <div><div className="ab-eyebrow">ORGANIZAÇÃO SEMANAL</div><h1>Agenda</h1><p>Acompanhe seus atendimentos e acesse o treino de cada aluno.</p></div>
+        <button className="ab-primary ab-compact-button" onClick={novaAula}><Icon name="calendar" size={17}/> Nova aula</button>
       </div>
 
       {/* Linha 1 — mês */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"12px 0 10px"}}>
-        <button style={{...S.btnOutline,width:"auto",padding:"7px 14px",fontSize:14}} onClick={()=>{
+      <section className="ab-calendar-shell">
+      <div className="ab-calendar-month">
+        <button className="ab-icon-button" aria-label="Mês anterior" onClick={()=>{
           const m=new Date(mes.getFullYear(),mes.getMonth()-1,1); setMes(m); const s=inicioSemana(m); setSemana(s);
         }}>‹</button>
-        <span style={{fontSize:15,fontWeight:800,color:C.text,textTransform:"capitalize"}}>
+        <strong>
           {mes.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}
-        </span>
-        <button style={{...S.btnOutline,width:"auto",padding:"7px 14px",fontSize:14}} onClick={()=>{
+        </strong>
+        <button className="ab-icon-button" aria-label="Próximo mês" onClick={()=>{
           const m=new Date(mes.getFullYear(),mes.getMonth()+1,1); setMes(m); const s=inicioSemana(m); setSemana(s);
         }}>›</button>
       </div>
 
       {/* Linha 2 — semanas do mês */}
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:8}}>
+      <div className="ab-calendar-weeks">
         {(()=>{
           const semanas=[]; let s=inicioSemana(new Date(mes.getFullYear(),mes.getMonth(),1));
           while (s.getMonth()===mes.getMonth() || new Date(s.getFullYear(),s.getMonth(),s.getDate()+6).getMonth()===mes.getMonth()) {
@@ -1917,9 +1920,7 @@ function ProAgendaScreen({ onBack }) {
             const fim=new Date(s); fim.setDate(fim.getDate()+6);
             const sel = isoData(s)===isoData(semana);
             return (
-              <button key={i} onClick={()=>setSemana(new Date(s))}
-                style={{flexShrink:0,padding:"7px 13px",borderRadius:18,fontSize:12,fontWeight:700,cursor:"pointer",
-                  border:`1.5px solid ${sel?C.acc:C.border}`,background:sel?C.acc:"transparent",color:sel?"#06140e":C.muted}}>
+              <button className="ab-filter-chip" data-active={sel} key={i} onClick={()=>setSemana(new Date(s))}>
                 {s.getDate()}–{fim.getDate()}
               </button>
             );
@@ -1928,50 +1929,40 @@ function ProAgendaScreen({ onBack }) {
       </div>
 
       {/* Linha 3 — dias da semana */}
-      <div style={{display:"flex",gap:6,marginBottom:16}}>
+      <div className="ab-calendar-days">
         {dias.map((d,i)=>{
           const sel = i===diaSel;
           const ehHojeChip = isoData(d)===hoje;
           return (
-            <button key={i} onClick={()=>setDiaSel(i)}
-              style={{flex:1,padding:"8px 0",borderRadius:12,cursor:"pointer",textAlign:"center",
-                border:`1.5px solid ${sel?C.acc:ehHojeChip?C.acc+"66":C.border}`,
-                background:sel?C.acc:"transparent"}}>
-              <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:sel?"#06140e":ehHojeChip?C.acc:C.muted}}>{DIAS_PT[i].slice(0,3).toUpperCase()}</div>
-              <div style={{fontSize:13,fontWeight:800,color:sel?"#06140e":C.text,marginTop:2}}>{d.getDate()}</div>
+            <button key={i} data-active={sel} data-today={ehHojeChip} onClick={()=>setDiaSel(i)}>
+              <span>{DIAS_PT[i].slice(0,3).toUpperCase()}</span><strong>{d.getDate()}</strong>
             </button>
           );
         })}
       </div>
 
-      {aulas === null && <p style={{color:C.muted,fontSize:13}}>Carregando agenda…</p>}
+      </section>
+
+      {aulas === null && <div className="ab-loading-row">Carregando agenda…</div>}
 
       {aulas !== null && (()=>{
         const d = dias[diaSel];
         const doDia = aulasDoDia(d, diaSel);
         const ehHoje = isoData(d) === hoje;
         return (
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:12,fontWeight:800,letterSpacing:"0.08em",color: ehHoje ? C.acc : C.muted, marginBottom:8}}>
+          <div className="ab-appointments">
+            <div className="ab-appointments-label" data-today={ehHoje}>
               {DIAS_PT[diaSel].toUpperCase()} · {d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}{ehHoje ? " · HOJE" : ""}
             </div>
-            {doDia.length === 0 && <div style={{fontSize:13,color:C.muted,opacity:0.7,padding:"10px 2px"}}>— sem aulas neste dia</div>}
+            {doDia.length === 0 && <div className="ab-empty-inline"><Icon name="calendar" size={24}/><div><strong>Dia livre</strong><span>Nenhuma aula agendada para esta data.</span></div></div>}
             {doDia.map(a => (
-              <div key={a.id} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:8,padding:"12px 14px",
-                borderLeft:`3px solid ${a.tipo==="presencial" ? C.acc : "#d9a441"}`}}>
-                <div style={{minWidth:52,textAlign:"center"}}>
-                  <div style={{fontSize:15,fontWeight:800,color:C.text}}>{a.hora.slice(0,5)}</div>
-                  <div style={{fontSize:10,color:C.muted}}>{a.duracao_min} min</div>
-                </div>
-                <button style={{flex:1,background:"none",border:"none",textAlign:"left",padding:0,cursor:"pointer"}} onClick={()=>setTreinoDe({aula:a})}>
-                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>{a.alunos?.nome || "Sem aluno vinculado"}</div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                    {a.tipo==="presencial" ? "🏋️ Presencial" : "🏃 Independente"}
-                    {a.local ? ` · 📍 ${a.local}` : ""}
-                    {a.data ? " · data única" : " · semanal"}
-                  </div>
+              <div key={a.id} className="ab-appointment" data-type={a.tipo}>
+                <div className="ab-appointment-time"><strong>{a.hora.slice(0,5)}</strong><span>{a.duracao_min} min</span></div>
+                <button className="ab-appointment-main" onClick={()=>setTreinoDe({aula:a})}>
+                  <strong>{a.alunos?.nome || "Sem aluno vinculado"}</strong>
+                  <span>{a.tipo==="presencial" ? "Presencial" : "Independente"}{a.local ? ` · ${a.local}` : ""}{a.data ? " · data única" : " · semanal"}</span>
                 </button>
-                <button style={{background:"none",border:"none",color:C.muted,fontSize:16,cursor:"pointer"}} onClick={()=>setEditando({...a})}>✎</button>
+                <button className="ab-icon-button" aria-label={`Editar aula de ${a.alunos?.nome || "aluno"}`} onClick={()=>setEditando({...a})}>✎</button>
               </div>
             ))}
           </div>
@@ -2200,46 +2191,48 @@ function ProAlunosScreen({ onBack }) {
   if (vista === "detalhe" && sel) {
     const st = STATUS_ALUNO[sel.status] || STATUS_ALUNO.convidado;
     return (
-      <div style={S.box}>
-        <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={()=>{setVista("lista");carregar();}}>← Alunos</button>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
-          <AvatarFoto nome={sel.nome} size={52}/>
-          <div style={{flex:1}}>
-            <h1 style={{...S.h1,fontSize:20,margin:0}}>{sel.nome}</h1>
-            <div style={{fontSize:12,color:C.muted}}>{sel.email}</div>
+      <div className="ab-pro-page">
+        <button className="ab-back-link" onClick={()=>{setVista("lista");carregar();}}>← Todos os alunos</button>
+        <header className="ab-student-profile-head">
+          <AvatarFoto nome={sel.nome} size={68}/>
+          <div className="ab-student-identity">
+            <div className="ab-eyebrow">PERFIL DO ALUNO</div>
+            <h1>{sel.nome}</h1><span>{sel.email}</span>
           </div>
-          <span style={{fontSize:11,fontWeight:800,color:st.cor,border:`1px solid ${st.cor}`,borderRadius:8,padding:"4px 8px"}}>{st.rotulo.toUpperCase()}</span>
-        </div>
-        <div style={{display:"flex",gap:8,marginBottom:16}}>
-          <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"11px"}} onClick={()=>setConvite(true)}>📨 Convite de acesso</button>
-          <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"11px"}} onClick={()=>setMensagens(true)}>💬 Mensagens</button>
-        </div>
-        <DocsSaude alunoId={sel.id}/>
+          <span className="ab-status-pill" style={{color:st.cor,borderColor:st.cor}}>{st.rotulo.toUpperCase()}</span>
+          <div className="ab-student-head-actions">
+            <button className="ab-secondary-action" onClick={()=>setConvite(true)}><Icon name="user" size={16}/> Convite</button>
+            <button className="ab-secondary-action" onClick={()=>setMensagens(true)}>Mensagens</button>
+          </div>
+        </header>
 
-        <div style={S.eyebrow}>TREINO ATIVO</div>
-        {treino === null && <p style={{color:C.muted,fontSize:13}}>Verificando…</p>}
-        {treino === false || (treino && !treino.plano) ? null : null}
-        {treino !== null && !treino && (
-          <div style={{...S.card,padding:"14px",marginBottom:14}}>
-            <div style={{fontSize:13,color:C.muted}}>Nenhum treino ativo ainda. Monte manualmente ou gere por IA.</div>
-          </div>
-        )}
-        {treino && treino.plano && (
-          <button style={{...S.card,marginBottom:14,padding:"14px",width:"100%",textAlign:"left"}} onClick={()=>abrirEditor(treino.plano, treino.id)}>
-            <div style={{fontSize:15,fontWeight:800,color:C.text}}>{treino.plano.planName}</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:3}}>
-              {(treino.plano.weekDays||[]).length} dia(s) · atualizado {new Date(treino.atualizado_em).toLocaleDateString("pt-BR")} · toque para editar
+        <div className="ab-student-workspace">
+          <main>
+            <div className="ab-section-title"><div><span>PROGRAMA ATUAL</span><h2>Treino ativo</h2></div></div>
+            {treino === null && <div className="ab-loading-row">Verificando treino…</div>}
+            {treino !== null && !treino && <div className="ab-empty-inline"><Icon name="dumbbell" size={24}/><div><strong>Nenhum treino ativo</strong><span>Monte um programa manualmente ou use a IA como ponto de partida.</span></div></div>}
+            {treino && treino.plano && (
+              <button className="ab-active-plan-card" onClick={()=>abrirEditor(treino.plano, treino.id)}>
+                <div className="ab-active-plan-icon"><Icon name="dumbbell"/></div>
+                <div><span>PLANO EM ANDAMENTO</span><strong>{treino.plano.planName}</strong><p>{(treino.plano.weekDays||[]).length} dia(s) · atualizado em {new Date(treino.atualizado_em).toLocaleDateString("pt-BR")}</p></div>
+                <Icon name="arrow" size={18}/>
+              </button>
+            )}
+            <div className="ab-student-action-grid">
+              <button onClick={()=>abrirEditor(planoVazio(), null)}><Icon name="dumbbell"/><strong>Montar treino</strong><span>Criação manual detalhada</span></button>
+              <button onClick={()=>setVista("ia")}><Icon name="sparkles"/><strong>Gerar com IA</strong><span>Plano personalizado em minutos</span></button>
+              <button onClick={abrirAvaliacao}><Icon name="chart"/><strong>Avaliação corporal</strong><span>Medidas, fotos e comparativo</span></button>
             </div>
-          </button>
-        )}
-
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <button style={S.btn} onClick={()=>abrirEditor(planoVazio(), null)}>🛠 Montar treino manual</button>
-          <button style={{...S.btnOutline}} onClick={()=>setVista("ia")}>✨ Gerar treino por IA</button>
-          <button style={{...S.btnOutline}} onClick={abrirAvaliacao}>📊 Avaliação corporal e comparativo</button>
+          </main>
+          <aside className="ab-student-sidebar">
+            <div className="ab-section-title"><div><span>PRONTUÁRIO</span><h2>Saúde e documentos</h2></div></div>
+            <DocsSaude alunoId={sel.id}/>
+          </aside>
+        </div>
+        <div className="ab-danger-zone">
           {sel.status !== "inativo"
-            ? <button style={{...S.btnOutline,fontSize:13,color:"#ff8080",borderColor:"#8b2a2a"}} onClick={async()=>{await atualizarAluno(sel.id,{status:"inativo"});setSel({...sel,status:"inativo"});}}>Desativar aluno</button>
-            : <button style={{...S.btnOutline,fontSize:13}} onClick={async()=>{await atualizarAluno(sel.id,{status: sel.user_id ? "ativo" : "convidado"});setSel({...sel,status: sel.user_id ? "ativo" : "convidado"});}}>Reativar aluno</button>}
+            ? <button onClick={async()=>{await atualizarAluno(sel.id,{status:"inativo"});setSel({...sel,status:"inativo"});}}>Desativar acesso do aluno</button>
+            : <button onClick={async()=>{await atualizarAluno(sel.id,{status: sel.user_id ? "ativo" : "convidado"});setSel({...sel,status: sel.user_id ? "ativo" : "convidado"});}}>Reativar acesso do aluno</button>}
         </div>
         {convite && <ConviteModal aluno={sel} onClose={()=>setConvite(false)}/>}
         {mensagens && <MensagensModal aluno={sel} onClose={()=>setMensagens(false)}/>}
@@ -2248,30 +2241,33 @@ function ProAlunosScreen({ onBack }) {
   }
 
   return (
-    <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onBack}>← Voltar</button>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <h1 style={{...S.h1,fontSize:22,margin:0}}>Meus alunos</h1>
-        <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13}} onClick={()=>setNovoAluno(true)}>+ Aluno</button>
+    <div className="ab-pro-page">
+      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <div className="ab-pro-page-head">
+        <div><div className="ab-eyebrow">CARTEIRA PROFISSIONAL</div><h1>Meus alunos</h1><p>Treinos, evolução e comunicação em uma visão organizada.</p></div>
+        <button className="ab-primary ab-compact-button" onClick={()=>setNovoAluno(true)}><Icon name="users" size={17}/> Novo aluno</button>
       </div>
 
-      {alunos === null && <p style={{color:C.muted,fontSize:13}}>Carregando…</p>}
-      {alunos && alunos.length === 0 && <p style={{color:C.muted,fontSize:13}}>Nenhum aluno ainda. Cadastre o primeiro no botão acima.</p>}
+      {alunos === null && <div className="ab-loading-row">Carregando alunos…</div>}
+      {alunos && alunos.length === 0 && <div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="users"/></div><h1>Sua carteira começa aqui</h1><p>Cadastre o primeiro aluno para montar treinos, registrar avaliações e acompanhar a frequência.</p><button className="ab-primary ab-compact-button" onClick={()=>setNovoAluno(true)}>Cadastrar aluno</button></div></div>}
+      {alunos && alunos.length > 0 && <div className="ab-student-list-head"><span>{alunos.length} aluno{alunos.length!==1?"s":""}</span><span>STATUS E ATIVIDADE</span></div>}
+      <div className="ab-student-list">
       {(alunos||[]).map(a => {
         const st = STATUS_ALUNO[a.status] || STATUS_ALUNO.convidado;
         return (
-          <button key={a.id} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:8,padding:"12px 14px",width:"100%"}} onClick={()=>abrirDetalhe(a)}>
-            <AvatarFoto nome={a.nome} size={40}/>
-            <div style={{flex:1,textAlign:"left"}}>
-              <div style={{fontSize:14,fontWeight:700,color:C.text,display:"flex",alignItems:"center",gap:7}}>{a.nome}
-                {nlPorAluno[a.id]>0 && <span style={{background:"#e05555",color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,padding:"1px 7px"}}>💬 {nlPorAluno[a.id]}</span>}
-              </div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{a.status==="ativo" ? `🔥 ${ckPorAluno[a.id]||0} treino${(ckPorAluno[a.id]||0)!==1?"s":""} esta semana` : a.email}</div>
+          <button key={a.id} className="ab-student-row" onClick={()=>abrirDetalhe(a)}>
+            <AvatarFoto nome={a.nome} size={46}/>
+            <div className="ab-student-row-main">
+              <strong>{a.nome}{nlPorAluno[a.id]>0 && <b>{nlPorAluno[a.id]} nova{nlPorAluno[a.id]!==1?"s":""}</b>}</strong>
+              <span>{a.email}</span>
             </div>
-            <span style={{fontSize:10,fontWeight:800,color:st.cor,border:`1px solid ${st.cor}`,borderRadius:8,padding:"3px 7px"}}>{st.rotulo.toUpperCase()}</span>
+            <div className="ab-student-frequency"><strong>{ckPorAluno[a.id]||0}</strong><span>treinos esta semana</span></div>
+            <span className="ab-status-pill" style={{color:st.cor,borderColor:st.cor}}>{st.rotulo.toUpperCase()}</span>
+            <Icon name="arrow" size={18}/>
           </button>
         );
       })}
+      </div>
 
       {novoAluno && <AlunoModal onClose={()=>setNovoAluno(false)} onSaved={async()=>{setNovoAluno(false);await carregar();}}/>}
     </div>
