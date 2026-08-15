@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import "./app.css";
 
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
@@ -2125,9 +2125,32 @@ function TreinoDoDiaModal({ aula, onClose }) {
 
 // ─── B2B: GESTÃO DE ALUNOS E EDITOR DE TREINOS ───────────────────────────────
 
-const OVERLAY_B2B = {position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:70};
-const SHEET_B2B = {background:C.bg,border:`1px solid ${C.border}`,borderRadius:"20px 20px 0 0",padding:"20px 18px 28px",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"};
 const STATUS_ALUNO = { convidado:{rotulo:"Convidado",cor:"#d9a441"}, ativo:{rotulo:"Ativo",cor:C.acc}, inativo:{rotulo:"Inativo",cor:C.muted} };
+
+function ModalShell({ title, eyebrow, onClose, children, layer=70, wide=false, bodyClass="" }) {
+  const panelRef = useRef(null);
+  const titleId = useId();
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      const openPanels = document.querySelectorAll(".ab-modal-sheet");
+      if (event.key === "Escape" && openPanels[openPanels.length-1] === panelRef.current) onClose();
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    panelRef.current?.focus();
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", closeOnEscape); };
+  }, [onClose]);
+
+  return (
+    <div className="ab-modal-overlay" style={{zIndex:layer}} onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}>
+      <section ref={panelRef} className={`ab-modal-sheet${wide?" ab-modal-wide":""}${bodyClass?` ${bodyClass}`:""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+        <header className="ab-modal-header"><div>{eyebrow && <span>{eyebrow}</span>}<h2 id={titleId}>{title}</h2></div><button className="ab-modal-close" aria-label="Fechar" onClick={onClose}>×</button></header>
+        {children}
+      </section>
+    </div>
+  );
+}
 
 function ProAlunosScreen({ onBack }) {
   const [vista, setVista]   = useState("lista"); // lista | detalhe | editor | ia
@@ -2288,17 +2311,14 @@ function AlunoModal({ onClose, onSaved }) {
     if (r) { track("aluno_cadastrado"); onSaved(); } else setErr("Não foi possível cadastrar. Tente novamente.");
   };
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 14px"}}>Novo aluno</h2>
+    <ModalShell title="Novo aluno" eyebrow="CARTEIRA PROFISSIONAL" onClose={onClose}>
         <label style={S.fieldLabel}>NOME</label>
-        <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="nome completo"/>
+        <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="nome completo" autoFocus/>
         <label style={S.fieldLabel}>E-MAIL</label>
         <input style={S.field} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="para onde vai o convite de acesso"/>
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-        <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Cadastrar aluno"}</button>
-      </div>
-    </div>
+        {err && <div className="ab-form-error" role="alert">{err}</div>}
+        <button className="ab-primary" style={{marginTop:16}} disabled={busy} onClick={salvar}>{busy?"Cadastrando…":"Cadastrar aluno"}</button>
+    </ModalShell>
   );
 }
 
@@ -2410,8 +2430,7 @@ function ExercicioPickerModal({ onClose, onPick }) {
     subs: [{name:"",ativa:false},{name:"",ativa:false}] });
 
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
+    <ModalShell title="Adicionar exercício" eyebrow="EDITOR DE TREINO" onClose={onClose} wide>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           {[["lib","📚 Biblioteca"],["meus","⭐ Meus exercícios"]].map(([k,r])=>(
             <button key={k} onClick={()=>setAba(k)} style={{...S.card,flex:1,alignItems:"center",padding:"10px 8px",fontSize:13,fontWeight:700,
@@ -2455,10 +2474,9 @@ function ExercicioPickerModal({ onClose, onPick }) {
           </>
         )}
 
-        <button style={{...S.btnOutline,marginTop:12,fontSize:13}} onClick={onClose}>Fechar</button>
+        <button className="ab-secondary-action" style={{width:"100%",marginTop:12}} onClick={onClose}>Fechar</button>
         {criando && <ExercicioCustomModal onClose={()=>setCriando(false)} onCreated={(row)=>{setCriando(false);setMeus(m=>[row,...(m||[])]);}}/>}
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -2477,9 +2495,7 @@ function ExercicioCustomModal({ onClose, onCreated }) {
     if (r) { track("exercicio_custom_criado"); onCreated(r); } else setErr("Não foi possível criar.");
   };
   return (
-    <div style={{...OVERLAY_B2B,zIndex:80}} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Exercício próprio</h2>
+    <ModalShell title="Exercício próprio" eyebrow="BIBLIOTECA PARTICULAR" onClose={onClose} layer={80}>
         <p style={{fontSize:12,color:C.muted,margin:"0 0 14px"}}>Para movimentos sem imagem de execução na biblioteca.</p>
         <label style={S.fieldLabel}>NOME</label>
         <input style={S.field} value={form.nome} onChange={e=>up("nome",e.target.value)} placeholder="ex.: Prancha com deslize no TRX"/>
@@ -2500,10 +2516,9 @@ function ExercicioCustomModal({ onClose, onCreated }) {
         )}
         <label style={S.fieldLabel}>OBSERVAÇÕES DE EXECUÇÃO (OPCIONAL)</label>
         <textarea style={{...S.field,minHeight:70}} maxLength={500} value={form.observacoes} onChange={e=>up("observacoes",e.target.value)} placeholder="dicas de postura, pegada, amplitude…"/>
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-        <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Criar exercício"}</button>
-      </div>
-    </div>
+        {err && <div className="ab-form-error" role="alert">{err}</div>}
+        <button className="ab-primary" style={{marginTop:14}} disabled={busy} onClick={salvar}>{busy?"Criando…":"Criar exercício"}</button>
+    </ModalShell>
   );
 }
 
@@ -2698,13 +2713,11 @@ function ConviteModal({ aluno, onClose }) {
   const mailto = `mailto:${encodeURIComponent(aluno.email)}?subject=${encodeURIComponent("Seu acesso ao A-Body")}&body=${encodeURIComponent(textoConvite)}`;
 
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Convite de acesso</h2>
+    <ModalShell title="Convite de acesso" eyebrow={aluno.nome.toUpperCase()} onClose={onClose}>
         <p style={{fontSize:12,color:C.muted,margin:"0 0 14px"}}>O aluno abre o link, cria login e senha, e o vínculo com você é ativado automaticamente.</p>
 
         {!conv && !err && <p style={{color:C.muted,fontSize:13}}>Gerando convite…</p>}
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080"}}>{err}</div>}
+        {err && <div className="ab-form-error" role="alert">{err}</div>}
 
         {conv && (
           <>
@@ -2713,17 +2726,15 @@ function ConviteModal({ aluno, onClose }) {
             <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
               ℹ️ O envio sai do <b style={{color:C.text}}>seu</b> aparelho: os botões abaixo abrem o app escolhido com a mensagem pronta — é só confirmar o envio lá.
             </div>
-            <button style={{...S.btn,marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank"); }}>💬 Enviar por WhatsApp</button>
-            <button style={{...S.btnOutline,marginBottom:10}} onClick={()=>{ track("convite_email_aberto"); window.location.href = mailto; }}>📨 Abrir no e-mail ({aluno.email})</button>
+            <button className="ab-primary" style={{marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank", "noopener,noreferrer"); }}>Enviar por WhatsApp</button>
+            <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={()=>{ track("convite_email_aberto"); window.location.href = mailto; }}>Abrir no e-mail ({aluno.email})</button>
             {typeof navigator !== "undefined" && navigator.share && (
-              <button style={{...S.btnOutline,marginBottom:10}} onClick={async()=>{ track("convite_share"); try { await navigator.share({ title: "Acesso ao A-Body", text: textoConvite }); } catch {} }}>📤 Compartilhar…</button>
+              <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={async()=>{ track("convite_share"); try { await navigator.share({ title: "Acesso ao A-Body", text: textoConvite }); } catch {} }}>Compartilhar…</button>
             )}
-            <button style={{...S.btnOutline,marginBottom:10}} onClick={copiar}>{copiado ? "✓ Mensagem copiada!" : "📋 Copiar mensagem"}</button>
+            <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={copiar}>{copiado ? "✓ Mensagem copiada!" : "Copiar mensagem"}</button>
           </>
         )}
-        <button style={{...S.btnOutline,fontSize:13}} onClick={onClose}>Fechar</button>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -2757,11 +2768,9 @@ function MensagensModal({ aluno, onClose }) {
   };
 
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={{...SHEET_B2B,display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 12px"}}>💬 {aluno.nome}</h2>
+    <ModalShell title={aluno.nome} eyebrow="MENSAGENS" onClose={onClose} bodyClass="ab-message-modal">
 
-        <div style={{flex:1,overflowY:"auto",minHeight:180,maxHeight:"48vh",marginBottom:12}}>
+        <div className="ab-message-thread" aria-live="polite">
           {msgs === null && <p style={{color:C.muted,fontSize:13}}>Carregando…</p>}
           {msgs && msgs.length === 0 && <p style={{color:C.muted,fontSize:13}}>Nenhuma mensagem ainda. O aluno pode escrever durante o descanso e ao final do treino.</p>}
           {(msgs||[]).map(m => {
@@ -2780,12 +2789,11 @@ function MensagensModal({ aluno, onClose }) {
           <div ref={fimRef}/>
         </div>
 
-        <div style={{display:"flex",gap:8}}>
-          <input style={{...S.field,margin:0,flex:1}} value={texto} maxLength={2000} onChange={e=>setTexto(e.target.value)} placeholder="responder ao aluno…" onKeyDown={e=>{if(e.key==="Enter")enviar();}}/>
-          <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13,opacity:(texto.trim()&&!busy)?1:0.4}} disabled={!texto.trim()||busy} onClick={enviar}>➤</button>
+        <div className="ab-message-compose">
+          <input style={{...S.field,margin:0,flex:1}} value={texto} maxLength={2000} onChange={e=>setTexto(e.target.value)} placeholder="responder ao aluno…" aria-label="Mensagem" onKeyDown={e=>{if(e.key==="Enter")enviar();}}/>
+          <button className="ab-primary" aria-label="Enviar mensagem" disabled={!texto.trim()||busy} onClick={enviar}><Icon name="arrow" size={17}/></button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -3608,26 +3616,18 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
 
 function SettingsModal({ onClose, user, onLogout }) {
   return (
-    <div style={S.modalOverlay}>
-      <div style={S.modal}>
-        <div style={S.eyebrow}>CONFIGURAÇÕES</div>
+    <ModalShell title="Configurações" eyebrow="PREFERÊNCIAS DO APP" onClose={onClose}>
         {AUTH_ENABLED && (
-          <div style={{...S.card,flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <div className="ab-settings-row">
             {user
-              ? (<><div><div style={{fontSize:11,color:C.muted}}>CONTA</div><div style={{fontSize:13,fontWeight:600}}>{user.email}</div></div>
-                 <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:12}} onClick={onLogout}>Sair</button></>)
-              : (<><div style={{fontSize:13,color:C.muted}}>Sem conta — dados apenas neste aparelho</div>
-                 <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:12}} onClick={onLogout}>Entrar</button></>)}
+              ? (<><div><span>CONTA CONECTADA</span><strong>{user.email}</strong></div><button className="ab-secondary-action" onClick={onLogout}>Sair</button></>)
+              : (<><div><span>MODO LOCAL</span><strong>Dados apenas neste aparelho</strong></div><button className="ab-secondary-action" onClick={onLogout}>Entrar</button></>)}
           </div>
         )}
-        <div style={{...S.card,marginBottom:18}}>
-          <div style={{fontSize:11,color:C.muted,marginBottom:4}}>SOBRE</div>
-          <div style={{fontSize:13,color:C.text}}>A-BODY v1.1 — Personal AI Trainer</div>
-          <div style={{fontSize:12,color:C.muted,marginTop:4}}>Geração de treinos por IA incluída, sem custo para você.</div>
+        <div className="ab-settings-about">
+          <div className="ab-logo-mark">A</div><div><span>SOBRE</span><strong>A-BODY v1.1</strong><p>Personal AI Trainer com geração de treinos assistida por IA.</p></div>
         </div>
-        <button style={S.btnOutline} onClick={onClose}>Fechar</button>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -3834,15 +3834,11 @@ function SubModal({ exercise, onSelect, onClose, locked }) {
     : SUBS_POR_POSE(exercise.pose||"press_chest");
   const subs=fonte.map(s=>({...s,id:`sub_${uid()}`,sets:exercise.sets,reps:exercise.reps,rest:exercise.rest,iso:false,isoSec:null}));
   return (
-    <div style={S.modalOverlay}>
-      <div style={S.modal}>
-        <div style={S.eyebrow}>SUBSTITUIR EXERCÍCIO</div>
+    <ModalShell title="Substituir exercício" eyebrow="ALTERNATIVAS SEGURAS" onClose={onClose}>
         <p style={{...S.sub,marginBottom:16}}>Alternativas para <b style={{color:C.text}}>{exercise.name}</b>:</p>
         {subs.length===0&&<p style={{...S.sub,color:C.muted}}>{locked?"O personal não liberou substituições para este exercício. Envie uma mensagem a ele no descanso ou ao final do treino.":"Nenhuma alternativa disponível."}</p>}
         {subs.map((s,i)=><button key={i} style={{...S.card,marginBottom:10,textAlign:"left"}} onClick={()=>onSelect(s)}><div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{s.name}</div><div style={{fontSize:12,color:C.muted}}>{s.sets} séries · {s.reps} reps</div></button>)}
-        <button style={{...S.btnOutline,marginTop:6}} onClick={onClose}>Cancelar</button>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
