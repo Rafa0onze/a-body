@@ -3035,13 +3035,14 @@ function AguardandoTreinoScreen({ vinculo, personal, onAtualizar }) {
 
 function OnboardingScreen({ onStart }) {
   return (
-    <div style={{...S.box,display:"flex",flexDirection:"column",alignItems:"center",paddingTop:60,textAlign:"center"}}>
-      <div style={{...S.logo,width:64,height:64,fontSize:32,borderRadius:18,marginBottom:24}}>A</div>
-      <div style={S.brand}>A-BODY</div>
-      <div style={{fontSize:12,color:C.muted,letterSpacing:"0.12em",marginBottom:48}}>PERSONAL AI TRAINER</div>
-      <h1 style={{...S.h1,fontSize:28,marginBottom:12}}>Seu treino começa aqui</h1>
-      <p style={{...S.sub,maxWidth:300,marginBottom:48}}>Crie um plano 100% personalizado — com a ajuda da IA ou montando você mesmo.</p>
-      <button style={S.btn} onClick={onStart}>Começar →</button>
+    <div className="ab-onboarding">
+      <section className="ab-onboarding-copy">
+        <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>PERSONAL AI TRAINER</span></div></div>
+        <h1>Treino criado para o seu <span>próximo nível.</span></h1>
+        <p>Combine inteligência artificial, acompanhamento profissional e dados de evolução em um plano que se adapta à sua realidade.</p>
+        <div className="ab-onboarding-actions"><button className="ab-primary" onClick={onStart}>Criar meu plano <Icon name="arrow" size={18}/></button><small>Leva poucos minutos.<br/>Você mantém o controle.</small></div>
+      </section>
+      <aside className="ab-onboarding-visual" aria-label="Inteligência de treino A-Body"><div className="ab-orbit"/><div className="ab-ai-core"><Icon name="sparkles" size={54}/></div><div className="ab-floating-metric" data-pos="top"><strong>Plano adaptativo</strong><span>Objetivos · nível · rotina</span></div><div className="ab-floating-metric" data-pos="bottom"><strong>Evolução mensurável</strong><span>Carga · volume · frequência</span></div></aside>
     </div>
   );
 }
@@ -3050,32 +3051,12 @@ function OnboardingScreen({ onStart }) {
 
 function ModeSelectScreen({ onAI, onManual }) {
   return (
-    <div style={S.box}>
-      <div style={S.brandRow}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
-      <div style={S.eyebrow}>CRIAR PLANO DE TREINO</div>
-      <h1 style={S.h1}>Como prefere montar seu treino?</h1>
-      <p style={S.sub}>Escolha a opção que faz mais sentido para você.</p>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <button style={{...S.card,border:`1px solid ${C.acc}`,gap:10,textAlign:"left"}} onClick={onAI}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{fontSize:32}}>🤖</div>
-            <div>
-              <div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>Montar com Inteligência Artificial</div>
-              <div style={{fontSize:13,color:C.muted,lineHeight:1.4}}>Responda uma anamnese e a IA cria um plano 100% adaptado ao seu perfil, objetivos e limitações.</div>
-            </div>
-          </div>
-          <div style={{textAlign:"right",color:C.acc,fontSize:13,fontWeight:600,marginTop:4}}>Recomendado →</div>
-        </button>
-        <button style={{...S.card,gap:10,textAlign:"left"}} onClick={onManual}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{fontSize:32}}>🏋️</div>
-            <div>
-              <div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>Montar meu próprio treino</div>
-              <div style={{fontSize:13,color:C.muted,lineHeight:1.4}}>Escolha o tipo de divisão (Upper/Lower, PPL, Full Body…) e selecione seus próprios exercícios.</div>
-            </div>
-          </div>
-          <div style={{textAlign:"right",color:C.muted,fontSize:13,marginTop:4}}>Personalizado →</div>
-        </button>
+    <div className="ab-choice-page">
+      <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>CRIAR PLANO</span></div></div>
+      <header className="ab-page-head"><div><div className="ab-kicker">ESCOLHA SEU CAMINHO</div><h1>Como quer começar?</h1><p className="ab-copy">Você poderá ajustar o plano depois, independentemente da escolha.</p></div></header>
+      <div className="ab-choice-grid">
+        <button className="ab-choice-card" data-featured="true" onClick={onAI}><div className="ab-choice-icon"><Icon name="sparkles" size={28}/></div><h2>Inteligência Artificial</h2><p>Responda uma avaliação guiada e receba um plano adaptado aos seus objetivos, experiência, rotina e limitações.</p><footer><span>RECOMENDADO</span><Icon name="arrow" size={18}/></footer></button>
+        <button className="ab-choice-card" onClick={onManual}><div className="ab-choice-icon"><Icon name="dumbbell" size={28}/></div><h2>Montagem manual</h2><p>Escolha a divisão semanal e construa cada treino usando a biblioteca de exercícios do A-Body.</p><footer><span>CONTROLE TOTAL</span><Icon name="arrow" size={18}/></footer></button>
       </div>
     </div>
   );
@@ -3091,19 +3072,21 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
   const s3ok=form.daysPerWeek&&form.duration&&form.equipment;
   const s5ok = true; // fotos são opcionais
   const canNext=[null,s1ok,s2ok,s3ok,true,s5ok][step];
+  const stepNames=["Perfil","Objetivos","Rotina","Saúde","Análise"];
   return (
-    <div style={S.box}>
-      <div style={S.brandRow}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
-      <div style={{display:"flex",gap:6,marginBottom:20}}>
-        {[1,2,3,4,5].map(i=><div key={i} style={{flex:1,height:4,borderRadius:2,background:i<=step?C.acc:C.border,transition:"background .3s"}}/>)}
-      </div>
-      <div style={S.eyebrow}>ANAMNESE · ETAPA {step} DE 5</div>
+    <div className="ab-form-shell">
+      <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>PLANO INTELIGENTE</span></div></div>
+      <header className="ab-form-header">
+        <div className="ab-stepper">{stepNames.map((name,i)=>{const n=i+1;return <div key={name} className="ab-step" data-state={n<step?"done":n===step?"current":"pending"}><i>{n<step?"✓":n}</i><span>{name}</span></div>;})}</div>
+        <div className="ab-form-step-copy"><div className="ab-kicker">ETAPA {step} DE 5</div><h1>{stepNames[step-1]}</h1><p className="ab-copy">Suas respostas orientam a personalização do plano.</p></div>
+      </header>
+      <section className="ab-form-card">
 
       {step===1&&(<>
-        <h1 style={S.h1}>Dados pessoais</h1>
+        <h2 style={S.h1}>Dados pessoais</h2>
         <label style={S.fieldLabel}>Nome</label>
         <input style={S.field} value={form.name} onChange={e=>set("name",e.target.value)} placeholder="Seu nome"/>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div className="ab-field-grid">
           <div><label style={S.fieldLabel}>Idade</label><input style={S.field} type="number" inputMode="numeric" value={form.age} onChange={e=>set("age",e.target.value)} placeholder="40"/></div>
           <div><label style={S.fieldLabel}>Peso (kg)</label><input style={S.field} type="number" inputMode="decimal" value={form.weight} onChange={e=>set("weight",e.target.value)} placeholder="80"/></div>
         </div>
@@ -3112,42 +3095,40 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
       </>)}
 
       {step===2&&(<>
-        <h1 style={S.h1}>Objetivos e nível</h1>
+        <h2 style={S.h1}>Objetivos e nível</h2>
         <p style={S.sub}>Você pode selecionar mais de um objetivo.</p>
         <label style={S.fieldLabel}>OBJETIVOS (múltipla escolha)</label>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:18}}>
+        <div className="ab-option-grid" style={{marginBottom:18}}>
           {GOALS.map(g=>{ const sel=(form.goals||[]).includes(g.id); return(
-            <button key={g.id} style={{...S.card,alignItems:"center",...(sel?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>toggleGoal(g.id)}>
-              <div style={{fontSize:24}}>{g.icon}</div>
-              <div style={{fontSize:12,fontWeight:600,marginTop:6,color:C.text}}>{g.label}</div>
-              {sel&&<div style={{fontSize:10,color:C.acc,marginTop:4}}>✓ selecionado</div>}
+            <button key={g.id} className="ab-option" data-active={sel} onClick={()=>toggleGoal(g.id)}>
+              <strong>{g.label}</strong><span>{sel?"✓ Selecionado":"Toque para selecionar"}</span>
             </button>
           );})}
         </div>
         <label style={S.fieldLabel}>NÍVEL DE EXPERIÊNCIA</label>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {LEVELS.map(l=><button key={l.id} style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",...(form.level===l.id?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("level",l.id)}><span style={{fontWeight:700,fontSize:14}}>{l.label}</span><span style={{fontSize:12,color:C.muted}}>{l.sub}</span></button>)}
+          {LEVELS.map(l=><button key={l.id} className="ab-option" data-active={form.level===l.id} onClick={()=>set("level",l.id)}><strong>{l.label}</strong><span>{l.sub}</span></button>)}
         </div>
       </>)}
 
       {step===3&&(<>
-        <h1 style={S.h1}>Disponibilidade</h1>
+        <h2 style={S.h1}>Disponibilidade</h2>
         <label style={S.fieldLabel}>DIAS POR SEMANA</label>
         <div style={{display:"flex",gap:8,marginBottom:18}}>
-          {["3","4","5","6"].map(d=><button key={d} style={{flex:1,...S.card,alignItems:"center",...(form.daysPerWeek===d?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("daysPerWeek",d)}><span style={{fontSize:20,fontWeight:800}}>{d}</span><span style={{fontSize:10,color:C.muted}}>dias</span></button>)}
+          {["3","4","5","6"].map(d=><button key={d} className="ab-option" data-active={form.daysPerWeek===d} style={{flex:1,textAlign:"center"}} onClick={()=>set("daysPerWeek",d)}><strong style={{fontSize:20}}>{d}</strong><span>dias</span></button>)}
         </div>
         <label style={S.fieldLabel}>DURAÇÃO DA SESSÃO</label>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:18}}>
-          {DURATION_OPTIONS.map(d=><button key={d} style={{...S.card,alignItems:"center",...(form.duration===d?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("duration",d)}><span style={{fontSize:14,fontWeight:700}}>{d}</span></button>)}
+        <div className="ab-option-grid" style={{marginBottom:18}}>
+          {DURATION_OPTIONS.map(d=><button key={d} className="ab-option" data-active={form.duration===d} onClick={()=>set("duration",d)}><strong>{d}</strong></button>)}
         </div>
         <label style={S.fieldLabel}>EQUIPAMENTOS</label>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {EQUIPMENT_OPTIONS.map(e=><button key={e.id} style={{...S.card,flexDirection:"row",alignItems:"center",...(form.equipment===e.id?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("equipment",e.id)}><span style={{fontSize:14,fontWeight:600}}>{e.label}</span></button>)}
+          {EQUIPMENT_OPTIONS.map(e=><button key={e.id} className="ab-option" data-active={form.equipment===e.id} onClick={()=>set("equipment",e.id)}><strong>{e.label}</strong></button>)}
         </div>
       </>)}
 
       {step===4&&(<>
-        <h1 style={S.h1}>Saúde</h1>
+        <h2 style={S.h1}>Saúde</h2>
         <p style={S.sub}>Informe limitações para personalizar seu plano com segurança. Campos opcionais.</p>
         <label style={S.fieldLabel}>LESÕES OU LIMITAÇÕES FÍSICAS</label>
         <textarea style={{...S.field,height:90,resize:"none"}} value={form.injuries} onChange={e=>set("injuries",e.target.value)} placeholder="Ex: dor no joelho, hérnia lombar… (ou deixe em branco)"/>
@@ -3157,7 +3138,7 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
       </>)}
 
       {step===5&&(<>
-        <h1 style={S.h1}>Análise corporal</h1>
+        <h2 style={S.h1}>Análise corporal</h2>
         <p style={S.sub}>Envie fotos de roupa de banho para que a IA identifique seus pontos fortes e fracos e personalize seu plano. <b style={{color:C.acc}}>As fotos são processadas apenas pela IA e não são armazenadas.</b></p>
         <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
         <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
@@ -3179,10 +3160,11 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         {error&&<div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"12px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{error}</div>}
       </>)}
 
-      <div style={{display:"flex",gap:10,marginTop:24}}>
-        {step>1&&<button style={{...S.btnOutline,flex:1}} onClick={()=>setStep(s=>s-1)}>← Voltar</button>}
-        {step<5?<button style={{...S.btn,flex:1,opacity:canNext?1:0.35}} disabled={!canNext} onClick={()=>setStep(s=>s+1)}>Continuar →</button>
-               :<button style={{...S.btn,flex:1}} onClick={onSubmit}>Gerar meu plano ✨</button>}
+      </section>
+      <div className="ab-form-actions">
+        {step>1&&<button className="ab-secondary-action" onClick={()=>setStep(s=>s-1)}>← Voltar</button>}
+        {step<5?<button className="ab-primary" disabled={!canNext} onClick={()=>setStep(s=>s+1)}>Continuar <Icon name="arrow" size={18}/></button>
+               :<button className="ab-primary" onClick={onSubmit}>Gerar meu plano <Icon name="sparkles" size={18}/></button>}
       </div>
     </div>
   );
@@ -3191,17 +3173,10 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
 // ─── GENERATING ───────────────────────────────────────────────────────────────
 
 function GeneratingScreen({ name, photoAnalyzing }) {
-  const [dot,setDot]=useState(0); useEffect(()=>{const t=setInterval(()=>setDot(d=>(d+1)%4),500);return()=>clearInterval(t);},[]);
   const msgs=["Analisando seu perfil","Definindo grupos musculares","Calculando volume ideal","Montando periodização","Ajustando intensidade","Finalizando plano"];
   const [mi,setMi]=useState(0); useEffect(()=>{const t=setInterval(()=>setMi(i=>(i+1)%msgs.length),1800);return()=>clearInterval(t);},[]);
   return (
-    <div style={{...S.box,display:"flex",flexDirection:"column",alignItems:"center",paddingTop:80,textAlign:"center"}}>
-      <div style={{...S.logo,width:60,height:60,fontSize:28,borderRadius:16,marginBottom:32}}>A</div>
-      <h2 style={{...S.h1,marginBottom:8}}>Criando seu plano{".".repeat(dot+1)}</h2>
-      <p style={{...S.sub}}>{name?"Aguarde, "+name:"Aguarde"} um momento</p>
-      {photoAnalyzing&&<div style={{background:"#1a2f20",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 16px",fontSize:12,color:"#e8a23a",marginBottom:8}}>📸 Analisando suas fotos com IA…</div>}
-      <div style={{marginTop:16,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 20px",fontSize:13,color:C.acc}}>{msgs[mi]}</div>
-    </div>
+    <div className="ab-generating"><div><div className="ab-generating-core"><Icon name="sparkles" size={46}/></div><div className="ab-kicker">A-BODY INTELLIGENCE</div><h1>Criando seu plano</h1><p className="ab-copy">{name?`${name}, estamos combinando suas respostas`:"Estamos combinando suas respostas"} para construir uma rotina coerente e personalizada.</p>{photoAnalyzing&&<p style={{color:"#f0b45a",fontSize:11}}>Análise corporal incluída no processamento.</p>}<div className="ab-generating-status" aria-live="polite">{msgs[mi]}</div></div></div>
   );
 }
 
@@ -3586,14 +3561,15 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
 }
 function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
   return (
-    <div style={S.box}>
-      <div style={S.eyebrow}>{plan.mode==="ai"?"PLANO GERADO PELA IA 🤖":"SEU PLANO PERSONALIZADO 🏋️"} — PRONTO!</div>
-      <h1 style={S.h1}>{plan.planName}</h1>
-      {plan.planDescription&&<p style={{...S.sub,marginBottom:24}}>{plan.planDescription}</p>}
+    <div className="ab-data-page">
+      <div className="ab-plan-layout"><aside className="ab-plan-summary">
+      <div className="ab-kicker">{plan.mode==="ai"?"PLANO GERADO PELA IA":"PLANO PERSONALIZADO"} · PRONTO</div>
+      <h1>{plan.planName}</h1>
+      {plan.planDescription&&<p className="ab-copy">{plan.planDescription}</p>}
 
       {bodyAnalysis&&(
-        <div style={{...S.card,marginBottom:24,gap:12}}>
-          <div style={S.eyebrow}>ANÁLISE CORPORAL IA 📸</div>
+        <div className="ab-insight-card" data-accent="true" style={{marginTop:18}}>
+          <h2>ANÁLISE CORPORAL IA</h2>
           {bodyAnalysis.overallAnalysis&&<p style={{fontSize:13,color:C.muted,margin:0,lineHeight:1.5}}>{bodyAnalysis.overallAnalysis}</p>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div style={{background:"#0d2218",borderRadius:10,padding:"10px 12px"}}>
@@ -3613,22 +3589,21 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
           )}
         </div>
       )}
-
-      <div style={S.sectionLabel}>ESTRUTURA SEMANAL</div>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:28}}>
+      <button className="ab-primary" style={{marginTop:20}} onClick={onStart}>Iniciar treinamento <Icon name="arrow" size={18}/></button>
+      </aside><main><div className="ab-section-title" style={{marginTop:0}}><h2>Estrutura semanal</h2><span>{plan.weekDays.length} sessões</span></div>
+      <div className="ab-plan-days">
         {plan.weekDays.map((d,i)=>(
-          <div key={i} style={S.card}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <div><div style={{fontWeight:700,fontSize:15}}>{d.label}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{d.sub}</div></div>
-              <div style={{fontSize:12,color:C.acc,fontWeight:700}}>{d.exercises.length} exercícios</div>
+          <div key={i} className="ab-plan-day">
+            <div className="ab-plan-day-head">
+              <div><strong>{String(i+1).padStart(2,"0")} · {d.label}</strong><p>{d.sub}</p></div><span>{d.exercises.length} EXERCÍCIOS</span>
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-              {d.exercises.map((ex,j)=><span key={j} style={{fontSize:11,background:"#0d2218",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
+            <div className="ab-plan-exercises">
+              {d.exercises.map((ex,j)=><span key={j}>{ex.name}</span>)}
             </div>
           </div>
         ))}
       </div>
-      <button style={S.btn} onClick={onStart}>Iniciar treinamento →</button>
+      </main></div>
     </div>
   );
 }
