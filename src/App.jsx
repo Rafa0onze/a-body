@@ -164,7 +164,7 @@ const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).p
 const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
 
-const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#9ec4b1",fig:"#bff0d4"};
+const C={bg:"#f5f6fb",card:"#ffffff",border:"#e5e7f0",acc:"#5b5cf6",text:"#15172b",muted:"#697086",fig:"#7c7df8"};
 const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
 const S={
   page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
@@ -214,6 +214,17 @@ const ICON_PATHS = {
 
 function Icon({ name, size = 20, className = "" }) {
   return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>;
+}
+
+function BrandMark({ className = "" }) {
+  return (
+    <span className={`ab-logo-mark ${className}`} aria-hidden="true">
+      <svg viewBox="0 0 40 40" role="img">
+        <path d="M10 29 19.2 9.5a1 1 0 0 1 1.8 0L30 29M14.2 21h11.5"/>
+        <path d="M24.5 13.5c5.8.4 8.5 3.2 8.5 7.1 0 4.8-3.8 8.4-10.2 8.4"/>
+      </svg>
+    </span>
+  );
 }
 async function loadStorage(key) {
   // Nuvem primeiro (se logado), fallback local
@@ -1648,7 +1659,7 @@ function AuthScreen({ onDone, onSkip }) {
     <div className="ab-auth">
       <section className="ab-auth-hero" aria-label="A-Body Personal AI Trainer">
         <div className="ab-logo-lockup">
-          <div className="ab-logo-mark">A</div>
+          <BrandMark/>
           <div className="ab-logo-copy"><strong>A-BODY</strong><span>PERSONAL AI TRAINER</span></div>
         </div>
         <h2>Seu treino evolui.<br/><em>Você também.</em></h2>
@@ -1771,7 +1782,7 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
   return (
     <div className="ab-dashboard">
       <header className="ab-dashboard-header">
-        <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY PRO</strong><span>GESTÃO DE PERFORMANCE</span></div></div>
+        <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY PRO</strong><span>GESTÃO DE PERFORMANCE</span></div></div>
         <button className="ab-icon-button" onClick={onPerfil} aria-label="Editar perfil"><AvatarFoto url={pro.foto_url} nome={pro.nome} size={34}/></button>
       </header>
 
@@ -3064,7 +3075,7 @@ function OnboardingScreen({ onStart }) {
   return (
     <div className="ab-onboarding">
       <section className="ab-onboarding-copy">
-        <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>PERSONAL AI TRAINER</span></div></div>
+        <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>PERSONAL AI TRAINER</span></div></div>
         <h1>Treino criado para o seu <span>próximo nível.</span></h1>
         <p>Combine inteligência artificial, acompanhamento profissional e dados de evolução em um plano que se adapta à sua realidade.</p>
         <div className="ab-onboarding-actions"><button className="ab-primary" onClick={onStart}>Criar meu plano <Icon name="arrow" size={18}/></button><small>Leva poucos minutos.<br/>Você mantém o controle.</small></div>
@@ -3079,7 +3090,7 @@ function OnboardingScreen({ onStart }) {
 function ModeSelectScreen({ onAI, onManual }) {
   return (
     <div className="ab-choice-page">
-      <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>CRIAR PLANO</span></div></div>
+      <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>CRIAR PLANO</span></div></div>
       <header className="ab-page-head"><div><div className="ab-kicker">ESCOLHA SEU CAMINHO</div><h1>Como quer começar?</h1><p className="ab-copy">Você poderá ajustar o plano depois, independentemente da escolha.</p></div></header>
       <div className="ab-choice-grid">
         <button className="ab-choice-card" data-featured="true" onClick={onAI}><div className="ab-choice-icon"><Icon name="sparkles" size={28}/></div><h2>Inteligência Artificial</h2><p>Responda uma avaliação guiada e receba um plano adaptado aos seus objetivos, experiência, rotina e limitações.</p><footer><span>RECOMENDADO</span><Icon name="arrow" size={18}/></footer></button>
@@ -3102,7 +3113,7 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
   const stepNames=["Perfil","Objetivos","Rotina","Saúde","Análise"];
   return (
     <div className="ab-form-shell">
-      <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>PLANO INTELIGENTE</span></div></div>
+      <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>PLANO INTELIGENTE</span></div></div>
       <header className="ab-form-header">
         <div className="ab-stepper">{stepNames.map((name,i)=>{const n=i+1;return <div key={name} className="ab-step" data-state={n<step?"done":n===step?"current":"pending"}><i>{n<step?"✓":n}</i><span>{name}</span></div>;})}</div>
         <div className="ab-form-step-copy"><div className="ab-kicker">ETAPA {step} DE 5</div><h1>{stepNames[step-1]}</h1><p className="ab-copy">Suas respostas orientam a personalização do plano.</p></div>
@@ -3652,7 +3663,7 @@ function SettingsModal({ onClose, user, onLogout }) {
           </div>
         )}
         <div className="ab-settings-about">
-          <div className="ab-logo-mark">A</div><div><span>SOBRE</span><strong>A-BODY v1.1</strong><p>Personal AI Trainer com geração de treinos assistida por IA.</p></div>
+          <BrandMark/><div><span>SOBRE</span><strong>A-BODY v1.2</strong><p>Personal AI Trainer com geração de treinos assistida por IA.</p></div>
         </div>
     </ModalShell>
   );
@@ -3664,10 +3675,11 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
   const weekCount = history.filter(s=>new Date(s.date)>=ws).length;
   const adaptive = adaptiveInsight(history);
+  const nextDay = plan.weekDays[weekCount % plan.weekDays.length] || plan.weekDays[0];
   return (
     <div className="ab-dashboard">
       <header className="ab-dashboard-header">
-        <div className="ab-logo-lockup"><div className="ab-logo-mark">A</div><div className="ab-logo-copy"><strong>A-BODY</strong><span>PERFORMANCE INTELLIGENCE</span></div></div>
+        <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>MOVE SMARTER</span></div></div>
         <button onClick={onSettings} className="ab-icon-button" aria-label="Configurações"><Icon name="settings"/></button>
       </header>
       <section className="ab-hero-card">
@@ -3681,8 +3693,9 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
         </div>
       )}
       <div className="ab-kicker">{plan.planName}</div>
-      <h1>Olá, {plan.userName}!</h1>
-      <p className="ab-copy">Seu próximo treino está pronto. Continue construindo sua melhor sequência.</p>
+      <h1>Vamos treinar,<br/>{plan.userName}?</h1>
+      <p className="ab-copy">{nextDay?.label} · {nextDay?.sub}</p>
+      <button className="ab-primary ab-hero-action" onClick={()=>onStart(nextDay)}><span className="ab-play-dot"><Icon name="play" size={16}/></span>Começar treino</button>
       <div className="ab-week-progress">
         <div className="ab-week-progress-label"><span>PROGRESSO SEMANAL</span><span>{weekCount} TREINO{weekCount!==1?"S":""}</span></div>
         <div className="ab-progress-track"><span style={{width:`${Math.min(100,weekCount*25)}%`}}/></div>
