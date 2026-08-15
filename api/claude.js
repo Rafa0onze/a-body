@@ -1,5 +1,6 @@
 // Compatibilidade para clientes antigos. A implementação usa OpenAI Responses API.
 // A rota principal está em /api/openai.
+import { SCIENCE_VERSION, scientificContext, validateScientificMetadata } from "./science.js";
 
 const SUPA_URL = process.env.VITE_SUPABASE_URL || "https://zvmriqxigpwuggyhpoun.supabase.co";
 const SUPA_ANON = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXAiLCJyZWYiOiJ6dm1yaXF4aWdwd3VnZ3locG91biIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgzNTQzMTAwLCJleHAiOjIwOTkxMTkxMDB9.HrnVWaVSaWkGUXRc8MXKjM2Vj2N0xN6wwp95y7zmjbQ";
@@ -42,15 +43,19 @@ function eGeracaoDeTreino(texto) {
 
 const ESQUEMA_TREINO = {
   type: "object", additionalProperties: false,
-  required: ["planName", "planDescription", "weekDays"],
+  required: ["planName", "planDescription", "evidenceVersion", "progressionStrategy", "safetyNotes", "requiresMedicalClearance", "weekDays"],
   properties: {
     planName: { type: "string" }, planDescription: { type: "string" },
+    evidenceVersion: { type:"string", enum:[SCIENCE_VERSION] },
+    progressionStrategy: { type:"string" },
+    safetyNotes: { type:"array", items:{type:"string"} },
+    requiresMedicalClearance: { type:"boolean" },
     weekDays: { type: "array", minItems: 1, maxItems: 7, items: {
       type: "object", additionalProperties: false,
       required: ["id", "label", "sub", "exercises", "mobility", "postCardio"],
       properties: {
         id:{type:"string"}, label:{type:"string"}, sub:{type:"string"},
-        exercises:{type:"array",minItems:1,maxItems:8,items:{type:"object",additionalProperties:false,required:["id","name","sets","reps","rest","isometric","isoSeconds"],properties:{id:{type:"string"},name:{type:"string"},sets:{type:"integer",minimum:1,maximum:10},reps:{type:"string"},rest:{type:"integer",minimum:0,maximum:600},isometric:{type:"boolean"},isoSeconds:{type:["integer","null"],minimum:1,maximum:3600}}}},
+        exercises:{type:"array",minItems:1,maxItems:8,items:{type:"object",additionalProperties:false,required:["id","name","sets","reps","rest","rir","progressionRule","isometric","isoSeconds"],properties:{id:{type:"string"},name:{type:"string"},sets:{type:"integer",minimum:1,maximum:10},reps:{type:"string"},rest:{type:"integer",minimum:0,maximum:600},rir:{type:"integer",minimum:0,maximum:5},progressionRule:{type:"string"},isometric:{type:"boolean"},isoSeconds:{type:["integer","null"],minimum:1,maximum:3600}}}},
         mobility:{type:"array",maxItems:2,items:{type:"object",additionalProperties:false,required:["name","duration"],properties:{name:{type:"string"},duration:{type:"string"}}}},
         postCardio:{type:"object",additionalProperties:false,required:["text","minMinutes","maxMinutes","intensity"],properties:{text:{type:"string"},minMinutes:{type:"integer",minimum:0,maximum:120},maxMinutes:{type:"integer",minimum:0,maximum:120},intensity:{type:"string"}}}
       }
@@ -93,8 +98,9 @@ function prepararMensagens(messages, treino) {
     }
   }
   const ultima = copia[copia.length - 1];
-  if (typeof ultima.content === "string") ultima.content += REGRAS_CIENTIFICAS;
-  else if (Array.isArray(ultima.content)) ultima.content.push({ type: "text", text: REGRAS_CIENTIFICAS });
+  const contexto = REGRAS_CIENTIFICAS + scientificContext(corpoTexto(copia));
+  if (typeof ultima.content === "string") ultima.content += contexto;
+  else if (Array.isArray(ultima.content)) ultima.content.push({ type: "text", text: contexto });
   return copia;
 }
 
@@ -159,7 +165,7 @@ function eCore(ex) {
 function validarPlano(textoRespostaIA, textoPedido) {
   const plano = extrairJSON(textoRespostaIA);
   if (!plano || !Array.isArray(plano.weekDays) || !plano.weekDays.length) return ["JSON ou estrutura weekDays inválida"];
-  const erros = [];
+  const erros = validateScientificMetadata(plano, textoPedido);
   const alvo = minutosSolicitados(textoPedido);
   const maxEx = limiteExercicios(alvo);
 

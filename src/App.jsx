@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useId } from "react";
 import "./app.css";
+import { adaptiveInsight } from "./adaptation.js";
 
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
 
@@ -1018,12 +1019,14 @@ const getPose = (name="") => {
 
 const convertAIPlan = (aiPlan, userName) => ({
   userName: userName||"Atleta", planName: aiPlan.planName||"Meu Plano", planDescription: aiPlan.planDescription||"",
-  mode:"ai",
+  mode:"ai", evidenceVersion:aiPlan.evidenceVersion||null, progressionStrategy:aiPlan.progressionStrategy||"",
+  safetyNotes:Array.isArray(aiPlan.safetyNotes)?aiPlan.safetyNotes:[], requiresMedicalClearance:!!aiPlan.requiresMedicalClearance,
   weekDays:(aiPlan.weekDays||[]).map((d,di)=>({
     id:d.id||`day${di+1}`, label:d.label||`Dia ${di+1}`, sub:d.sub||"",
     exercises:(d.exercises||[]).map((ex,ei)=>({
       id:ex.id||`ex_${di}_${ei}`, name:ex.name,
       sets:Number(ex.sets)||3, reps:String(ex.reps||"10-12"), rest:Number(ex.rest)||60,
+      rir:Number.isInteger(ex.rir)?ex.rir:3, progressionRule:ex.progressionRule||"Complete o topo da faixa antes de aumentar a carga.",
       pose:getPose(ex.name), iso:!!ex.isometric, isoSec:ex.isometric?(Number(ex.isoSeconds)||45):null,
     })),
     mobility:(d.mobility||[]).map(m=>({name:m.name,dur:m.duration||"10 reps"})),
@@ -1033,9 +1036,10 @@ const convertAIPlan = (aiPlan, userName) => ({
 
 const buildManualPlan = (name, splitDays, dayExercises) => ({
   userName: name||"Atleta", planName:"Meu Plano Personalizado", planDescription:"Plano montado por você.",
-  mode:"manual",
+  mode:"manual", evidenceVersion:"ABODY-ACSM-2026.1", progressionStrategy:"Dupla progressão orientada por repetições e RIR",
+  safetyNotes:[], requiresMedicalClearance:false,
   weekDays: splitDays.map(d=>{
-    const exs = (dayExercises[d.id]||[]).map(ex=>({...ex}));
+    const exs = (dayExercises[d.id]||[]).map(ex=>({...ex,rir:Number.isInteger(ex.rir)?ex.rir:3,progressionRule:ex.progressionRule||"Aumentar após atingir o topo da faixa com RIR 3"}));
     const groups = [...new Set(d.suggestedGroups)];
     const mobility = groups.flatMap(g=>MOBILITY_BY_GROUP[g]||[]).slice(0,4);
     return {
@@ -1156,7 +1160,9 @@ export default function App() {
   const [currentWeights, setCurrentWeights] = useState({});
   const [weightInput, setWeightInput]   = useState("");
   const [repsInput, setRepsInput]       = useState("");
+  const [rirInput, setRirInput]         = useState("");
   const [currentReps, setCurrentReps]   = useState({});
+  const [currentRirs, setCurrentRirs]   = useState({});
   const [currentDay, setCurrentDay]     = useState(null);
   const [showSubs, setShowSubs]         = useState(false);
 
@@ -1170,6 +1176,7 @@ export default function App() {
   const [restSec, setRestSec]     = useState(0);
   const [restTotal, setRestTotal] = useState(0);
   const [report, setReport]       = useState(null);
+  const workoutStartedAt = useRef(null);
 
   const seriesRef=useRef(null), isoRef=useRef(null), restRef=useRef(null);
 
@@ -1339,8 +1346,8 @@ PERFIL:
 - Lesões/Limitações: ${form.injuries||"Nenhuma"}
 - Condições médicas: ${form.conditions||"Nenhuma"}${bodyAnalysisText}${libraryText}
 
-Retorne SOMENTE JSON válido sem markdown:
-{"planName":"X","planDescription":"Y","weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
+Retorne SOMENTE JSON válido sem markdown. A raiz deve incluir evidenceVersion, progressionStrategy, safetyNotes e requiresMedicalClearance. Cada exercício deve incluir rir e progressionRule:
+{"planName":"X","planDescription":"Y","evidenceVersion":"ABODY-ACSM-2026.1","progressionStrategy":"Dupla progressão orientada por RIR","safetyNotes":[],"requiresMedicalClearance":false,"weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"rir":2,"progressionRule":"Aumentar após atingir o topo com RIR 2","isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
 REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
@@ -1433,7 +1440,10 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         const r = (pEx.reps || []).filter(v => v != null && !isNaN(v));
         const todasSeries = w.length >= (pEx.sets || ex.sets);
         const temReps = r.length >= (pEx.sets || ex.sets);
-        if (todasSeries && temReps && topo && r.every(v => v >= topo)) {
+        const rirs = (pEx.rirs || []).filter(v => Number.isInteger(v));
+        const rirAlvo = Number.isInteger(ex.rir) ? ex.rir : 3;
+        const esforcoAdequado = rirs.length >= (pEx.sets || ex.sets) && rirs.every(v => v >= rirAlvo);
+        if (todasSeries && temReps && topo && r.every(v => v >= topo) && (rirs.length===0 || esforcoAdequado)) {
           const base = Math.max(...w);
           const inc = base >= 40 ? 2.5 : base >= 15 ? 2 : 1;
           return { base, sugerido: Math.round((base + inc) * 2) / 2, topo };
@@ -1469,10 +1479,10 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     });
   }, [screen, queue[0]?._key, setIdx]);
 
-  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setCardioChoice(null);setScreen("warmup"); };
-  const beginWorkout=()=>{ track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
-  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));initTimer(next); };
-  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));initTimer(newEx);setShowSubs(false); };
+  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("warmup"); };
+  const beginWorkout=()=>{ workoutStartedAt.current=Date.now(); track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
+  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));setRirInput("");initTimer(next); };
+  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));setRirInput("");initTimer(newEx);setShowSubs(false); };
 
   const completeSet=()=>{
     const cur=queue[0]; if(!cur)return;
@@ -1480,20 +1490,31 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     if(!cur.iso&&(isNaN(value)||value<=0))return;
     let reps=cur.iso?null:parseInt(repsInput);
     if(!cur.iso&&(isNaN(reps)||reps<=0))return;
+    const rir=cur.iso?null:parseInt(rirInput);
+    if(!cur.iso&&(!Number.isInteger(rir)||rir<0||rir>5))return;
     setSeriesRunning(false);setIsoRunning(false);
     const updW={...currentWeights}; const arr=[...(updW[cur._key]||[])]; arr[setIdx]=value; updW[cur._key]=arr; setCurrentWeights(updW);
     const updR={...currentReps}; const arrR=[...(updR[cur._key]||[])]; arrR[setIdx]=reps; updR[cur._key]=arrR; setCurrentReps(updR);
-    if(setIdx+1>=cur.sets){ const[done,...rest]=queue; const nc=[...completed,{id:done.id,name:done.name,sets:done.sets,reps:[...arrR],targetReps:done.reps,iso:done.iso,weights:[...arr],skipped:done._skipped,substitutedFor:done._substitutedFor}]; setCompleted(nc); if(rest.length===0){finishWorkout(updW,nc);return;} setQueue(rest);setSetIdx(0);setWeightInput("");setRepsInput("");setRestTotal(done.rest);setRestSec(done.rest);setScreen("rest"); }
+    const updRir={...currentRirs}; const arrRir=[...(updRir[cur._key]||[])]; arrRir[setIdx]=rir; updRir[cur._key]=arrRir; setCurrentRirs(updRir);
+    if(setIdx+1>=cur.sets){ const[done,...rest]=queue; const nc=[...completed,{id:done.id,name:done.name,sets:done.sets,reps:[...arrR],rirs:[...arrRir],targetRir:done.rir??3,targetReps:done.reps,iso:done.iso,weights:[...arr],skipped:done._skipped,substitutedFor:done._substitutedFor}]; setCompleted(nc); if(rest.length===0){finishWorkout(updW,nc);return;} setQueue(rest);setSetIdx(0);setWeightInput("");setRepsInput("");setRirInput("");setRestTotal(done.rest);setRestSec(done.rest);setScreen("rest"); }
     else { setRestTotal(cur.rest);setRestSec(cur.rest);setSetIdx(setIdx+1);setScreen("rest"); }
   };
 
-  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));initTimer(queue[0]);setScreen("workout"); };
+  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0]);setScreen("workout"); };
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
-  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
+  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),durationMinutes:workoutStartedAt.current?Math.max(1,Math.round((Date.now()-workoutStartedAt.current)/60000)):null,completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
 
   const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId && !s.manual); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
+  const saveLatestFeedback = async (feedback) => {
+    const index = history.length - 1;
+    if (index < 0) return;
+    const updated = history.map((session,i)=>i===index?{...session,feedback}:session);
+    setHistory(updated);
+    await saveStorage("abody:history",updated);
+    track("feedback_recuperacao_registrado",{pain:!!feedback.pain,recovery:feedback.recovery});
+  };
 
 
   // Reavaliação corporal comparativa (habilitada 30 dias após a última)
@@ -1566,7 +1587,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
-        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
+        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
@@ -1583,7 +1604,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="evolucao"     && <EvolucaoScreen history={history} onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
-      {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo}/>}
+      {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo} onFeedback={saveLatestFeedback}/>}
     </div>
   );
 }
@@ -2580,8 +2601,8 @@ PERFIL DO ALUNO:
 - Lesões/Limitações: ${form.lesoes||"Nenhuma"}
 - Condições médicas: ${form.condicoes||"Nenhuma"}${avalText}${libraryText}
 
-Retorne SOMENTE JSON válido sem markdown:
-{"planName":"X","planDescription":"Y","weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
+Retorne SOMENTE JSON válido sem markdown. Inclua evidenceVersion="ABODY-ACSM-2026.1", progressionStrategy, safetyNotes, requiresMedicalClearance e, em cada exercício, rir e progressionRule:
+{"planName":"X","planDescription":"Y","evidenceVersion":"ABODY-ACSM-2026.1","progressionStrategy":"Dupla progressão orientada por RIR","safetyNotes":[],"requiresMedicalClearance":false,"weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"rir":2,"progressionRule":"Aumentar após atingir o topo com RIR 2","isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
 REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
@@ -3593,7 +3614,10 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
           )}
         </div>
       )}
-      <button className="ab-primary" style={{marginTop:20}} onClick={onStart}>Iniciar treinamento <Icon name="arrow" size={18}/></button>
+      {plan.evidenceVersion&&<div className="ab-science-card"><Icon name="sparkles" size={18}/><div><strong>Protocolo {plan.evidenceVersion}</strong><span>{plan.progressionStrategy||"Progressão orientada por desempenho e RIR"}</span></div></div>}
+      {(plan.safetyNotes||[]).length>0&&<div className="ab-safety-notes"><strong>Cuidados do plano</strong>{plan.safetyNotes.map((note,i)=><span key={i}>• {note}</span>)}</div>}
+      {plan.requiresMedicalClearance&&<div className="ab-clearance-warning" role="alert"><strong>Avaliação necessária</strong><span>Antes de iniciar, procure liberação de um profissional de saúde para as condições informadas.</span></div>}
+      <button className="ab-primary" style={{marginTop:20}} disabled={plan.requiresMedicalClearance} onClick={onStart}>{plan.requiresMedicalClearance?"Aguardando liberação":"Iniciar treinamento"} <Icon name="arrow" size={18}/></button>
       </aside><main><div className="ab-section-title" style={{marginTop:0}}><h2>Estrutura semanal</h2><span>{plan.weekDays.length} sessões</span></div>
       <div className="ab-plan-days">
         {plan.weekDays.map((d,i)=>(
@@ -3602,7 +3626,7 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
               <div><strong>{String(i+1).padStart(2,"0")} · {d.label}</strong><p>{d.sub}</p></div><span>{d.exercises.length} EXERCÍCIOS</span>
             </div>
             <div className="ab-plan-exercises">
-              {d.exercises.map((ex,j)=><span key={j}>{ex.name}</span>)}
+              {d.exercises.map((ex,j)=><span key={j}>{ex.name}{Number.isInteger(ex.rir)?` · RIR ${ex.rir}`:""}</span>)}
             </div>
           </div>
         ))}
@@ -3636,6 +3660,7 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
   const weekCount = history.filter(s=>new Date(s.date)>=ws).length;
+  const adaptive = adaptiveInsight(history);
   return (
     <div className="ab-dashboard">
       <header className="ab-dashboard-header">
@@ -3660,6 +3685,8 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
         <div className="ab-progress-track"><span style={{width:`${Math.min(100,weekCount*25)}%`}}/></div>
       </div>
       </section>
+
+      {adaptive&&<div className="ab-adaptive-card" data-tone={adaptive.tone}><div className="ab-adaptive-icon"><Icon name="sparkles" size={18}/></div><div><span>AJUSTE ADAPTATIVO</span><strong>{adaptive.title}</strong><p>{adaptive.message}</p></div></div>}
 
       <div className="ab-section-title"><h2>Visão geral</h2><span>Esta semana</span></div>
       <div className="ab-metric-grid">
@@ -3739,13 +3766,13 @@ function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, ultimaCarga, sugestao, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
   const isIso=exercise.iso;
   const isoCirc=2*Math.PI*52, isoOff=isoTotal>0?isoCirc*(isoSec/isoTotal):0;
-  const canComplete = (isIso?(isoRunning||isoDone):weightInput.length>0) && (exercise.iso || (parseInt(repsInput)||0) > 0);
+  const canComplete = (isIso?(isoRunning||isoDone):weightInput.length>0) && (exercise.iso || ((parseInt(repsInput)||0) > 0 && Number.isInteger(parseInt(rirInput)) && parseInt(rirInput)>=0 && parseInt(rirInput)<=5));
   return (
     <div className="ab-workout-shell">
       <div className="ab-workout-topbar">
@@ -3781,7 +3808,7 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
       ):(
         <>
           <div className="ab-series-clock"><div><span>TEMPO DA SÉRIE</span><strong style={{display:"block"}}>{fmt(elapsed)}</strong></div><span>{running?"em execução":"pausado"}</span></div>
-          <label style={{...S.sectionLabel,marginTop:12}}>Peso e repetições desta série{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
+          <label style={{...S.sectionLabel,marginTop:12}}>Registre a série e o esforço percebido{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
           {sugestao && String(sugestao.sugerido) !== weightInput && (
             <button onClick={()=>setWeightInput(String(sugestao.sugerido))} className="ab-suggestion">
               <span>Você atingiu {sugestao.topo} reps com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
@@ -3791,7 +3818,9 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
           <div className="ab-load-grid">
             <div className="ab-load-field"><label>PESO (KG)</label><input aria-label="Peso em quilogramas" type="number" inputMode="decimal" className="ab-load-input" value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="0" autoFocus/></div>
             <div className="ab-load-field"><label>REPETIÇÕES</label><input aria-label="Número de repetições" type="number" inputMode="numeric" className="ab-load-input" value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder="0"/></div>
+            <div className="ab-load-field"><label>RIR · ALVO {exercise.rir??3}</label><input aria-label="Repetições em reserva" type="number" inputMode="numeric" min="0" max="5" className="ab-load-input" value={rirInput} onChange={e=>setRirInput(e.target.value)} placeholder="0–5"/></div>
           </div>
+          <p className="ab-rir-help">RIR é quantas repetições você ainda conseguiria fazer com boa técnica. Use 0 apenas quando nenhuma repetição adicional seria possível.</p>
         </>
       )}
       <button className="ab-primary" disabled={!canComplete} onClick={onComplete}>Concluir série <Icon name="arrow" size={18}/></button>
@@ -4292,9 +4321,13 @@ function PostCardioScreen({ day, onContinue }) {
   );
 }
 
-function ReportScreen({ report, onHome, vinculo }) {
+function ReportScreen({ report, onHome, vinculo, onFeedback }) {
   const totalVolume = report.rows.filter(r=>!r.iso).reduce((sum,r)=>sum+(Number(r.curVolume)||0),0);
   const evolucoes = report.rows.filter(r=>r.diffPct!=null&&r.diffPct>0).length;
+  const [recovery,setRecovery] = useState("good");
+  const [pain,setPain] = useState(false);
+  const [feedbackSaved,setFeedbackSaved] = useState(false);
+  const saveFeedback = async () => { await onFeedback({recovery,pain}); setFeedbackSaved(true); };
   return (
     <div className="ab-data-page">
       <section className="ab-report-hero">
@@ -4327,6 +4360,14 @@ function ReportScreen({ report, onHome, vinculo }) {
           <div className="ab-highlight" data-tone="attention"><span>PRÓXIMO FOCO</span><strong>{report.weakest.name}</strong><b>{report.weakest.diffPct.toFixed(0)}%</b></div>
         </div>
       )}
+      <section className="ab-feedback-card">
+        <div className="ab-section-title"><div><span>PRÓXIMA ADAPTAÇÃO</span><h2>Como seu corpo respondeu?</h2></div></div>
+        <div className="ab-feedback-options">
+          {[["good","Recuperado"],["okay","Cansado, mas bem"],["poor","Muito fatigado"]].map(([value,label])=><button key={value} data-active={recovery===value} onClick={()=>{setRecovery(value);setFeedbackSaved(false);}}>{label}</button>)}
+        </div>
+        <label className="ab-pain-check"><input type="checkbox" checked={pain} onChange={event=>{setPain(event.target.checked);setFeedbackSaved(false);}}/><span>Senti dor articular, aguda ou diferente do esforço muscular esperado.</span></label>
+        <button className="ab-secondary-action" style={{width:"100%"}} onClick={saveFeedback}>{feedbackSaved?"✓ Resposta registrada":"Registrar resposta"}</button>
+      </section>
       <button className="ab-primary" onClick={onHome}>Voltar para hoje <Icon name="arrow" size={18}/></button>
     </div>
   );
