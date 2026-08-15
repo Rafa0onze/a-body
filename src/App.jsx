@@ -164,7 +164,7 @@ const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).p
 const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
 
-const C={bg:"#f5f6fb",card:"#ffffff",border:"#e5e7f0",acc:"#5b5cf6",text:"#15172b",muted:"#697086",fig:"#7c7df8"};
+const C={bg:"#f7f9f7",card:"#ffffff",border:"#e1e9e4",acc:"#1f9d68",text:"#14241d",muted:"#66756d",fig:"#55b88a"};
 const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
 const S={
   page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
