@@ -3080,13 +3080,17 @@ function OnboardingScreen({ onStart }) {
         <p>Combine inteligência artificial, acompanhamento profissional e dados de evolução em um plano que se adapta à sua realidade.</p>
         <div className="ab-onboarding-actions"><button className="ab-primary" onClick={onStart}>Criar meu plano <Icon name="arrow" size={18}/></button><small>Leva poucos minutos.<br/>Você mantém o controle.</small></div>
       </section>
-      <aside className="ab-onboarding-visual" aria-label="Vídeo de pessoas treinando">
-        <div className="ab-onboarding-video">
-          <video autoPlay muted loop playsInline preload="metadata" poster="/abody-hero-poster.webp" aria-hidden="true">
-            <source src="/abody-hero.mp4" type="video/mp4"/>
-          </video>
-          <div className="ab-video-shade"/>
-          <div className="ab-video-caption"><span>SEU RITMO. SEU PLANO.</span><strong>Treino que acompanha você.</strong></div>
+      <aside className="ab-onboarding-visual" aria-label="Exemplo de plano semanal personalizado">
+        <div className="ab-static-plan">
+          <header><div><span>PLANO DA SEMANA</span><h2>Seu ritmo, organizado.</h2></div><b>3/5</b></header>
+          <div className="ab-static-week" aria-hidden="true">
+            <i data-done="true">S<strong>01</strong></i><i data-done="true">T<strong>02</strong></i><i data-active="true">Q<strong>03</strong></i><i>Q<strong>04</strong></i><i>S<strong>05</strong></i>
+          </div>
+          <div className="ab-static-session">
+            <div className="ab-static-session-head"><span><small>PRÓXIMO TREINO</small><strong>Força · Superior</strong></span><b><Icon name="clock" size={14}/>42 min</b></div>
+            <div className="ab-static-exercises"><span>Supino com halteres <b>4 × 10</b></span><span>Remada unilateral <b>3 × 10</b></span><span>Desenvolvimento <b>3 × 12</b></span></div>
+          </div>
+          <footer><Icon name="sparkles" size={17}/><span><strong>Plano adaptativo</strong><small>Cargas e volume evoluem com seus registros.</small></span></footer>
         </div>
       </aside>
     </div>

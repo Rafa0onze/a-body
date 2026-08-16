@@ -473,12 +473,29 @@ html,body { background:var(--ab-bg); }
 .ab-onboarding-actions .ab-primary { width:auto; min-width:190px; }
 .ab-onboarding-actions small { color:var(--ab-muted); font-size:10px; line-height:1.45; max-width:150px; }
 .ab-onboarding-visual { min-height:570px; display:grid; place-items:center; }
-.ab-onboarding-video { position:relative; width:min(430px,100%); aspect-ratio:5/9; overflow:hidden; border-radius:32px; background:#123c2f; box-shadow:0 30px 75px rgba(18,60,47,.22); }
-.ab-onboarding-video video { width:100%; height:100%; display:block; object-fit:cover; }
-.ab-video-shade { position:absolute; inset:0; background:linear-gradient(180deg,rgba(3,20,14,.03) 35%,rgba(3,20,14,.82) 100%); pointer-events:none; }
-.ab-video-caption { position:absolute; z-index:1; right:24px; bottom:26px; left:24px; color:#fff; }
-.ab-video-caption span { display:block; margin-bottom:7px; color:#b9e7d2; font-size:9px; font-weight:800; letter-spacing:.15em; }
-.ab-video-caption strong { display:block; max-width:280px; font-size:25px; line-height:1.02; letter-spacing:-.045em; }
+.ab-static-plan { width:min(430px,100%); border:1px solid rgba(18,60,47,.12); border-radius:30px; padding:25px; color:#10251d; background:#fff; box-shadow:0 28px 70px rgba(18,60,47,.14); }
+.ab-static-plan header { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; }
+.ab-static-plan header span,.ab-static-session small { display:block; color:#718078; font-size:9px; font-weight:800; letter-spacing:.13em; }
+.ab-static-plan h2 { margin:7px 0 0; font-size:25px; line-height:1.05; letter-spacing:-.045em; }
+.ab-static-plan header > b { display:grid; place-items:center; width:48px; height:38px; border-radius:13px; color:#fff; background:#123c2f; font-size:11px; }
+.ab-static-week { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; margin:25px 0; }
+.ab-static-week i { display:grid; place-items:center; min-height:56px; border:1px solid #e3ebe6; border-radius:14px; color:#7b8982; background:#f8faf9; font-size:8px; font-style:normal; font-weight:800; }
+.ab-static-week i strong { display:block; margin-top:4px; color:#243a31; font-size:13px; }
+.ab-static-week i[data-done="true"] { color:#267a59; background:#eef8f3; }
+.ab-static-week i[data-active="true"] { border-color:#123c2f; color:#bde6d3; background:#123c2f; }
+.ab-static-week i[data-active="true"] strong { color:#fff; }
+.ab-static-session { border-radius:20px; padding:17px; color:#fff; background:#123c2f; }
+.ab-static-session-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.ab-static-session-head span strong { display:block; margin-top:5px; font-size:15px; }
+.ab-static-session-head small { color:#a9d4c1; }
+.ab-static-session-head > b { display:flex; align-items:center; gap:5px; font-size:10px; }
+.ab-static-exercises { display:grid; gap:7px; margin-top:17px; padding-top:14px; border-top:1px solid rgba(255,255,255,.14); }
+.ab-static-exercises span { display:flex; justify-content:space-between; color:#d9e9e2; font-size:10px; }
+.ab-static-exercises b { color:#fff; }
+.ab-static-plan footer { display:flex; align-items:center; gap:10px; margin-top:13px; border-radius:16px; padding:13px 14px; color:#175f43; background:#eef8f2; }
+.ab-static-plan footer strong,.ab-static-plan footer small { display:block; }
+.ab-static-plan footer strong { font-size:11px; }
+.ab-static-plan footer small { margin-top:3px; color:#5f786c; font-size:9px; }
 
 .ab-choice-page { width:min(980px,100%); padding:12px 0 48px; }
 .ab-choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:26px; }
@@ -552,9 +569,9 @@ html,body { background:var(--ab-bg); }
 @media (max-width: 620px) {
   .ab-onboarding { padding:18px 0 36px; }
   .ab-onboarding-visual { min-height:0; }
-  .ab-onboarding-video { width:100%; max-height:410px; aspect-ratio:4/5; border-radius:26px; }
-  .ab-video-caption { right:20px; bottom:21px; left:20px; }
-  .ab-video-caption strong { max-width:250px; font-size:23px; }
+  .ab-static-plan { width:100%; padding:18px; border-radius:24px; }
+  .ab-static-plan h2 { font-size:22px; }
+  .ab-static-week { margin:19px 0; }
   .ab-onboarding-copy h1 { font-size:44px; margin-top:30px; }
   .ab-choice-grid { grid-template-columns:1fr; }
   .ab-choice-card { min-height:250px; }
