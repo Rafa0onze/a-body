@@ -3080,20 +3080,13 @@ function OnboardingScreen({ onStart }) {
         <p>Combine inteligência artificial, acompanhamento profissional e dados de evolução em um plano que se adapta à sua realidade.</p>
         <div className="ab-onboarding-actions"><button className="ab-primary" onClick={onStart}>Criar meu plano <Icon name="arrow" size={18}/></button><small>Leva poucos minutos.<br/>Você mantém o controle.</small></div>
       </section>
-      <aside className="ab-onboarding-visual" aria-label="Exemplo de plano de treino personalizado">
-        <div className="ab-plan-preview">
-          <header>
-            <div><span>SEU PRÓXIMO TREINO</span><h2>Força · Superior</h2></div>
-            <div className="ab-preview-time"><Icon name="clock" size={15}/><strong>42 min</strong></div>
-          </header>
-          <div className="ab-preview-progress"><span style={{width:"64%"}}/></div>
-          <div className="ab-preview-meta"><span>6 exercícios</span><span>Nível intermediário</span></div>
-          <div className="ab-preview-list">
-            <div><i>01</i><span><strong>Supino com halteres</strong><small>4 séries · 8–10 repetições</small></span><b>24 kg</b></div>
-            <div><i>02</i><span><strong>Remada unilateral</strong><small>3 séries · 10 repetições</small></span><b>20 kg</b></div>
-            <div><i>03</i><span><strong>Desenvolvimento</strong><small>3 séries · 10–12 repetições</small></span><b>14 kg</b></div>
-          </div>
-          <footer><Icon name="sparkles" size={17}/><span><strong>Ajustado para você</strong><small>Volume e cargas evoluem com seus registros.</small></span></footer>
+      <aside className="ab-onboarding-visual" aria-label="Vídeo de pessoas treinando">
+        <div className="ab-onboarding-video">
+          <video autoPlay muted loop playsInline preload="metadata" poster="/abody-hero-poster.webp" aria-hidden="true">
+            <source src="/abody-hero.mp4" type="video/mp4"/>
+          </video>
+          <div className="ab-video-shade"/>
+          <div className="ab-video-caption"><span>SEU RITMO. SEU PLANO.</span><strong>Treino que acompanha você.</strong></div>
         </div>
       </aside>
     </div>
