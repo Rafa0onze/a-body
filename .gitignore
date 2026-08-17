@@ -3,3 +3,4 @@ dist/
 android/
 .env
 *.local
+.codex-remote-attachments/

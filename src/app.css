@@ -196,8 +196,8 @@ html,body { background:var(--ab-bg); }
 .ab-app-shell::after { content:""; position:fixed; z-index:-1; width:280px; height:280px; left:-190px; bottom:8%; border-radius:50%; background:radial-gradient(circle,rgba(183,243,74,.13),transparent 70%); }
 
 .ab-logo-lockup { gap:10px; }
-.ab-logo-mark { width:40px; height:40px; border-radius:13px; color:white; background:#123c2f; box-shadow:0 9px 22px rgba(18,60,47,.2); }
-.ab-logo-mark svg { width:31px; height:31px; fill:currentColor; }
+.ab-logo-mark { width:40px; height:40px; border-radius:13px; color:white; background:#123c2f url("/brand-mark-inverse.svg") center/31px 31px no-repeat; box-shadow:0 9px 22px rgba(18,60,47,.2); }
+.ab-logo-mark svg { display:none; }
 .ab-logo-copy strong { color:var(--ab-text); font-size:15px; letter-spacing:-.015em; }
 .ab-logo-copy span { color:var(--ab-muted); font-size:8px; letter-spacing:.16em; font-weight:800; }
 .ab-kicker { color:var(--ab-accent); font-size:10px; letter-spacing:.13em; }
