@@ -14,22 +14,22 @@
     const box = document.createElement("div");
     box.dataset.abodyScientificNotice = tipo;
     box.style.cssText = [
-      "background:#0d2218",
-      "border:1px solid #244c38",
-      "border-radius:12px",
-      "padding:12px 14px",
-      "margin:12px 0 4px",
+      "background:#f3f8f5",
+      "border:1px solid #cfe2d8",
+      "border-radius:16px",
+      "padding:14px 16px",
+      "margin:16px 0 4px",
       "font-family:inherit",
       "line-height:1.45"
     ].join(";");
 
     const title = document.createElement("div");
     title.textContent = "✓ " + TEXT[tipo].title;
-    title.style.cssText = "font-size:12px;font-weight:800;color:#6ee7a8;margin-bottom:5px";
+    title.style.cssText = "font-size:13px;font-weight:800;color:#176b49;margin-bottom:5px";
 
     const body = document.createElement("div");
     body.textContent = TEXT[tipo].body;
-    body.style.cssText = "font-size:11px;color:#9ab7a7";
+    body.style.cssText = "font-size:12px;color:#52675c";
 
     box.append(title, body);
     return box;
@@ -184,12 +184,16 @@
 
     const aluno = buttons.find(b => /gerar meu plano/i.test(b.textContent || ""));
     if (aluno && !document.querySelector('[data-abody-scientific-notice="aluno"]')) {
-      aluno.parentElement?.insertBefore(criarAviso("aluno"), aluno);
+      const actions = aluno.closest(".ab-form-actions");
+      if (actions?.parentElement) actions.parentElement.insertBefore(criarAviso("aluno"), actions);
+      else aluno.parentElement?.insertBefore(criarAviso("aluno"), aluno);
     }
 
     const personal = buttons.find(b => /^\s*(✨\s*)?gerar treino\s*$/i.test((b.textContent || "").trim()));
     if (personal && !document.querySelector('[data-abody-scientific-notice="personal"]')) {
-      personal.parentElement?.insertBefore(criarAviso("personal"), personal);
+      const actions = personal.closest(".ab-form-actions");
+      if (actions?.parentElement) actions.parentElement.insertBefore(criarAviso("personal"), actions);
+      else personal.parentElement?.insertBefore(criarAviso("personal"), personal);
     }
   }
 
