@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conteudoOpenAI, eGeracaoDeTreino, formatoEstruturado, validarPlano } from "../api/claude.js";
+import { conteudoAssistantOpenAI, conteudoOpenAI, eGeracaoDeTreino, formatoEstruturado, validarPlano } from "../api/claude.js";
 import { SCIENCE_VERSION, SCIENCE_VERSIONS, scientificContext, scientificProfile, validateScientificMetadata } from "../api/science.js";
 import { adaptiveInsight } from "../src/adaptation.js";
 
@@ -41,6 +41,10 @@ test("validador rejeita pernas consecutivas e falta de core", () => {
   const erros = validarPlano(JSON.stringify(plano), "Duração: 45 min");
   assert.ok(erros.some(e => e.includes("inferiores consecutivos")));
   assert.ok(erros.some(e => e.includes("core")));
+});
+
+test("usa output_text ao reenviar a resposta do assistant para correção", () => {
+  assert.deepEqual(conteudoAssistantOpenAI("plano"), [{ type:"output_text", text:"plano" }]);
 });
 
 test("protocolo científico diferencia objetivo, nível e triagem", () => {

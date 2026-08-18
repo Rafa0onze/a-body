@@ -242,6 +242,10 @@ function respostaCompativelOpenAI(data) {
   return { id: data?.id, model: data?.model, content: [{ type: "text", text: texto }], usage: data?.usage };
 }
 
+export function conteudoAssistantOpenAI(texto) {
+  return [{ type: "output_text", text: String(texto || "") }];
+}
+
 async function chamarOpenAI(apiKey, body) {
   const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -319,7 +323,9 @@ export default async function handler(req, res) {
           ...safeBody,
           input: [
             ...safeBody.input,
-            { role: "assistant", content: [{ type: "input_text", text: textoResposta(result.data) }] },
+            // No Responses API, conteúdo histórico do assistant precisa usar
+            // output_text; input_text é aceito apenas em mensagens de entrada.
+            { role: "assistant", content: conteudoAssistantOpenAI(textoResposta(result.data)) },
             { role: "user", content: [{ type: "input_text", text: correcao }] },
           ],
         });

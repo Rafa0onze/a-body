@@ -520,8 +520,8 @@ html,body { background:var(--ab-bg); }
 .ab-form-card h1,.ab-form-card h2 { color:var(--ab-text); font-size:27px; margin:0 0 8px; letter-spacing:-.035em; }
 .ab-field-grid { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
 .ab-option-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-.ab-option { border:1px solid var(--ab-border); border-radius:16px; padding:14px; background:rgba(4,14,9,.3); color:var(--ab-muted); text-align:left; font-size:12px; font-weight:700; transition:.2s ease; }
-.ab-option[data-active="true"] { border-color:var(--ab-accent); background:rgba(71,232,140,.09); color:var(--ab-text); }
+.ab-option { border:1px solid var(--ab-border); border-radius:16px; padding:14px; background:#fff; color:var(--ab-muted); text-align:left; font-size:12px; font-weight:700; transition:.2s ease; }
+.ab-option[data-active="true"] { border-color:#1f9d68; background:#edf8f2; color:var(--ab-text); box-shadow:0 0 0 1px rgba(31,157,104,.08); }
 .ab-option strong { display:block; color:inherit; }
 .ab-option span { display:block; color:var(--ab-muted); font-size:10px; margin-top:4px; }
 .ab-form-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
@@ -582,7 +582,13 @@ html,body { background:var(--ab-bg); }
   .ab-step::after { content:""; height:2px; flex:1; background:var(--ab-border); }
   .ab-step:last-child::after { display:none; }
   .ab-field-grid,.ab-option-grid { grid-template-columns:1fr; }
-  .ab-form-actions .ab-primary { flex:1; min-width:0; }
+  .ab-form-card { padding:18px 15px; }
+  .ab-form-card label:has(input[type="checkbox"]) { background:#f3f8f5 !important; border-color:#cfe2d8 !important; color:#20382e !important; line-height:1.5; }
+  .ab-form-card label:has(input[type="checkbox"]) b { color:#123c2f; }
+  .ab-form-card label:has(input[type="checkbox"]:checked) { background:#eaf7f0 !important; border-color:#1f9d68 !important; }
+  .ab-form-actions { display:grid; grid-template-columns:1fr; gap:10px; }
+  .ab-form-actions > * { width:100% !important; min-width:0 !important; max-width:none !important; }
+  .ab-form-actions .ab-primary,.ab-form-actions .ab-secondary-action { min-height:52px; }
 }
 
 /* Professional workspace */
