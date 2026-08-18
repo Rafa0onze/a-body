@@ -256,9 +256,23 @@ async function chamarOpenAI(apiKey, body) {
   return { status: r.status, data: r.ok ? respostaCompativelOpenAI(data) : data };
 }
 
+function erroPublicoOpenAI(status) {
+  if (status === 429) return { status: 503, code: "AI_CAPACITY", message: "A geração está temporariamente indisponível. Tente novamente em alguns minutos." };
+  if (status === 401 || status === 403) return { status: 503, code: "AI_CONFIGURATION", message: "O serviço de geração está temporariamente indisponível." };
+  if (status >= 500) return { status: 503, code: "AI_UNAVAILABLE", message: "A geração está temporariamente indisponível. Tente novamente." };
+  return { status: 422, code: "AI_REQUEST_REJECTED", message: "Não foi possível processar os dados enviados. Revise os anexos e tente novamente." };
+}
+
+function registrarEvento(requestId, stage, fields = {}) {
+  console.log(JSON.stringify({ service:"abody-ai", requestId, stage, ...fields }));
+}
+
 export default async function handler(req, res) {
+  const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const inicio = Date.now();
+  res.setHeader("X-Request-Id", requestId);
   const origem = req.headers.origin || "";
-  res.setHeader("Access-Control-Allow-Origin", ORIGENS.includes(origem) ? origem : ORIGENS[0]);
+  if (ORIGENS.includes(origem)) res.setHeader("Access-Control-Allow-Origin", origem);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -266,7 +280,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: { message: "Method not allowed" } });
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: { message: "OPENAI_API_KEY não configurada no servidor." } });
+  if (!apiKey) return res.status(503).json({ error: { code:"AI_CONFIGURATION", message: "O serviço de geração está temporariamente indisponível.", requestId } });
   const jwt = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return res.status(401).json({ error: { message: "Faça login para usar a geração por IA." } });
 
@@ -297,11 +311,6 @@ export default async function handler(req, res) {
     const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
     if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
   } catch {}
-  const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
-    method: "POST", headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" }, body: JSON.stringify({ limite: quota }),
-  });
-  if (!(q.ok && await q.json() === true)) return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
-
   const mensagens = prepararMensagens(body.messages, treino);
   const formato = formatoEstruturado(treino, texto);
   const safeBody = {
@@ -313,8 +322,13 @@ export default async function handler(req, res) {
   };
 
   try {
+    registrarEvento(requestId, "openai_started", { treino, anexos });
     let result = await chamarOpenAI(apiKey, safeBody);
-    if (result.status >= 400) return res.status(result.status).json(result.data);
+    if (result.status >= 400) {
+      const publico = erroPublicoOpenAI(result.status);
+      registrarEvento(requestId, "openai_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
+      return res.status(publico.status).json({ error:{ ...publico, requestId } });
+    }
     if (treino) {
       let erros = validarPlano(textoResposta(result.data), texto);
       if (erros.length) {
@@ -329,16 +343,34 @@ export default async function handler(req, res) {
             { role: "user", content: [{ type: "input_text", text: correcao }] },
           ],
         });
-        if (result.status >= 400) return res.status(result.status).json(result.data);
+        if (result.status >= 400) {
+          const publico = erroPublicoOpenAI(result.status);
+          registrarEvento(requestId, "openai_retry_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
+          return res.status(publico.status).json({ error:{ ...publico, requestId } });
+        }
         erros = validarPlano(textoResposta(result.data), texto);
-        if (erros.length) return res.status(422).json({ error: { message: "O treino não passou na validação de duração e segurança. Gere novamente.", validation: erros } });
+        if (erros.length) {
+          registrarEvento(requestId, "validation_failed", { errorCount:erros.length, durationMs:Date.now()-inicio });
+          return res.status(422).json({ error: { code:"PLAN_VALIDATION_FAILED", message: "O treino não passou na validação de duração e segurança. Tente gerar novamente; esta tentativa não consumiu sua cota.", requestId } });
+        }
       }
     }
+    // A cota só é confirmada quando há uma entrega válida. Falhas da OpenAI e
+    // da validação científica não reduzem o saldo diário do usuário.
+    const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
+      method: "POST", headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" }, body: JSON.stringify({ limite: quota }),
+    });
+    if (!(q.ok && await q.json() === true)) {
+      registrarEvento(requestId, "quota_rejected", { durationMs:Date.now()-inicio });
+      return res.status(429).json({ error: { code:"DAILY_QUOTA_REACHED", message: `Limite diário de ${quota} usos de IA atingido. Tente novamente amanhã.`, requestId } });
+    }
     res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-duration-v2");
+    registrarEvento(requestId, "completed", { treino, durationMs:Date.now()-inicio });
     return res.status(result.status).json(result.data);
   } catch (e) {
-    return res.status(502).json({ error: { message: "Falha ao contatar a IA: " + e.message } });
+    registrarEvento(requestId, "unexpected_failure", { errorName:e?.name || "Error", durationMs:Date.now()-inicio });
+    return res.status(502).json({ error: { code:"AI_NETWORK_ERROR", message: "Não foi possível concluir a geração. Verifique sua conexão e tente novamente.", requestId } });
   }
 }
 
-export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, conteudoOpenAI, formatoEstruturado };
+export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, conteudoOpenAI, formatoEstruturado, erroPublicoOpenAI };
