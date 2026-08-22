@@ -297,9 +297,9 @@ html,body { background:var(--ab-bg); }
 .ab-workout-progress-copy { display:flex; justify-content:space-between; color:var(--ab-muted); font-size:10px; font-weight:700; margin-bottom:7px; }
 .ab-workout-grid { display:grid; grid-template-columns:minmax(0,1.08fr) minmax(320px,.72fr); gap:18px; align-items:start; }
 .ab-exercise-stage { min-height:570px; display:flex; flex-direction:column; border:1px solid var(--ab-border); border-radius:var(--ab-radius-lg); background:linear-gradient(145deg,rgba(18,39,29,.88),rgba(8,22,15,.9)); padding:clamp(20px,4vw,32px); overflow:hidden; }
-.ab-exercise-count { color:var(--ab-accent); font-size:10px; font-weight:800; letter-spacing:.12em; }
+.ab-exercise-count { color:var(--ab-accent); font-size:12px; font-weight:850; letter-spacing:.1em; }
 .ab-exercise-stage h1 { color:var(--ab-text); font-size:clamp(26px,4vw,40px); letter-spacing:-.045em; line-height:1.08; margin:8px 0 4px; }
-.ab-exercise-sub { display:flex; flex-wrap:wrap; gap:8px; color:var(--ab-muted); font-size:12px; }
+.ab-exercise-sub { display:flex; flex-wrap:wrap; gap:8px; color:var(--ab-text); font-size:clamp(15px,2vw,18px); font-weight:700; line-height:1.35; }
 .ab-figure-wrap { flex:1; min-height:260px; display:grid; place-items:center; margin:16px 0; }
 .ab-figure-wrap > * { width:100%; max-width:520px; }
 .ab-set-dots { display:flex; gap:8px; margin-top:auto; }
@@ -308,15 +308,15 @@ html,body { background:var(--ab-bg); }
 .ab-set-dot[data-state="current"] { background:#f0b45a; box-shadow:0 0 0 4px rgba(240,180,90,.08); }
 .ab-workout-panel { position:sticky; top:18px; border:1px solid var(--ab-border); border-radius:var(--ab-radius-lg); background:var(--ab-surface); padding:24px; }
 .ab-series-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
-.ab-series-heading strong { color:var(--ab-text); font-size:14px; }
-.ab-series-heading span { color:var(--ab-muted); font-size:11px; }
+.ab-series-heading strong { color:var(--ab-text); font-size:clamp(19px,2.4vw,23px); line-height:1.15; }
+.ab-series-heading span { color:var(--ab-muted); font-size:13px; font-weight:700; }
 .ab-series-clock { display:flex; align-items:center; justify-content:space-between; border:1px solid var(--ab-border); border-radius:16px; background:rgba(4,14,9,.4); padding:13px 15px; margin-bottom:18px; }
-.ab-series-clock strong { font-size:25px; font-variant-numeric:tabular-nums; }
-.ab-series-clock span { color:var(--ab-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+.ab-series-clock strong { font-size:clamp(30px,4vw,38px); line-height:1.05; font-variant-numeric:tabular-nums; }
+.ab-series-clock span { color:var(--ab-muted); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
 .ab-load-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0 8px; }
-.ab-load-field label { display:block; color:var(--ab-muted); font-size:9px; font-weight:800; letter-spacing:.1em; margin-bottom:6px; }
+.ab-load-field label { display:block; color:var(--ab-muted); font-size:11px; font-weight:850; letter-spacing:.07em; line-height:1.2; margin-bottom:7px; }
 .ab-rir-help { color:var(--ab-muted); font-size:9px; line-height:1.5; margin:0 0 14px; }
-.ab-load-input { width:100%; border:1px solid var(--ab-border); border-radius:16px; background:rgba(4,14,9,.55); color:var(--ab-text); padding:15px 12px; font-size:25px; font-weight:800; outline:0; }
+.ab-load-input { width:100%; min-height:82px; border:1px solid var(--ab-border); border-radius:16px; background:rgba(4,14,9,.55); color:var(--ab-text); padding:15px 12px; font-size:clamp(31px,5vw,40px); font-weight:850; line-height:1; font-variant-numeric:tabular-nums; outline:0; }
 .ab-load-input:focus { border-color:var(--ab-accent); }
 .ab-suggestion { width:100%; text-align:left; border:1px dashed var(--ab-border-strong); border-radius:15px; padding:12px; margin:0 0 14px; background:rgba(71,232,140,.055); color:var(--ab-accent); font-size:11px; line-height:1.5; }
 .ab-suggestion small { display:block; color:var(--ab-muted); margin-top:3px; }
