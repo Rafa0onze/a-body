@@ -242,6 +242,23 @@ function respostaCompativelOpenAI(data) {
   return { id: data?.id, model: data?.model, content: [{ type: "text", text: texto }], usage: data?.usage };
 }
 
+function errosCriticosPlano(erros) {
+  return (erros || []).filter(erro => /JSON ou estrutura|evidenceVersion|requiresMedicalClearance|RIR inválido|weeklyPrescription ausente/i.test(erro));
+}
+
+function categoriasValidacao(erros) {
+  return [...new Set((erros || []).map(erro => {
+    if (/curto|longo|minutos/i.test(erro)) return "duration";
+    if (/consecutiv|predominância/i.test(erro)) return "recovery";
+    if (/core/i.test(erro)) return "core";
+    if (/volume|séries/i.test(erro)) return "volume";
+    if (/requiresMedicalClearance/i.test(erro)) return "medical_clearance";
+    if (/RIR/i.test(erro)) return "rir";
+    if (/evidenceVersion|weeklyPrescription/i.test(erro)) return "scientific_metadata";
+    return "structure";
+  }))];
+}
+
 export function conteudoAssistantOpenAI(texto) {
   return [{ type: "output_text", text: String(texto || "") }];
 }
@@ -316,7 +333,9 @@ export default async function handler(req, res) {
   const safeBody = {
     model: process.env.OPENAI_MODEL || "gpt-5.6",
     max_output_tokens: Math.min(Number(body.max_tokens) || 2000, 8192),
-    reasoning: { effort: treino ? "medium" : "low" },
+    // Structured Outputs e o validador local já fazem a fiscalização pesada.
+    // Esforço baixo reduz drasticamente o tempo de espera no telefone.
+    reasoning: { effort: "low" },
     text: { verbosity: "low", ...(formato ? { format: formato } : {}) },
     input: mensagens.map(m => ({ role: m.role, content: conteudoOpenAI(m.content) })),
   };
@@ -331,7 +350,13 @@ export default async function handler(req, res) {
     }
     if (treino) {
       let erros = validarPlano(textoResposta(result.data), texto);
-      if (erros.length) {
+      let criticos = errosCriticosPlano(erros);
+      if (erros.length && !criticos.length) {
+        // Duração estimada, distribuição de core e recuperação são alertas de
+        // qualidade baseados em heurísticas. Não devem descartar um JSON
+        // estruturalmente válido nem disparar uma segunda geração de minutos.
+        registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
+      } else if (criticos.length) {
         const correcao = `A resposta falhou na validação automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido, corrigindo tudo. A duração informada inclui 5 min de aquecimento e 10–15 min de aeróbico; ajuste a musculação para completar o restante. Use de 4 a 8 exercícios conforme necessário. Não explique.`;
         result = await chamarOpenAI(apiKey, {
           ...safeBody,
@@ -349,10 +374,12 @@ export default async function handler(req, res) {
           return res.status(publico.status).json({ error:{ ...publico, requestId } });
         }
         erros = validarPlano(textoResposta(result.data), texto);
-        if (erros.length) {
-          registrarEvento(requestId, "validation_failed", { errorCount:erros.length, durationMs:Date.now()-inicio });
+        criticos = errosCriticosPlano(erros);
+        if (criticos.length) {
+          registrarEvento(requestId, "validation_failed", { categories:categoriasValidacao(criticos), errorCount:criticos.length, durationMs:Date.now()-inicio });
           return res.status(422).json({ error: { code:"PLAN_VALIDATION_FAILED", message: "O treino não passou na validação de duração e segurança. Tente gerar novamente; esta tentativa não consumiu sua cota.", requestId } });
         }
+        if (erros.length) registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
       }
     }
     // A cota só é confirmada quando há uma entrega válida. Falhas da OpenAI e
@@ -373,4 +400,4 @@ export default async function handler(req, res) {
   }
 }
 
-export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, conteudoOpenAI, formatoEstruturado, erroPublicoOpenAI };
+export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, errosCriticosPlano, conteudoOpenAI, formatoEstruturado, erroPublicoOpenAI };

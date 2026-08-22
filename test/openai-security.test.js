@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conteudoAssistantOpenAI, conteudoOpenAI, eGeracaoDeTreino, erroPublicoOpenAI, formatoEstruturado, validarPlano } from "../api/claude.js";
+import { conteudoAssistantOpenAI, conteudoOpenAI, eGeracaoDeTreino, erroPublicoOpenAI, errosCriticosPlano, formatoEstruturado, validarPlano } from "../api/claude.js";
 import { SCIENCE_VERSION, SCIENCE_VERSIONS, scientificContext, scientificProfile, validateScientificMetadata } from "../api/science.js";
 import { adaptiveInsight } from "../src/adaptation.js";
 
@@ -55,6 +55,17 @@ test("não expõe mensagens internas do fornecedor de IA", () => {
   });
   assert.equal(erroPublicoOpenAI(400).code, "AI_REQUEST_REJECTED");
   assert.doesNotMatch(erroPublicoOpenAI(400).message, /openai|input_text|quota/i);
+});
+
+test("não bloqueia entrega por alertas heurísticos de qualidade", () => {
+  assert.deepEqual(errosCriticosPlano([
+    "dia 1 está curto: estimado 48 min para meta de 75 min",
+    "core precisa estar distribuído em 2 dias diferentes",
+  ]), []);
+  assert.deepEqual(errosCriticosPlano([
+    "requiresMedicalClearance incompatível com a triagem",
+    "dia 1 está curto",
+  ]), ["requiresMedicalClearance incompatível com a triagem"]);
 });
 
 test("protocolo científico diferencia objetivo, nível e triagem", () => {
