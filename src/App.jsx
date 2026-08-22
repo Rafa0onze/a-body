@@ -164,7 +164,7 @@ const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).p
 const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
 
-const C={bg:"#f7f9f7",card:"#ffffff",border:"#e1e9e4",acc:"#1f9d68",text:"#14241d",muted:"#66756d",fig:"#55b88a"};
+const C={bg:"#f7f9f7",card:"#ffffff",border:"#cbd9d1",acc:"#116b45",text:"#102219",muted:"#4b5f54",fig:"#168557"};
 const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
 const S={
   page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
@@ -1679,7 +1679,7 @@ function AuthScreen({ onDone, onSkip }) {
 
       <h1>{mode==="login" ? "Entre para continuar" : "Crie sua conta"}</h1>
       {convitePendente ? (
-        <div style={{background:"#0d2218",border:`1px solid ${C.acc}`,borderRadius:12,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
+        <div style={{background:"#edf6f1",border:`1px solid ${C.acc}`,borderRadius:12,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
           🎟️ <b>Você foi convidado pelo seu personal.</b> {mode==="signup" ? "Crie sua conta abaixo" : "Entre com sua conta"} e seu acesso será ativado automaticamente.
         </div>
       ) : (
@@ -2759,7 +2759,7 @@ function ConviteModal({ aluno, onClose }) {
           <>
             <div style={{...S.card,padding:"12px 14px",marginBottom:10,wordBreak:"break-all",fontSize:12,color:C.acc}}>{link}</div>
             <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Válido até {new Date(conv.expira_em).toLocaleDateString("pt-BR")} · uso único</div>
-            <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
+            <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
               ℹ️ O envio sai do <b style={{color:C.text}}>seu</b> aparelho: os botões abaixo abrem o app escolhido com a mensagem pronta — é só confirmar o envio lá.
             </div>
             <button className="ab-primary" style={{marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank", "noopener,noreferrer"); }}>Enviar por WhatsApp</button>
@@ -2985,11 +2985,11 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       <p style={{fontSize:11,color:C.muted,margin:"0 0 8px 0"}}>Marque os documentos que a IA deve considerar nesta avaliação.</p>
       <DocsSaude alunoId={aluno.id} selecionaveis selecionados={docsAluno} setSelecionados={setDocsAluno}/>
 
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
         <span>Confirmo que o aluno <b>consentiu</b> com o envio das fotos para análise pela IA. São <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para esta avaliação.</span>
       </label>
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={guardar} onChange={e=>setGuardar(e.target.checked)} style={{marginTop:2}}/>
         <span><b>Armazenar as fotos</b> em área privada para o <b>comparativo visual antes/depois</b> nas próximas avaliações. Podem ser excluídas a qualquer momento no relatório.</span>
       </label>
@@ -3193,17 +3193,17 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         <h2 style={S.h1}>Análise corporal</h2>
         <p style={S.sub}>Envie fotos de roupa de banho para que a IA identifique seus pontos fortes e fracos e personalize seu plano. <b style={{color:C.acc}}>As fotos são processadas apenas pela IA e não são armazenadas.</b></p>
         <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
-        <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
+        <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
           ℹ️ As fotos são opcionais. Sem elas, o plano será gerado apenas com base na anamnese.
         </div>
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoConsent} onChange={e=>setForm({...form,photoConsent:e.target.checked})} style={{marginTop:2}}/>
             <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b>. Entendo que são <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para gerar minha análise corporal.</span>
           </label>
         )}
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoStoreConsent} onChange={e=>setForm({...form,photoStoreConsent:e.target.checked})} style={{marginTop:2}}/>
             <span><b>Opcional:</b> autorizo o <b>armazenamento seguro</b> das minhas fotos em área privada, acessível somente por mim, com a finalidade exclusiva de gerar <b>comparativos visuais da minha evolução</b>. Posso excluí-las a qualquer momento no Relatório Corporal.</span>
           </label>
@@ -3415,7 +3415,7 @@ function SplitSelectScreen({ onSelect, onBack }) {
             <div style={{flex:1}}>
               <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{s.label}</div>
               <div style={{fontSize:12,color:C.muted}}>{s.description}</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{s.days.map(d=><span key={d.id} style={{fontSize:10,background:"#0d2218",borderRadius:6,padding:"2px 8px",color:C.muted}}>{d.label}</span>)}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{s.days.map(d=><span key={d.id} style={{fontSize:10,background:"#e8f1ec",borderRadius:6,padding:"2px 8px",color:C.muted}}>{d.label}</span>)}</div>
             </div>
             <span style={{color:C.acc,fontSize:18}}>→</span>
           </button>
@@ -3458,7 +3458,7 @@ function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, o
 
             {isEditing&&(<>
               {exs.map((ex,i)=>(
-                <div key={ex._key||i} style={{background:"#0d2218",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
+                <div key={ex._key||i} style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                     <div style={{fontSize:13,fontWeight:600,flex:1}}>{ex.name}</div>
                     <button style={{background:"none",border:"none",color:"#e87a3a",fontSize:16,padding:"0 4px"}} onClick={()=>onRemove(d.id,ex.id)}>✕</button>
@@ -3486,7 +3486,7 @@ function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, o
 
             {!isEditing&&exs.length>0&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {exs.map((ex,i)=><span key={i} style={{fontSize:11,background:"#0d2218",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
+                {exs.map((ex,i)=><span key={i} style={{fontSize:11,background:"#e8f1ec",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
               </div>
             )}
             {!isEditing&&exs.length===0&&<div style={{fontSize:12,color:"#8fb8a2",fontStyle:"italic"}}>Nenhum exercício adicionado ainda</div>}
@@ -3624,17 +3624,17 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
           <h2>ANÁLISE CORPORAL IA</h2>
           {bodyAnalysis.overallAnalysis&&<p style={{fontSize:13,color:C.muted,margin:0,lineHeight:1.5}}>{bodyAnalysis.overallAnalysis}</p>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div style={{background:"#0d2218",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>PONTOS FORTES</div>
               {(bodyAnalysis.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>✓ {p}</div>)}
             </div>
-            <div style={{background:"#0d2218",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
               {(bodyAnalysis.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>→ {p}</div>)}
             </div>
           </div>
           {(bodyAnalysis.postureNotes||[]).length>0&&(
-            <div style={{background:"#0d2218",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>POSTURA</div>
               {bodyAnalysis.postureNotes.map((p,i)=><div key={i} style={{fontSize:12,color:C.muted,marginBottom:3}}>• {p}</div>)}
             </div>
@@ -4164,13 +4164,13 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
       <p style={S.sub}>Envie fotos atuais nas mesmas posições. A IA compara com sua avaliação anterior e mostra sua evolução.</p>
       <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
           <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b> (dados sensíveis de saúde — LGPD).</span>
         </label>
       )}
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={!!storeConsent} onChange={e=>setStoreConsent(e.target.checked)} style={{marginTop:2}}/>
           <span><b>Opcional:</b> autorizo o <b>armazenamento seguro e privado</b> das fotos para comparativos visuais da minha evolução. Posso excluí-las quando quiser.</span>
         </label>
