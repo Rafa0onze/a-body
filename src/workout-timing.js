@@ -4,3 +4,7 @@ export function isUnilateralExercise(exercise) {
   const name=String(exercise.name||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   return /unilateral|prancha lateral|afundo|passada|bulgar|step.?up|coice|kickback|uma perna|uma mao|um braco/.test(name);
 }
+
+export function shouldAutoStartSeries(setIndex) {
+  return Number.isInteger(setIndex) && setIndex > 0;
+}

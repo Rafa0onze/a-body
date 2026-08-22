@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useId } from "react";
 import "./app.css";
 import { adaptiveInsight } from "./adaptation.js";
-import { isUnilateralExercise } from "./workout-timing.js";
+import { isUnilateralExercise, shouldAutoStartSeries } from "./workout-timing.js";
 
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
 
@@ -1473,9 +1473,9 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   // ── TREINO ────────────────────────────────────────────────────────────────
 
-  // Abrir um exercício apenas prepara a série. O tempo começa somente após
-  // uma ação explícita do aluno, inclusive depois do descanso ou substituição.
-  const initTimer=(ex)=>{ setSeriesElapsed(0);setSeriesRunning(false);setUnilateralSide(0);setFirstSideElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);}else{setIsoRunning(false);setIsoDone(false);}};
+  // A primeira série de cada exercício aguarda o aluno montar o equipamento.
+  // As seguintes começam automaticamente ao terminar ou pular o descanso.
+  const initTimer=(ex,autoStart=false)=>{ setSeriesElapsed(0);setSeriesRunning(autoStart&&!ex.iso);setUnilateralSide(0);setFirstSideElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(autoStart);setIsoDone(false);}else{setIsoRunning(false);setIsoDone(false);}};
   const ultimoPeso = (ex, sIdx) => {
     // varre o histórico do mais recente ao mais antigo procurando o exercício (por id, depois por nome)
     for (let i = history.length - 1; i >= 0; i--) {
@@ -1531,7 +1531,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     else { setRestTotal(cur.rest);setRestSec(cur.rest);setSetIdx(setIdx+1);setScreen("rest"); }
   };
 
-  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0]);setScreen("workout"); };
+  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0],shouldAutoStartSeries(setIdx));setScreen("workout"); };
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
