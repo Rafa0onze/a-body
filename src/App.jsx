@@ -1469,7 +1469,9 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   // ── TREINO ────────────────────────────────────────────────────────────────
 
-  const initTimer=(ex)=>{ setSeriesElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);setSeriesRunning(false);}else{setSeriesRunning(true);setIsoRunning(false);setIsoDone(false);}};
+  // Abrir um exercício apenas prepara a série. O tempo começa somente após
+  // uma ação explícita do aluno, inclusive depois do descanso ou substituição.
+  const initTimer=(ex)=>{ setSeriesElapsed(0);setSeriesRunning(false); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);}else{setIsoRunning(false);setIsoDone(false);}};
   const ultimoPeso = (ex, sIdx) => {
     // varre o histórico do mais recente ao mais antigo procurando o exercício (por id, depois por nome)
     for (let i = history.length - 1; i >= 0; i--) {
@@ -1600,7 +1602,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
       {screen==="workout"      && currentDay && current && (<>
-        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
+        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
@@ -3794,13 +3796,13 @@ function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, onStartSeries, onPauseSeries, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
   const isIso=exercise.iso;
   const isoCirc=2*Math.PI*52, isoOff=isoTotal>0?isoCirc*(isoSec/isoTotal):0;
-  const canComplete = (isIso?(isoRunning||isoDone):weightInput.length>0) && (exercise.iso || ((parseInt(repsInput)||0) > 0 && Number.isInteger(parseInt(rirInput)) && parseInt(rirInput)>=0 && parseInt(rirInput)<=5));
+  const canComplete = (isIso?(isoRunning||isoDone):(elapsed>0&&weightInput.length>0)) && (exercise.iso || ((parseInt(repsInput)||0) > 0 && Number.isInteger(parseInt(rirInput)) && parseInt(rirInput)>=0 && parseInt(rirInput)<=5));
   return (
     <div className="ab-workout-shell">
       <div className="ab-workout-topbar">
@@ -3835,7 +3837,8 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
         </div>
       ):(
         <>
-          <div className="ab-series-clock"><div><span>TEMPO DA SÉRIE</span><strong style={{display:"block"}}>{fmt(elapsed)}</strong></div><span>{running?"em execução":"pausado"}</span></div>
+          <div className="ab-series-clock"><div><span>TEMPO DA SÉRIE</span><strong style={{display:"block"}}>{fmt(elapsed)}</strong></div><span>{running?"em execução":elapsed>0?"pausado":"pronto"}</span></div>
+          <button className="ab-secondary-action" style={{width:"100%",marginTop:10}} onClick={running?onPauseSeries:onStartSeries}>{running?"Pausar cronômetro":elapsed>0?"Continuar série":"Iniciar série"}</button>
           <label style={{...S.sectionLabel,marginTop:12}}>Registre a série e o esforço percebido{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
           {sugestao && String(sugestao.sugerido) !== weightInput && (
             <button onClick={()=>setWeightInput(String(sugestao.sugerido))} className="ab-suggestion">
