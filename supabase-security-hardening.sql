@@ -101,4 +101,27 @@ $$;
 revoke all on function public.delete_my_account() from public;
 grant execute on function public.delete_my_account() to authenticated;
 
+-- Publicação atômica e versionada: mantém versões anteriores inativas e
+-- impede que um profissional publique para aluno de outra carteira.
+create or replace function public.publicar_treino_aluno(
+  p_aluno_id uuid, p_plano jsonb, p_treino_origem uuid default null
+) returns public.treinos_alunos
+language plpgsql security definer
+set search_path=public,pg_temp
+as $$
+declare uid uuid:=auth.uid(); novo public.treinos_alunos;
+begin
+  if uid is null or not exists(select 1 from public.alunos where id=p_aluno_id and personal_id=uid)
+    then raise exception 'student access denied'; end if;
+  if jsonb_typeof(p_plano) <> 'object' or jsonb_array_length(coalesce(p_plano->'weekDays','[]'::jsonb))=0
+    then raise exception 'invalid workout plan'; end if;
+  update public.treinos_alunos set ativo=false where aluno_id=p_aluno_id and personal_id=uid and ativo=true;
+  insert into public.treinos_alunos(aluno_id,personal_id,plano,ativo,atualizado_em)
+    values(p_aluno_id,uid,p_plano,true,now()) returning * into novo;
+  return novo;
+end;
+$$;
+revoke all on function public.publicar_treino_aluno(uuid,jsonb,uuid) from public;
+grant execute on function public.publicar_treino_aluno(uuid,jsonb,uuid) to authenticated;
+
 commit;

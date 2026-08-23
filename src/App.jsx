@@ -510,7 +510,12 @@ async function signedUrlFoto(path) {
     headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ expiresIn: 3600 }),
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    const detail = await r.json().catch(()=>({}));
+    console.error("A-BODY data request failed", { path:pathQ.split("?")[0], status:r.status, code:detail?.code });
+    if (opts.throwOnError) throw Object.assign(new Error(detail?.message || "Não foi possível concluir a operação."), { status:r.status, code:detail?.code });
+    return null;
+  }
   const d = await r.json();
   return d.signedURL ? `${SUPA_URL}/storage/v1${d.signedURL}` : null;
 }
@@ -620,7 +625,7 @@ async function fetchAulas() {
   return (await proFetch(`/rest/v1/aulas?select=*,alunos(nome)&order=hora.asc`)) || [];
 }
 async function fetchAlunosPro() {
-  return (await proFetch(`/rest/v1/alunos?select=id,nome,status&order=nome.asc`)) || [];
+  return (await proFetch(`/rest/v1/alunos?select=id,nome,email,user_id,status&order=nome.asc`)) || [];
 }
 async function salvarAula(aula) {
   track(aula.id ? "aula_editada" : "aula_criada", {tipo: aula.tipo});
@@ -650,6 +655,8 @@ async function atualizarAluno(id, campos) {
 }
 async function salvarTreinoAluno(alunoId, plano, treinoId) {
   const uid = await uidAtual(); if (!uid) return null;
+  const publicado = await proFetch(`/rest/v1/rpc/publicar_treino_aluno`, { method:"POST", headers:{ Prefer:"return=representation" }, body:JSON.stringify({ p_aluno_id:alunoId, p_plano:plano, p_treino_origem:treinoId||null }) });
+  if (publicado) { track("treino_publicado",{modo:treinoId?"nova_versao":"novo"}); return Array.isArray(publicado)?publicado[0]:publicado; }
   if (treinoId) {
     track("treino_publicado",{modo:"atualizado"});
     return proFetch(`/rest/v1/treinos_alunos?id=eq.${treinoId}`, { method: "PATCH",
@@ -749,7 +756,8 @@ async function enviarMensagem(alunoId, autor, texto, contexto) {
     body: JSON.stringify({ aluno_id: alunoId, autor, texto: texto.slice(0, 2000), contexto: contexto || null }) });
 }
 async function fetchMensagens(alunoId) {
-  return (await proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&select=*&order=criado_em.asc&limit=200`)) || [];
+  const rows=(await proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&select=*&order=criado_em.desc&limit=200`)) || [];
+  return rows.reverse();
 }
 async function marcarMensagensLidas(alunoId, autorLido) {
   return proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&autor=eq.${autorLido}&lida=eq.false`, {
@@ -1936,7 +1944,7 @@ function ProAgendaScreen({ onBack }) {
     .filter(a => (a.dia_semana === idx+1 && !a.data) || a.data === isoData(d))
     .sort((x,y) => x.hora.localeCompare(y.hora));
 
-  const novaAula = () => setEditando({ dia_semana: 1, data: null, hora: "07:00", duracao_min: 60, local: "", tipo: "presencial", aluno_id: null });
+  const novaAula = () => setEditando({ dia_semana: diaSel+1, data: null, hora: "07:00", duracao_min: 60, local: "", tipo: "presencial", aluno_id: null });
 
   return (
     <div className="ab-pro-page">
@@ -2044,6 +2052,7 @@ function AulaModal({ aula, alunos, onClose, onSaved }) {
   };
   const remover = async () => {
     if (!form.id) return;
+    if (!window.confirm("Excluir esta aula da agenda?")) return;
     setBusy(true);
     const r = await excluirAula(form.id);
     setBusy(false);
@@ -2306,8 +2315,8 @@ function ProAlunosScreen({ onBack }) {
         </div>
         <div className="ab-danger-zone">
           {sel.status !== "inativo"
-            ? <button onClick={async()=>{await atualizarAluno(sel.id,{status:"inativo"});setSel({...sel,status:"inativo"});}}>Desativar acesso do aluno</button>
-            : <button onClick={async()=>{await atualizarAluno(sel.id,{status: sel.user_id ? "ativo" : "convidado"});setSel({...sel,status: sel.user_id ? "ativo" : "convidado"});}}>Reativar acesso do aluno</button>}
+            ? <button onClick={async()=>{if(!window.confirm("Desativar o acesso deste aluno?"))return;const r=await atualizarAluno(sel.id,{status:"inativo"});if(r)setSel({...sel,status:"inativo"});}}>Desativar acesso do aluno</button>
+            : <button onClick={async()=>{const status=sel.user_id?"ativo":"convidado";const r=await atualizarAluno(sel.id,{status});if(r)setSel({...sel,status});}}>Reativar acesso do aluno</button>}
         </div>
         {convite && <ConviteModal aluno={sel} onClose={()=>setConvite(false)}/>}
         {mensagens && <MensagensModal aluno={sel} onClose={()=>setMensagens(false)}/>}
@@ -2582,6 +2591,7 @@ function ProIAScreen({ aluno, onCancel, onGerado }) {
   const [form, setForm] = useState({ idade:"", altura:"", peso:"", objetivos:[], nivel:"iniciante", dias:3, duracao:"60 min", equipamentos:"Academia completa", lesoes:"", condicoes:"" });
   const [docsSel, setDocsSel] = useState([]);
   const [fotos, setFotos] = useState({ front:null, back:null, side:null }); // {data(base64), type}
+  const [consentFotos, setConsentFotos] = useState(false);
   const [slotFoto, setSlotFoto] = useState(null); // slot aguardando arquivo
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
@@ -2602,6 +2612,7 @@ function ProIAScreen({ aluno, onCancel, onGerado }) {
 
   const gerar = async () => {
     if (!form.objetivos.length) { setErr("Selecione ao menos um objetivo."); return; }
+    if ((fotos.front||fotos.back||fotos.side) && !consentFotos) { setErr("Confirme o consentimento do aluno para analisar as fotos."); return; }
     setErr(null); setBusy(true);
     try {
       let libraryText = "";
@@ -2711,6 +2722,7 @@ REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de 
         ))}
       </div>
       <p style={{fontSize:10,color:C.muted,margin:"0 0 8px"}}>Usadas apenas nesta geração para priorizar grupos musculares e assimetrias. Não são armazenadas. Peça o consentimento do aluno.</p>
+      {(fotos.front||fotos.back||fotos.side) && <label className="ab-pain-check"><input type="checkbox" checked={consentFotos} onChange={e=>setConsentFotos(e.target.checked)}/><span>Confirmo que o aluno autorizou o processamento destas fotos pela IA para personalização do treino.</span></label>}
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
 
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
@@ -2934,7 +2946,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
   const [slot, setSlot]     = useState(null);
   const [perfil, setPerfil] = useState({ idade:"", altura:"", peso:"" });
   const [consent, setConsent] = useState(false);
-  const [guardar, setGuardar] = useState(true);
+  const [guardar, setGuardar] = useState(false);
   const [busy, setBusy]     = useState(false);
   const [err, setErr]       = useState(null);
   const [docsAluno, setDocsAluno] = useState([]);
@@ -2960,7 +2972,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       const analysis = await analisarCorpoAlunoIA(fotos, perfil, anterior || null, docsAluno || []);
       let photoPaths = null;
       if (guardar) { photoPaths = await uploadFotosCorporaisPro(fotos, aluno.id); if (photoPaths) track("fotos_aluno_armazenadas"); }
-      const dados = { date: todayISO(), analysis, ...(photoPaths ? { photoPaths } : {}) };
+      const dados = { date: todayISO(), analysis, consentimento:{ confirmado:true, confirmadoEm:new Date().toISOString(), finalidade:"avaliacao_corporal_ia", armazenamento:!!guardar, versao:"ABODY-LGPD-2026.1" }, ...(photoPaths ? { photoPaths } : {}) };
       const r = await salvarAvaliacaoAluno(aluno.id, dados);
       if (!r) throw new Error("Não foi possível salvar a avaliação.");
       track("avaliacao_aluno_criada", { comparativo: !!anterior });
