@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useId } from "react";
 import "./app.css";
 import { adaptiveInsight } from "./adaptation.js";
 import { isUnilateralExercise, shouldAutoStartSeries } from "./workout-timing.js";
+import { schedulesOverlap, validateProfessionalPlan } from "./personal-rules.js";
 
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
 
@@ -539,13 +540,19 @@ async function uidAtual() {
   return u?.id || null;
 }
 async function proFetch(pathQ, opts = {}) {
+  const { throwOnError = false, ...fetchOpts } = opts;
   const s = await refreshIfNeeded();
-  if (!s?.access_token) return null;
+  if (!s?.access_token) { if (throwOnError) throw new Error("Sessão expirada. Entre novamente."); return null; }
   const r = await fetch(`${SUPA_URL}${pathQ}`, {
-    ...opts,
-    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json", ...(opts.headers || {}) },
+    ...fetchOpts,
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json", ...(fetchOpts.headers || {}) },
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    const body = await r.json().catch(()=>null);
+    console.error("Supabase request failed", { path:pathQ.split("?")[0], status:r.status, code:body?.code });
+    if (throwOnError) throw new Error(body?.message || "Não foi possível concluir a operação.");
+    return null;
+  }
   if (r.status === 204) return true;
   return r.json().catch(() => null);
 }
@@ -672,6 +679,9 @@ async function fetchTreinoAtivoCompleto(alunoId) {
   const rows = await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&ativo=eq.true&select=id,plano,atualizado_em&order=atualizado_em.desc&limit=1`);
   return rows?.[0] || null;
 }
+async function fetchHistoricoTreinosAluno(alunoId) {
+  return (await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&select=id,plano,ativo,atualizado_em&order=atualizado_em.desc&limit=10`)) || [];
+}
 async function fetchExerciciosCustom() {
   return (await proFetch(`/rest/v1/exercicios_custom?select=*&order=criado_em.desc`)) || [];
 }
@@ -783,7 +793,7 @@ function mimeDoPath(path) {
 }
 function nomeDoDoc(doc) { return (doc.path.split("/").pop()||"documento").replace(/^\d+_/,""); }
 
-async function uploadDocumentoSaude(file, alunoId, tipo) {
+async function uploadDocumentoSaude(file, alunoId, tipo, consentimento) {
   track("doc_anexado",{tipo});
   if (!MIMES_DOC[file.type]) return { erro: "Formato não suportado. Envie PDF, JPG, PNG ou WebP." };
   if (file.size > TAM_MAX_DOC) return { erro: "Arquivo acima de 10 MB." };
@@ -798,8 +808,11 @@ async function uploadDocumentoSaude(file, alunoId, tipo) {
   });
   if (!r.ok) return { erro: "Falha no upload do arquivo." };
   const rows = await proFetch(`/rest/v1/documentos_saude`, { method: "POST", headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ dono_user_id: uid, aluno_id: alunoId || null, path, tipo: tipo || "outro" }) });
-  if (!rows?.[0]) return { erro: "Falha ao registrar o documento." };
+    body: JSON.stringify({ dono_user_id: uid, aluno_id: alunoId || null, path, tipo: tipo || "outro", consentimento }) });
+  if (!rows?.[0]) {
+    await fetch(`${SUPA_URL}/storage/v1/object/documentos-saude/${path}`, {method:"DELETE",headers:{apikey:SUPA_KEY,Authorization:`Bearer ${s.access_token}`}}).catch(()=>{});
+    return { erro: "Falha ao registrar o documento." };
+  }
   track("doc_saude_enviado", { tipo, contexto: alunoId ? "pro" : "b2c" });
   return { doc: rows[0] };
 }
@@ -2029,13 +2042,13 @@ function ProAgendaScreen({ onBack }) {
         );
       })()}
 
-      {editando && <AulaModal aula={editando} alunos={alunos} onClose={()=>setEditando(null)} onSaved={async()=>{setEditando(null);await carregar();}}/>}
+      {editando && <AulaModal aula={editando} alunos={alunos} aulas={aulas||[]} onClose={()=>setEditando(null)} onSaved={async()=>{setEditando(null);await carregar();}}/>}
       {treinoDe && <TreinoDoDiaModal aula={treinoDe.aula} onClose={()=>setTreinoDe(null)}/>}
     </div>
   );
 }
 
-function AulaModal({ aula, alunos, onClose, onSaved }) {
+function AulaModal({ aula, alunos, aulas, onClose, onSaved }) {
   const [form, setForm] = useState(aula);
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
@@ -2044,6 +2057,7 @@ function AulaModal({ aula, alunos, onClose, onSaved }) {
 
   const salvar = async () => {
     if (!form.hora) { setErr("Informe o horário."); return; }
+    if (schedulesOverlap(form, aulas)) { setErr("Este horário conflita com outra aula da agenda."); return; }
     setErr(null); setBusy(true);
     const payload = {...form, dia_semana: recorrente ? form.dia_semana : null, local: form.local?.trim() || null};
     const r = await salvarAula(payload);
@@ -2218,6 +2232,7 @@ function ProAlunosScreen({ onBack }) {
   const [alunos, setAlunos] = useState(null);
   const [sel, setSel]       = useState(null);    // aluno selecionado
   const [treino, setTreino] = useState(null);    // {id, plano} ativo do selecionado
+  const [historico, setHistorico] = useState(null);
   const [novoAluno, setNovoAluno] = useState(false);
   const [convite, setConvite]     = useState(false);
   const [mensagens, setMensagens] = useState(false);
@@ -2234,8 +2249,9 @@ function ProAlunosScreen({ onBack }) {
   useEffect(() => { carregar(); }, []);
 
   const abrirDetalhe = async (a) => {
-    setSel(a); setTreino(null); setVista("detalhe");
-    setTreino(await fetchTreinoAtivoCompleto(a.id));
+    setSel(a); setTreino(null); setHistorico(null); setVista("detalhe");
+    const [ativo, versoes] = await Promise.all([fetchTreinoAtivoCompleto(a.id), fetchHistoricoTreinosAluno(a.id)]);
+    setTreino(ativo); setHistorico(versoes);
   };
   const abrirEditor = (plano, treinoId) => { setPlanoBase({ plano, treinoId: treinoId || null }); setVista("editor"); };
   const abrirAvaliacao = async () => {
@@ -2250,7 +2266,7 @@ function ProAlunosScreen({ onBack }) {
   if (vista === "editor" && sel && planoBase) return (
     <ProTreinoEditor aluno={sel} base={planoBase}
       onCancel={()=>setVista("detalhe")}
-      onSaved={async()=>{ setTreino(await fetchTreinoAtivoCompleto(sel.id)); setVista("detalhe"); }}/>
+      onSaved={async()=>{ const [ativo,versoes]=await Promise.all([fetchTreinoAtivoCompleto(sel.id),fetchHistoricoTreinosAluno(sel.id)]);setTreino(ativo);setHistorico(versoes);setVista("detalhe"); }}/>
   );
   if (vista === "avaliacao" && sel) {
     if (avals === null) return <div style={S.box}><p style={{color:C.muted,fontSize:13}}>Carregando avaliações…</p></div>;
@@ -2307,6 +2323,15 @@ function ProAlunosScreen({ onBack }) {
               <button onClick={()=>setVista("ia")}><Icon name="sparkles"/><strong>Gerar com IA</strong><span>Plano personalizado em minutos</span></button>
               <button onClick={abrirAvaliacao}><Icon name="chart"/><strong>Avaliação corporal</strong><span>Medidas, fotos e comparativo</span></button>
             </div>
+            <section style={{marginTop:24}}>
+              <div className="ab-section-title"><div><span>VERSÕES</span><h2>Histórico de treinos</h2></div></div>
+              {historico===null && <div className="ab-loading-row">Carregando histórico…</div>}
+              {historico && historico.length===0 && <p className="ab-field-help">Nenhuma versão publicada.</p>}
+              {(historico||[]).map(v=><div key={v.id} className="ab-active-plan-card" style={{marginBottom:8}}>
+                <div><span>{v.ativo?"ATIVO":"VERSÃO ANTERIOR"}</span><strong>{v.plano?.planName||"Plano sem nome"}</strong><p>{new Date(v.atualizado_em).toLocaleString("pt-BR")}</p></div>
+                {!v.ativo && <button className="ab-secondary-action" onClick={async()=>{if(!window.confirm("Restaurar esta versão como um novo treino ativo?"))return;const r=await salvarTreinoAluno(sel.id,v.plano,null);if(r){const [ativo,versoes]=await Promise.all([fetchTreinoAtivoCompleto(sel.id),fetchHistoricoTreinosAluno(sel.id)]);setTreino(ativo);setHistorico(versoes);}}}>Restaurar</button>}
+              </div>)}
+            </section>
           </main>
           <aside className="ab-student-sidebar">
             <div className="ab-section-title"><div><span>PRONTUÁRIO</span><h2>Saúde e documentos</h2></div></div>
@@ -2388,7 +2413,9 @@ function AlunoModal({ onClose, onSaved }) {
 function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
   // normaliza: garante subs em todos os exercícios
   const normalizar = (p) => ({ ...p, weekDays: (p.weekDays||[]).map(d => ({ ...d,
-    exercises: (d.exercises||[]).map(ex => ({ ...ex, subs: ex.subs || sugerirSubs(ex) })) })) });
+    exercises: (d.exercises||[]).map(ex => ({ ...ex, rir: Number.isInteger(Number(ex.rir)) ? Number(ex.rir) : 3,
+      progressionRule: ex.progressionRule || "Aumentar após atingir o topo da faixa com técnica e RIR alvo",
+      subs: ex.subs || sugerirSubs(ex) })) })) });
   const [plano, setPlano] = useState(normalizar(base.plano));
   const [busy, setBusy]   = useState(false);
   const [err, setErr]     = useState(null);
@@ -2397,13 +2424,14 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
 
   const upDia = (di, campos) => setPlano(p => ({ ...p, weekDays: p.weekDays.map((d,i)=> i===di ? {...d,...campos} : d) }));
   const upEx = (di, ei, campos) => upDia(di, { exercises: plano.weekDays[di].exercises.map((e,j)=> j===ei ? {...e,...campos} : e) });
-  const removerEx = (di, ei) => upDia(di, { exercises: plano.weekDays[di].exercises.filter((_,j)=>j!==ei) });
+  const removerEx = (di, ei) => { if (window.confirm("Remover este exercício do treino?")) upDia(di, { exercises: plano.weekDays[di].exercises.filter((_,j)=>j!==ei) }); };
   const addDia = () => setPlano(p => ({ ...p, weekDays: [...p.weekDays, { id:`d${p.weekDays.length+1}`, label:String.fromCharCode(65+p.weekDays.length), sub:"", exercises:[] }] }));
-  const removerDia = (di) => setPlano(p => ({ ...p, weekDays: p.weekDays.filter((_,i)=>i!==di) }));
+  const removerDia = (di) => { if (window.confirm("Remover este dia e todos os seus exercícios?")) setPlano(p => ({ ...p, weekDays: p.weekDays.filter((_,i)=>i!==di) })); };
   const addEx = (di, ex) => { upDia(di, { exercises: [...plano.weekDays[di].exercises, { ...ex, id:`e_${uid()}`, subs: ex.subs || sugerirSubs(ex) }] }); setPicker(null); };
 
   const salvar = async () => {
-    if (!plano.weekDays.length || plano.weekDays.some(d=>!d.exercises.length)) { setErr("Todo dia precisa de ao menos 1 exercício."); return; }
+    const erros = validateProfessionalPlan(plano);
+    if (erros.length) { setErr(erros[0]); return; }
     setErr(null); setBusy(true);
     const r = await salvarTreinoAluno(aluno.id, plano, base.treinoId);
     setBusy(false);
@@ -2422,7 +2450,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
             <div style={{width:34,height:34,borderRadius:10,background:C.bg,border:`1px solid ${C.acc}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:C.acc}}>{d.label}</div>
             <input style={{...S.field,margin:0,flex:1}} value={d.sub} onChange={e=>upDia(di,{sub:e.target.value})} placeholder="grupos do dia (ex.: Peito + Tríceps)"/>
-            {plano.weekDays.length>1 && <button style={{background:"none",border:"none",color:C.muted,fontSize:16}} onClick={()=>removerDia(di)}>🗑</button>}
+            {plano.weekDays.length>1 && <button aria-label={`Remover dia ${d.label}`} style={{background:"none",border:"none",color:C.muted,fontSize:16}} onClick={()=>removerDia(di)}>🗑</button>}
           </div>
 
           {d.exercises.map((ex, ei) => {
@@ -2434,8 +2462,8 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
                     <div style={{fontSize:13,fontWeight:700,color:C.text}}>{ex.name}{ex.custom && <span style={{fontSize:9,color:"#d9a441",marginLeft:6,fontWeight:800}}>PRÓPRIO</span>}</div>
                     {ex.iso && <div style={{fontSize:10,color:C.acc,marginTop:2}}>⏱ cronômetro: {ex.isoSec}s</div>}
                   </div>
-                  <button style={{background:"none",border:"none",color:C.acc,fontSize:12,fontWeight:700}} onClick={()=>setSubsDe(aberto?null:{di,ei})}>subs {aberto?"▾":"▸"}</button>
-                  <button style={{background:"none",border:"none",color:C.muted,fontSize:14}} onClick={()=>removerEx(di,ei)}>✕</button>
+                  <button aria-label={`Editar substituições de ${ex.name}`} style={{background:"none",border:"none",color:C.acc,fontSize:12,fontWeight:700}} onClick={()=>setSubsDe(aberto?null:{di,ei})}>subs {aberto?"▾":"▸"}</button>
+                  <button aria-label={`Remover ${ex.name}`} style={{background:"none",border:"none",color:C.muted,fontSize:14}} onClick={()=>removerEx(di,ei)}>✕</button>
                 </div>
                 <div style={{display:"flex",gap:8,marginTop:8}}>
                   <div style={{flex:1}}><label style={{...S.fieldLabel,fontSize:9}}>SÉRIES</label>
@@ -2444,13 +2472,15 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
                     <input style={{...S.field,margin:0,padding:"8px 10px"}} value={ex.reps} onChange={e=>upEx(di,ei,{reps:e.target.value})}/></div>
                   <div style={{flex:1}}><label style={{...S.fieldLabel,fontSize:9}}>DESC. (S)</label>
                     <input style={{...S.field,margin:0,padding:"8px 10px"}} type="number" min="15" max="300" step="15" value={ex.rest} onChange={e=>upEx(di,ei,{rest:Math.max(15,Math.min(300,Number(e.target.value)||60))})}/></div>
+                  <div style={{flex:0.8}}><label style={{...S.fieldLabel,fontSize:9}}>RIR</label>
+                    <input style={{...S.field,margin:0,padding:"8px 10px"}} type="number" min="0" max="5" value={ex.rir} onChange={e=>upEx(di,ei,{rir:Math.max(0,Math.min(5,Number(e.target.value)||0))})}/></div>
                 </div>
                 {aberto && (
                   <div style={{marginTop:10,background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px"}}>
                     <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>SUBSTITUIÇÕES QUE O ALUNO PODE USAR</div>
                     {(ex.subs||[]).map((sb,si)=>(
                       <div key={si} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                        <button style={{background:"none",border:"none",fontSize:15}} onClick={()=>{
+                        <button aria-label={`${sb.ativa?"Desativar":"Ativar"} substituição ${si+1}`} style={{background:"none",border:"none",fontSize:15}} onClick={()=>{
                           const subs=[...ex.subs]; subs[si]={...subs[si],ativa:!subs[si].ativa}; upEx(di,ei,{subs});
                         }}>{sb.ativa?"✅":"⬜"}</button>
                         <input style={{...S.field,margin:0,padding:"7px 10px",fontSize:12,opacity:sb.ativa?1:0.5}} value={sb.name}
@@ -2871,6 +2901,7 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
   const [busy, setBusy]   = useState(false);
   const [err, setErr]     = useState(null);
   const [meuUid, setMeuUid] = useState(null);
+  const [consentDoc, setConsentDoc] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => { (async () => {
@@ -2880,14 +2911,16 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
 
   const enviar = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
+    if (alunoId && !consentDoc) { setErr("Confirme a autorização do aluno antes de enviar o documento."); e.target.value=""; return; }
     setErr(null); setBusy(true);
-    const r = await uploadDocumentoSaude(file, alunoId, tipo);
+    const r = await uploadDocumentoSaude(file, alunoId, tipo, {confirmado:true,confirmadoEm:new Date().toISOString(),finalidade:"prontuario_e_personalizacao_de_treino",versao:"ABODY-LGPD-2026.1"});
     setBusy(false);
     if (r.erro) setErr(r.erro);
     else setDocs(d => [r.doc, ...(d||[])]);
     e.target.value = "";
   };
   const excluir = async (doc) => {
+    if (!window.confirm(`Excluir permanentemente ${nomeDoDoc(doc)}?`)) return;
     if (await excluirDocumentoSaude(doc)) {
       setDocs(d => d.filter(x => x.id !== doc.id));
       if (selecionaveis) setSelecionados(sel => sel.filter(x => x.id !== doc.id));
@@ -2915,13 +2948,13 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
         const sel = selecionaveis && (selecionados||[]).some(x=>x.id===doc.id);
         return (
           <div key={doc.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-            {selecionaveis && <button style={{background:"none",border:"none",fontSize:15,padding:0}} onClick={()=>toggle(doc)}>{sel?"✅":"⬜"}</button>}
+            {selecionaveis && <button aria-label={`${sel?"Desmarcar":"Marcar"} ${nomeDoDoc(doc)} para análise`} style={{background:"none",border:"none",fontSize:15,padding:0}} onClick={()=>toggle(doc)}>{sel?"✅":"⬜"}</button>}
             <span style={{fontSize:15}}>{t.icon}</span>
             <button style={{flex:1,background:"none",border:"none",textAlign:"left",padding:0}} onClick={()=>abrir(doc)}>
               <div style={{fontSize:12,fontWeight:700,color:C.text,wordBreak:"break-all"}}>{nomeDoDoc(doc)}</div>
               <div style={{fontSize:10,color:C.muted}}>{t.rotulo} · {new Date(doc.criado_em).toLocaleDateString("pt-BR")}</div>
             </button>
-            {meuUid && doc.dono_user_id === meuUid && <button style={{background:"none",border:"none",color:C.muted,fontSize:13}} onClick={()=>excluir(doc)}>✕</button>}
+            {meuUid && doc.dono_user_id === meuUid && <button aria-label={`Excluir ${nomeDoDoc(doc)}`} style={{background:"none",border:"none",color:C.muted,fontSize:13}} onClick={()=>excluir(doc)}>✕</button>}
           </div>
         );
       })}
@@ -2933,6 +2966,7 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
         <button style={{...S.btnOutline,width:"auto",padding:"9px 14px",fontSize:12,opacity:busy?0.5:1}} disabled={busy} onClick={()=>fileRef.current?.click()}>{busy?"Enviando…":"+ Enviar"}</button>
         <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={enviar}/>
       </div>
+      {alunoId && <label className="ab-pain-check" style={{marginTop:10}}><input type="checkbox" checked={consentDoc} onChange={e=>setConsentDoc(e.target.checked)}/><span>Confirmo que o aluno autorizou o armazenamento deste dado sensível de saúde para prontuário e personalização do treino.</span></label>}
       {selecionaveis && <p style={{fontSize:10,color:C.muted,margin:"8px 0 0"}}>Marque até {MAX_DOCS_IA} documentos para a IA considerar na geração do treino. O conteúdo é tratado como dado não-confiável (proteção contra instruções embutidas).</p>}
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"9px 12px",fontSize:12,color:"#ff8080",marginTop:8}}>{err}</div>}
     </div>

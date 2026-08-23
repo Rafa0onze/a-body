@@ -1,6 +1,32 @@
 -- A-BODY: endurecimento idempotente de RLS e exclusão LGPD.
 begin;
 
+-- Registro auditável do consentimento para documentos sensíveis de saúde.
+alter table public.documentos_saude
+  add column if not exists consentimento jsonb;
+alter table public.documentos_saude
+  drop constraint if exists documentos_saude_consentimento_valido;
+alter table public.documentos_saude
+  add constraint documentos_saude_consentimento_valido check (
+    aluno_id is null or (
+      consentimento->>'confirmado'='true'
+      and consentimento ? 'confirmadoEm'
+      and consentimento ? 'finalidade'
+      and consentimento ? 'versao'
+    )
+  ) not valid;
+
+-- Corrige eventual legado duplicado e garante um único plano ativo por aluno,
+-- inclusive sob duas publicações concorrentes.
+with ranked as (
+  select id, row_number() over(partition by aluno_id order by atualizado_em desc nulls last, id desc) pos
+  from public.treinos_alunos where ativo=true
+)
+update public.treinos_alunos set ativo=false
+where id in (select id from ranked where pos>1);
+create unique index if not exists treinos_alunos_um_ativo_por_aluno
+  on public.treinos_alunos(aluno_id) where ativo=true;
+
 -- Todas as tabelas de negócio continuam protegidas mesmo quando consultadas
 -- por papéis que não são proprietários da tabela.
 do $$
