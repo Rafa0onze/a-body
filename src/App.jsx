@@ -1134,34 +1134,6 @@ function Figure({ pose, phase }) {
 const ANAMNESIS_INIT = { name:"",age:"",height:"",weight:"",goals:[],level:"",daysPerWeek:"",duration:"",equipment:"",injuries:"",conditions:"" };
 const PHOTOS_INIT = { front:null, back:null, side:null };
 
-function UpdateBanner() {
-  const [nova, setNova] = useState(false);
-  useEffect(() => {
-    const atual = document.querySelector('script[src*="/assets/index-"]')?.getAttribute("src");
-    if (!atual) return;
-    let parou = false;
-    const checar = async () => {
-      try {
-        const r = await fetch("/", { cache: "no-store" });
-        const m = (await r.text()).match(/\/assets\/index-[^"]+\.js/);
-        if (!parou && m && m[0] !== atual) setNova(true);
-      } catch {}
-    };
-    const iv = setInterval(checar, 5 * 60 * 1000);
-    const onVis = () => { if (!document.hidden) checar(); };
-    document.addEventListener("visibilitychange", onVis);
-    checar();
-    return () => { parou = true; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
-  }, []);
-  if (!nova) return null;
-  return (
-    <button onClick={()=>location.reload()}
-      style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",zIndex:9999,background:"#e8a23a",color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer"}}>
-      ⬆️ Atualização disponível — toque para recarregar
-    </button>
-  );
-}
-
 export default function App() {
   const [screen, setScreen]   = useState("boot");
   const [showSettings, setShowSettings] = useState(false);
@@ -1605,7 +1577,6 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   return (
     <div style={S.page} className="ab-app-shell">
-      <UpdateBanner/>
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
           style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
