@@ -72,6 +72,7 @@ create policy profiles_sel on public.profiles for select to authenticated
 
 -- Restringe políticas públicas de escrita a payloads mínimos e coerentes.
 drop policy if exists "Inserção pública de eventos" on public.eventos;
+drop policy if exists eventos_insert_limitado on public.eventos;
 create policy eventos_insert_limitado on public.eventos for insert to anon,authenticated
   with check (
     length(anon_id) between 8 and 128
@@ -81,10 +82,12 @@ create policy eventos_insert_limitado on public.eventos for insert to anon,authe
   );
 
 drop policy if exists "Inserção pública de sugestões" on public.sugestoes_exercicios;
+drop policy if exists sugestoes_insert_limitado on public.sugestoes_exercicios;
 create policy sugestoes_insert_limitado on public.sugestoes_exercicios for insert to anon,authenticated
   with check (length(btrim(nome)) between 2 and 120);
 
 drop policy if exists "usuarios acessam apenas seus dados" on public.user_data;
+drop policy if exists user_data_proprio on public.user_data;
 create policy user_data_proprio on public.user_data for all to authenticated
   using (user_id=auth.uid()) with check (user_id=auth.uid());
 
