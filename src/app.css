@@ -258,7 +258,9 @@ html,body { background:var(--ab-bg); }
 @media (max-width:560px) {
   .ab-app-shell { padding:16px 16px 112px !important; }
   .ab-dashboard { padding-top:0; }
-  .ab-dashboard-header { margin-bottom:18px; }
+  .ab-dashboard-header { min-height:42px; margin-bottom:18px; padding-right:52px; }
+  .ab-dashboard-header > .ab-icon-button { display:none; }
+  .ab-account-button { top:max(16px,env(safe-area-inset-top)) !important; right:16px !important; width:42px !important; height:42px !important; }
   .ab-logo-mark { width:38px; height:38px; }
   .ab-logo-copy span { display:none; }
   .ab-hero-card { min-height:330px; display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-end; padding:24px 22px; border-radius:28px; }

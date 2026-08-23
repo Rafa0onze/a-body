@@ -3024,7 +3024,7 @@ function ContaGlobal({ user, onLogout }) {
   const inicial = (user?.email || "?").charAt(0).toUpperCase();
   return (
     <>
-      <button onClick={()=>setAberto(a=>!a)} aria-label="Conta"
+      <button onClick={()=>setAberto(a=>!a)} aria-label="Conta" className="ab-account-button"
         style={{position:"fixed",top:14,right:14,zIndex:55,width:36,height:36,borderRadius:"50%",
           background:"rgba(17,40,31,0.92)",border:`1px solid ${C.border}`,color:C.acc,
           fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",
