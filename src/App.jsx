@@ -4587,15 +4587,30 @@ function ABodyCard({ ex }) {
   );
 }
 
+const AB_GRUPOS_PROGRESSO = ["Peito","Costas","Ombros","Braços","Pernas e glúteos","Core","Outros"];
+function grupoMuscularPrincipal(exercicio) {
+  const pose = String(exercicio?.pose||"").toLowerCase();
+  const nome = String(exercicio?.name||"").toLocaleLowerCase("pt-BR");
+  if (/press_chest|fly/.test(pose) || /supino|peito|crucifixo|peck|cross/.test(nome)) return "Peito";
+  if (/pulldown|row|face_pull/.test(pose) || /costas|puxad|remad|barra fixa/.test(nome)) return "Costas";
+  if (/press_overhead|lateral_raise/.test(pose) || /ombro|desenvolvimento|elevação lateral|elevacao lateral/.test(nome)) return "Ombros";
+  if (/triceps|curl/.test(pose) || /bíceps|biceps|tríceps|triceps|rosca/.test(nome)) return "Braços";
+  if (/squat|leg_press|leg_extension|lunge|hinge|hip_thrust|leg_curl|calf/.test(pose) || /agach|perna|quadríceps|quadriceps|glúte|glute|panturr|stiff|terra|afundo|flexora|extensora/.test(nome)) return "Pernas e glúteos";
+  if (/plank|leg_raise/.test(pose) || /abd|core|prancha/.test(nome)) return "Core";
+  return "Outros";
+}
+
 function EvolucaoScreen({ history, onBack }) {
   // séries temporais por exercício (apenas sessões reais)
   const porExercicio = {};
+  const grupoExercicio = {};
   history.filter(s=>!s.manual).forEach(s => {
     (s.completed||[]).forEach(e => {
       if (e.iso || !Array.isArray(e.weights) || !e.weights.length) return;
       const w = e.weights.filter(v=>v!=null&&!isNaN(v));
       if (!w.length) return;
       const r = (e.reps||[]).filter(v=>v!=null&&!isNaN(v));
+      grupoExercicio[e.name] = grupoMuscularPrincipal(e);
       (porExercicio[e.name] = porExercicio[e.name]||[]).push({
         date: s.date, max: Math.max(...w),
         vol: w.reduce((a,b,i)=>a+b*(r[i]||0),0) || null,
@@ -4603,8 +4618,11 @@ function EvolucaoScreen({ history, onBack }) {
       });
     });
   });
-  const nomes = Object.keys(porExercicio).sort((a,b)=>porExercicio[b].length-porExercicio[a].length);
-  const [sel, setSel] = useState(nomes[0]||null);
+  const nomes = Object.keys(porExercicio).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const grupos = AB_GRUPOS_PROGRESSO.filter(g=>nomes.some(n=>grupoExercicio[n]===g));
+  const [grupo, setGrupo] = useState(grupos[0]||null);
+  const nomesDoGrupo = nomes.filter(n=>grupoExercicio[n]===grupo);
+  const [sel, setSel] = useState(nomesDoGrupo[0]||nomes[0]||null);
   if (!nomes.length) return (
     <div className="ab-data-page">
       <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
@@ -4625,12 +4643,23 @@ function EvolucaoScreen({ history, onBack }) {
   return (
     <div className="ab-data-page">
       <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
-      <header className="ab-page-head"><div><div className="ab-kicker">PROGRESSO</div><h1>Evolução de carga</h1><p className="ab-copy">Acompanhe recordes, consistência e tendência das últimas {dados.length} execuções.</p></div></header>
-      <div className="ab-filter-row">
-        {nomes.map(n=>(
-          <button key={n} onClick={()=>setSel(n)} className="ab-filter-chip" data-active={n===sel}>{n}</button>
-        ))}
-      </div>
+      <header className="ab-page-head"><div><div className="ab-kicker">PROGRESSO</div><h1>Evolução de carga</h1><p className="ab-copy">Escolha o grupo muscular e o exercício para consultar sua evolução.</p></div></header>
+      <section className="ab-progress-browser" aria-label="Selecionar exercício">
+        <div className="ab-progress-browser__step"><span>1</span><div><strong>Grupo muscular</strong><small>{grupos.length} grupo{grupos.length!==1?"s":""} com histórico</small></div></div>
+        <div className="ab-muscle-groups" role="list" aria-label="Grupos musculares">
+          {grupos.map(g=>{
+            const qtd = nomes.filter(n=>grupoExercicio[n]===g).length;
+            return <button key={g} type="button" onClick={()=>{setGrupo(g);setSel(nomes.find(n=>grupoExercicio[n]===g)||null);}} className="ab-muscle-group" data-active={g===grupo} aria-pressed={g===grupo}><span>{g}</span><small>{qtd} exercício{qtd!==1?"s":""}</small></button>;
+          })}
+        </div>
+        <div className="ab-progress-browser__step"><span>2</span><div><strong>Exercício</strong><small>Em ordem alfabética</small></div></div>
+        <div className="ab-exercise-index" role="list" aria-label={`Exercícios de ${grupo}`}>
+          {nomesDoGrupo.map(n=>(
+            <button key={n} type="button" onClick={()=>setSel(n)} className="ab-exercise-index__item" data-active={n===sel} aria-pressed={n===sel}><span>{n}</span><small>{porExercicio[n].length} sess{porExercicio[n].length!==1?"ões":"ão"}</small></button>
+          ))}
+        </div>
+      </section>
+      <div className="ab-progress-result-head"><div><span>RESULTADO SELECIONADO</span><h2>{sel}</h2></div><small>Últimas {dados.length} execuções</small></div>
       <div className="ab-chart-card">
         <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
           {[0.25,0.5,0.75].map(f=>(
