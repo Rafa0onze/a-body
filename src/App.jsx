@@ -1197,6 +1197,21 @@ export default function App() {
   const [treinoNovo, setTreinoNovo] = useState(null); // timestamp do treino atualizado ainda não visto   // {aluno, treino} do aluno gerido por personal
   const [docsIA, setDocsIA] = useState([]);       // documentos de saúde marcados p/ geração IA
 
+  // Cada tela é uma nova etapa da jornada: começa no topo e sem convocar o teclado.
+  useEffect(()=>{
+    const active = document.activeElement;
+    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) active.blur();
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    const resetScroll = ()=>{
+      window.scrollTo({top:0,left:0,behavior:"auto"});
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    resetScroll();
+    const frame = requestAnimationFrame(resetScroll);
+    return ()=>cancelAnimationFrame(frame);
+  },[screen]);
+
   useEffect(()=>{
     (async () => {
       let planoDoPersonal = null;
@@ -2364,7 +2379,7 @@ function AlunoModal({ onClose, onSaved }) {
   return (
     <ModalShell title="Novo aluno" eyebrow="CARTEIRA PROFISSIONAL" onClose={onClose}>
         <label style={S.fieldLabel}>NOME</label>
-        <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="nome completo" autoFocus/>
+        <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="nome completo"/>
         <label style={S.fieldLabel}>E-MAIL</label>
         <input style={S.field} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="para onde vai o convite de acesso"/>
         {err && <div className="ab-form-error" role="alert">{err}</div>}
@@ -3925,7 +3940,7 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
             </button>
           )}
           <div className="ab-load-grid">
-            <div className="ab-load-field"><label>PESO (KG)</label><input aria-label="Peso em quilogramas" type="number" inputMode="decimal" className="ab-load-input" value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="0" autoFocus/></div>
+            <div className="ab-load-field"><label>PESO (KG)</label><input aria-label="Peso em quilogramas" type="number" inputMode="decimal" className="ab-load-input" value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="0"/></div>
             <div className="ab-load-field"><label>REPETIÇÕES</label><input aria-label="Número de repetições" type="number" inputMode="numeric" className="ab-load-input" value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder="0"/></div>
             <div className="ab-load-field"><label>RIR · ALVO {exercise.rir??3}</label><input aria-label="Repetições em reserva" type="number" inputMode="numeric" min="0" max="5" className="ab-load-input" value={rirInput} onChange={e=>setRirInput(e.target.value)} placeholder="0–5"/></div>
           </div>

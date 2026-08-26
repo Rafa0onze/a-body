@@ -32,6 +32,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   position: relative;
   isolation: isolate;
   overflow-x: hidden;
+  overflow-anchor: none;
   font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
 }
 .ab-app-shell::before {
