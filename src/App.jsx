@@ -1310,16 +1310,6 @@ export default function App() {
     setGen(true); setGenError(null); setScreen("generating");
     const goalsText = form.goals.map(g=>GOALS.find(x=>x.id===g)?.label||g).join(", ");
 
-    // Restringe o plano aos exercícios com card visual na biblioteca
-    let libraryText = "";
-    try {
-      const lib = await fetchBiblioteca();
-      const porGrupo = {};
-      lib.forEach(e=>{ (porGrupo[e.grupo_muscular] = porGrupo[e.grupo_muscular]||[]).push(e.nome); });
-      libraryText = "\n\nEXERCÍCIOS DISPONÍVEIS (use APENAS estes, com o nome EXATAMENTE como escrito):\n"
-        + Object.entries(porGrupo).map(([g,ns])=>`${g}: ${ns.join("; ")}`).join("\n");
-    } catch(e) { console.warn("Biblioteca indisponível, plano sem restrição:", e.message); }
-
     let bodyAnalysisText = "";
     if((photos.front || photos.back || photos.side) && !form.photoConsent) {
       setGen(false); setScreen("anamnesis");
@@ -1354,12 +1344,14 @@ PERFIL:
 - Dias/semana: ${form.daysPerWeek} | Duração: ${form.duration}
 - Equipamentos: ${form.equipment}
 - Lesões/Limitações: ${form.injuries||"Nenhuma"}
-- Condições médicas: ${form.conditions||"Nenhuma"}${bodyAnalysisText}${libraryText}
+- Condições médicas: ${form.conditions||"Nenhuma"}${bodyAnalysisText}
 
 Retorne SOMENTE JSON válido sem markdown. A raiz deve incluir evidenceVersion, progressionStrategy, safetyNotes e requiresMedicalClearance. Cada exercício deve incluir rir e progressionRule:
 {"planName":"X","planDescription":"Y","evidenceVersion":"ABODY-ACSM-2026.1","progressionStrategy":"Dupla progressão orientada por RIR","safetyNotes":[],"requiresMedicalClearance":false,"weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"rir":2,"progressionRule":"Aumentar após atingir o topo com RIR 2","isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
-REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
+REGRAS DE SELEÇÃO: escolha cada exercício exclusivamente pelo melhor resultado esperado para este aluno, considerando objetivo, evidência, nível, limitações, equipamentos, segurança, fadiga, recuperação e composição semanal. NÃO considere existência de ilustração, presença em biblioteca interna ou disponibilidade de mídia — nem mesmo como critério de desempate. Você pode prescrever qualquer exercício tecnicamente apropriado. Use o nome canônico e claro em pt-BR, incluindo equipamento ou variação quando isso evitar ambiguidade.
+
+REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
     try {
       const blocosDocs = await blocosDeDocumentos(docsIA);
@@ -1373,7 +1365,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       const aiPlan=extractJSON(rawPlan);
       const converted=convertAIPlan(aiPlan,form.name);
       converted.duracao = form.duration;
-      track("plano_ia_gerado",{dias:converted?.weekDays?.length}); setPlan(converted); await saveStorage("abody:plan",converted); setScreen("planPreview");
+      const planoCatalogado = await catalogarIlustracoesPendentes(converted, "geracao_aluno");
+      track("plano_ia_gerado",{dias:planoCatalogado?.weekDays?.length,ilustracoes_pendentes:planoCatalogado.missingIllustrations?.length||0}); setPlan(planoCatalogado); await saveStorage("abody:plan",planoCatalogado); setScreen("planPreview");
     } catch(err){ setGenError(err.message||"Erro ao gerar plano."); setScreen("anamnesis"); }
     setGen(false);
   };
@@ -2415,6 +2408,11 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
       <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}>← Cancelar</button>
       <div style={S.eyebrow}>TREINO DE {aluno.nome.toUpperCase()}</div>
       <input style={{...S.field,fontSize:17,fontWeight:800}} value={plano.planName} onChange={e=>setPlano(p=>({...p,planName:e.target.value}))} placeholder="nome do plano"/>
+      {(plano.missingIllustrations||[]).length>0 && <section role="status" style={{background:"#fff8e8",border:"1px solid #e2bd69",borderRadius:14,padding:"12px 14px",margin:"10px 0 14px",color:"#4b3510"}}>
+        <strong style={{display:"block",fontSize:13,marginBottom:5}}>Ilustrações a providenciar · {plano.missingIllustrations.length}</strong>
+        <p style={{fontSize:11,lineHeight:1.45,margin:"0 0 7px"}}>Estes exercícios foram escolhidos pelo resultado esperado, sem influência da biblioteca visual, e já entraram na fila de produção:</p>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{plano.missingIllustrations.map(nome=><span key={nome} style={{background:"#fff",borderRadius:7,padding:"4px 7px",fontSize:11,fontWeight:700}}>{nome}</span>)}</div>
+      </section>}
 
       {plano.weekDays.map((d, di) => (
         <div key={di} style={{...S.card,marginTop:12,padding:"14px"}}>
@@ -2616,15 +2614,6 @@ function ProIAScreen({ aluno, onCancel, onGerado }) {
     if ((fotos.front||fotos.back||fotos.side) && !consentFotos) { setErr("Confirme o consentimento do aluno para analisar as fotos."); return; }
     setErr(null); setBusy(true);
     try {
-      let libraryText = "";
-      try {
-        const lib = await fetchBiblioteca();
-        const porGrupo = {};
-        lib.forEach(x=>{ (porGrupo[x.grupo_muscular] = porGrupo[x.grupo_muscular]||[]).push(x.nome); });
-        libraryText = "\n\nEXERCÍCIOS DISPONÍVEIS (use APENAS estes, com o nome EXATAMENTE como escrito):\n"
-          + Object.entries(porGrupo).map(([g,ns])=>`${g}: ${ns.join("; ")}`).join("\n");
-      } catch {}
-
       let avalText = "";
       try {
         const avs = await fetchAvaliacoesAluno(aluno.id);
@@ -2642,12 +2631,14 @@ PERFIL DO ALUNO:
 - Dias/semana: ${form.dias} | Duração: ${form.duracao}
 - Equipamentos: ${form.equipamentos}
 - Lesões/Limitações: ${form.lesoes||"Nenhuma"}
-- Condições médicas: ${form.condicoes||"Nenhuma"}${avalText}${libraryText}
+- Condições médicas: ${form.condicoes||"Nenhuma"}${avalText}
 
 Retorne SOMENTE JSON válido sem markdown. Inclua evidenceVersion="ABODY-ACSM-2026.1", progressionStrategy, safetyNotes, requiresMedicalClearance e, em cada exercício, rir e progressionRule:
 {"planName":"X","planDescription":"Y","evidenceVersion":"ABODY-ACSM-2026.1","progressionStrategy":"Dupla progressão orientada por RIR","safetyNotes":[],"requiresMedicalClearance":false,"weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"rir":2,"progressionRule":"Aumentar após atingir o topo com RIR 2","isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
-REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
+REGRAS DE SELEÇÃO: escolha cada exercício exclusivamente pelo melhor resultado esperado para este aluno, considerando objetivo, evidência, nível, limitações, equipamentos, segurança, fadiga, recuperação e composição semanal. NÃO considere existência de ilustração, presença em biblioteca interna ou disponibilidade de mídia — nem mesmo como critério de desempate. Você pode prescrever qualquer exercício tecnicamente apropriado. Use o nome canônico e claro em pt-BR, incluindo equipamento ou variação quando isso evitar ambiguidade.
+
+REGRAS DE FORMATO: exatamente ${form.dias} dias. Max 5 exercícios/dia.\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
       const blocosDocs = await blocosDeDocumentos(docsSel);
       if (blocosDocs.length) track("docs_usados_ia", { qtd: blocosDocs.length, contexto: "pro" });
@@ -2661,8 +2652,9 @@ REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de 
       const plano = convertAIPlan(extractJSON(raw), aluno.nome);
       plano.mode = "pro";
       plano.duracao = form.duracao;
-      track("treino_pro_ia_gerado",{dias:plano.weekDays.length,fotos:["front","back","side"].filter(k=>fotos[k]).length});
-      onGerado(plano); // abre no editor para revisão total do personal
+      const planoCatalogado = await catalogarIlustracoesPendentes(plano, "geracao_personal");
+      track("treino_pro_ia_gerado",{dias:planoCatalogado.weekDays.length,fotos:["front","back","side"].filter(k=>fotos[k]).length,ilustracoes_pendentes:planoCatalogado.missingIllustrations?.length||0});
+      onGerado(planoCatalogado); // abre no editor para revisão total do personal
     } catch(e2) { setErr(e2.message||"Erro ao gerar treino."); }
     setBusy(false);
   };
@@ -4493,6 +4485,36 @@ function matchExercicio(nome, lista) {
   if (r1) return r1.ex;
   const r2 = _melhorMatch(_norm(nome, true), lista);
   return r2 ? r2.ex : null;
+}
+
+async function catalogarIlustracoesPendentes(plano, contexto) {
+  let biblioteca;
+  try { biblioteca = await fetchBiblioteca(); }
+  catch {
+    track("catalogo_ilustracoes_indisponivel",{contexto});
+    return {...plano,missingIllustrations:[],illustrationAuditStatus:"unavailable"};
+  }
+  const porNome = new Map(biblioteca.map(ex => [_norm(ex.nome, false).join(" "), ex]));
+  const pendentes = new Map();
+  const weekDays = (plano.weekDays||[]).map(dia => ({
+    ...dia,
+    exercises:(dia.exercises||[]).map(ex => {
+      const catalogado = porNome.get(_norm(ex.name||"", false).join(" "));
+      const possuiIlustracao = !!catalogado?.imagem_url;
+      if (!possuiIlustracao && ex.name?.trim()) pendentes.set(_norm(ex.name,false).join(" "), ex.name.trim());
+      return {...ex, mediaStatus:possuiIlustracao?"available":"missing", libraryExerciseId:catalogado?.id||null};
+    })
+  }));
+  const missingIllustrations = [...pendentes.values()].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  if (missingIllustrations.length) {
+    await Promise.allSettled(missingIllustrations.map(nome => fetch(`${SUPA_URL}/rest/v1/sugestoes_exercicios`, {
+      method:"POST",
+      headers:{apikey:SUPA_KEY,Authorization:`Bearer ${SUPA_KEY}`,"Content-Type":"application/json",Prefer:"return=minimal"},
+      body:JSON.stringify({nome})
+    })));
+    track("fila_ilustracoes_gerada",{contexto,qtd:missingIllustrations.length});
+  }
+  return {...plano,weekDays,missingIllustrations,illustrationAuditStatus:"complete"};
 }
 
 function FigureBlock({ exercise }) {
