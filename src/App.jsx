@@ -1484,7 +1484,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     });
   }, [screen, queue[0]?._key, setIdx]);
 
-  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setCurrentSideDurations({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("warmup"); };
+  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setCurrentSideDurations({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("workoutOverview"); };
   const beginWorkout=()=>{ workoutStartedAt.current=Date.now(); track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
   const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));setRirInput("");initTimer(next); };
   const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));setRirInput("");initTimer(newEx);setShowSubs(false); };
@@ -1601,7 +1601,8 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
       {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
-      {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
+      {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
+      {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={()=>setScreen("workoutOverview")}/>}
       {screen==="workout"      && currentDay && current && (<>
         <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} unilateralSide={unilateralSide} firstSideElapsed={firstSideElapsed} onNextSide={advanceUnilateralSide} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
@@ -3787,6 +3788,37 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
         <button className="ab-nav-item" onClick={onEvolucao}><Icon name="chart" size={19}/><span>Progresso</span></button>
         <button className="ab-nav-item" onClick={onSettings}><Icon name="user" size={19}/><span>Perfil</span></button>
       </nav>
+    </div>
+  );
+}
+
+// ─── WORKOUT OVERVIEW ────────────────────────────────────────────────────────
+
+function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) {
+  const totalSeries = exercises.reduce((total,ex)=>total+(Number(ex.sets)||0),0);
+  return (
+    <div className="ab-workout-overview">
+      <button className="ab-workout-exit" onClick={onBack}>← Sair do treino</button>
+      <header className="ab-overview-heading">
+        <div className="ab-kicker">{day.label} · VISÃO DO TREINO</div>
+        <h1>Saiba o que vem pela frente.</h1>
+        <p className="ab-copy">Revise a sequência antes de começar e organize mentalmente cargas, equipamentos e ritmo.</p>
+      </header>
+      <div className="ab-overview-metrics" aria-label="Resumo do treino">
+        <div><strong>{exercises.length}</strong><span>exercícios</span></div>
+        <div><strong>{totalSeries}</strong><span>séries totais</span></div>
+        <div><strong>{duracao?`~${duracao}`:"—"}</strong><span>tempo previsto</span></div>
+      </div>
+      <section className="ab-overview-card">
+        <div className="ab-overview-card__head"><div><span>SEQUÊNCIA</span><h2>{day.sub||"Treino do dia"}</h2></div><small>Séries × repetições</small></div>
+        <ol className="ab-overview-list">
+          {exercises.map((ex,i)=><li key={ex._key||ex.id||`${ex.name}-${i}`}>
+            <span className="ab-overview-number">{String(i+1).padStart(2,"0")}</span>
+            <div><strong>{ex.name}</strong><span>{ex.sets} {Number(ex.sets)===1?"série":"séries"} × {ex.reps}{ex.iso?"":" repetições"}</span></div>
+          </li>)}
+        </ol>
+      </section>
+      <div className="ab-overview-footer"><button className="ab-primary" onClick={onContinue}>Preparar para o treino <Icon name="arrow" size={18}/></button></div>
     </div>
   );
 }
