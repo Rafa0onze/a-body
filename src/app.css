@@ -304,6 +304,50 @@ html,body { background:var(--ab-bg); }
 .ab-exercise-sub { display:flex; flex-wrap:wrap; gap:8px; color:var(--ab-text); font-size:clamp(15px,2vw,18px); font-weight:700; line-height:1.35; }
 .ab-figure-wrap { flex:1; min-height:260px; display:grid; place-items:center; margin:16px 0; }
 .ab-figure-wrap > * { width:100%; max-width:520px; }
+.ab-movement-placeholder {
+  min-height:240px;
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:18px;
+  padding:32px 24px;
+  margin-bottom:12px;
+  border:1px solid #d8e2dc;
+  border-radius:22px;
+  background:linear-gradient(145deg,#f7faf8 0%,#edf4f0 100%);
+  color:#123a2d;
+  text-align:left;
+}
+.ab-movement-placeholder__mark {
+  width:58px;
+  height:58px;
+  flex:0 0 58px;
+  display:grid;
+  place-items:center;
+  border-radius:17px;
+  background:#123a2d;
+  color:#fff;
+  font-size:32px;
+  font-weight:850;
+  line-height:1;
+  box-shadow:0 10px 28px rgba(18,58,45,.16);
+}
+.ab-movement-placeholder__title { font-size:19px; font-weight:800; line-height:1.2; }
+.ab-movement-placeholder__status {
+  margin-top:7px;
+  color:#287a5d;
+  font-size:13px;
+  font-weight:750;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+}
+.ab-movement-placeholder--loading {
+  background:linear-gradient(90deg,#f4f7f5 25%,#eaf1ed 50%,#f4f7f5 75%);
+  background-size:200% 100%;
+  animation:ab-placeholder-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ab-placeholder-pulse { to { background-position:-200% 0; } }
 .ab-set-dots { display:flex; gap:8px; margin-top:auto; }
 .ab-set-dot { height:7px; flex:1; max-width:60px; border-radius:99px; background:var(--ab-border); }
 .ab-set-dot[data-state="done"] { background:var(--ab-accent); }

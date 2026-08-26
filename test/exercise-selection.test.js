@@ -17,3 +17,9 @@ test("planos catalogam e exibem ilustrações pendentes",()=>{
   assert.match(source,/Ilustrações a providenciar/);
   assert.match(source,/mediaStatus:possuiIlustracao\?"available":"missing"/);
 });
+
+test("exercício sem mídia usa aviso padrão, não uma pose genérica",()=>{
+  assert.match(source,/Ilustração de movimento/);
+  assert.match(source,/Em desenvolvimento/);
+  assert.doesNotMatch(source,/Figure pose=\{exercise\.pose\} phase="start"/);
+});

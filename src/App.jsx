@@ -4540,11 +4540,16 @@ function FigureBlock({ exercise }) {
       </div>
     );
   }
+  if (match === undefined) {
+    return <div className="ab-movement-placeholder ab-movement-placeholder--loading" aria-label="Carregando ilustração do movimento" />;
+  }
   return (
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-      <div style={S.figCard}><Figure pose={exercise.pose} phase="start"/><div style={S.figLbl}>Início</div></div>
-      <div style={{color:C.acc,fontSize:18,fontWeight:700}}>→</div>
-      <div style={S.figCard}><Figure pose={exercise.pose} phase="end"/><div style={S.figLbl}>Final</div></div>
+    <div className="ab-movement-placeholder" role="status">
+      <div className="ab-movement-placeholder__mark" aria-hidden="true">A</div>
+      <div>
+        <div className="ab-movement-placeholder__title">Ilustração de movimento</div>
+        <div className="ab-movement-placeholder__status">Em desenvolvimento</div>
+      </div>
     </div>
   );
 }
