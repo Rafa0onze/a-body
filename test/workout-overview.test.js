@@ -16,3 +16,10 @@ test("visão geral informa exercícios, séries e repetições",()=>{
   assert.match(source,/Séries × repetições/);
   assert.match(source,/ex\.sets.*ex\.reps/);
 });
+
+test("visão geral exibe miniatura ou aviso de ilustração pendente",()=>{
+  assert.match(source,/function OverviewExerciseMedia/);
+  assert.match(source,/Ilustração de \$\{exercise\.name\}/);
+  assert.match(source,/em desenvolvimento/);
+  assert.match(source,/fetchBiblioteca\(\)/);
+});

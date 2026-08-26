@@ -3794,8 +3794,22 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
 
 // ─── WORKOUT OVERVIEW ────────────────────────────────────────────────────────
 
+function OverviewExerciseMedia({ exercise, catalogo }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (catalogo === undefined) return <div className="ab-overview-media ab-overview-media--loading" aria-label="Carregando ilustração"/>;
+  const match = catalogo ? matchExercicio(exercise.name,catalogo) : null;
+  if (match?.imagem_url && !imageFailed) return <div className="ab-overview-media"><img src={match.imagem_url} alt={`Ilustração de ${exercise.name}`} loading="lazy" onError={()=>setImageFailed(true)}/></div>;
+  return <div className="ab-overview-media ab-overview-media--pending" role="status"><b aria-hidden="true">A</b><span>Ilustração<small>em desenvolvimento</small></span></div>;
+}
+
 function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) {
   const totalSeries = exercises.reduce((total,ex)=>total+(Number(ex.sets)||0),0);
+  const [catalogo, setCatalogo] = useState(undefined);
+  useEffect(()=>{
+    let active=true;
+    fetchBiblioteca().then(lista=>{if(active)setCatalogo(lista);}).catch(()=>{if(active)setCatalogo(null);});
+    return ()=>{active=false;};
+  },[]);
   return (
     <div className="ab-workout-overview">
       <button className="ab-workout-exit" onClick={onBack}>← Sair do treino</button>
@@ -3814,6 +3828,7 @@ function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) 
         <ol className="ab-overview-list">
           {exercises.map((ex,i)=><li key={ex._key||ex.id||`${ex.name}-${i}`}>
             <span className="ab-overview-number">{String(i+1).padStart(2,"0")}</span>
+            <OverviewExerciseMedia exercise={ex} catalogo={catalogo}/>
             <div><strong>{ex.name}</strong><span>{ex.sets} {Number(ex.sets)===1?"série":"séries"} × {ex.reps}{ex.iso?"":" repetições"}</span></div>
           </li>)}
         </ol>
