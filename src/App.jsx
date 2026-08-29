@@ -1,4 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
+import "./app.css";
+import { adaptiveInsight } from "./adaptation.js";
+import { isUnilateralExercise, shouldAutoStartSeries } from "./workout-timing.js";
+import { schedulesOverlap, validateProfessionalPlan } from "./personal-rules.js";
 
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
 
@@ -162,7 +166,7 @@ const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).p
 const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
 
-const C={bg:"#0b1f17",card:"#11281f",border:"#1c3a2c",acc:"#3ddc84",text:"#eaf6ee",muted:"#9ec4b1",fig:"#bff0d4"};
+const C={bg:"#f7f9f7",card:"#ffffff",border:"#cbd9d1",acc:"#116b45",text:"#102219",muted:"#4b5f54",fig:"#168557"};
 const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
 const S={
   page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
@@ -189,6 +193,41 @@ const S={
   modalOverlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100},
   modal:{background:"#0f2419",borderRadius:"20px 20px 0 0",padding:"24px 20px 36px",width:"100%",maxWidth:480},
 };
+
+const ICON_PATHS = {
+  arrow: <><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></>,
+  calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
+  chart: <><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></>,
+  users: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></>,
+  book: <><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></>,
+  sparkles: <><path d="m12 3-1.4 3.6L7 8l3.6 1.4L12 13l1.4-3.6L17 8l-3.6-1.4Z"/><path d="m19 14-.8 2.2L16 17l2.2.8L19 20l.8-2.2L22 17l-2.2-.8Z"/><path d="m5 14-.8 2.2L2 17l2.2.8L5 20l.8-2.2L8 17l-2.2-.8Z"/></>,
+  settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.15.37.36.7.64.98.3.28.68.42 1.06.42h.1v4h-.1A1.7 1.7 0 0 0 19.4 15Z"/></>,
+  dumbbell: <><path d="m6.5 6.5 11 11M21 21l-1-1M3 3l1 1M18 22l4-4M2 6l4-4M3 10l7-7M14 21l7-7"/></>,
+  clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  flame: <path d="M12 22c4 0 7-3 7-7 0-3-2-5-4-7 0 3-2 4-3 4 1-5-2-8-5-10 0 5-4 7-4 13 0 4 4 7 9 7Z"/>,
+  home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10M9 20v-6h6v6"/></>,
+  user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
+  play: <path d="m8 5 11 7-11 7Z"/>,
+  repeat: <><path d="m17 2 4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></>,
+  swap: <><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></>,
+  zap: <path d="M13 2 3 14h8l-1 8 10-12h-8Z"/>,
+  search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
+};
+
+function Icon({ name, size = 20, className = "" }) {
+  return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>;
+}
+
+function BrandMark({ className = "" }) {
+  return (
+    <span className={`ab-logo-mark ${className}`} aria-hidden="true">
+      <svg viewBox="0 0 40 40" role="img">
+        <path fillRule="evenodd" d="M4.5 35 16.8 5h6.5l8.4 21.2-6.1 2.7-2.2-6.1h-8L10.7 35H4.5Zm13-18h3.9l-2-5.7-1.9 5.7Z"/>
+        <path d="m26.6 30.6 5.9-2.7 2.8 7.1h-6.2l-2.5-4.4Z"/>
+      </svg>
+    </span>
+  );
+}
 async function loadStorage(key) {
   // Nuvem primeiro (se logado), fallback local
   if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
@@ -472,7 +511,12 @@ async function signedUrlFoto(path) {
     headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ expiresIn: 3600 }),
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    const detail = await r.json().catch(()=>({}));
+    console.error("A-BODY data request failed", { path:pathQ.split("?")[0], status:r.status, code:detail?.code });
+    if (opts.throwOnError) throw Object.assign(new Error(detail?.message || "Não foi possível concluir a operação."), { status:r.status, code:detail?.code });
+    return null;
+  }
   const d = await r.json();
   return d.signedURL ? `${SUPA_URL}/storage/v1${d.signedURL}` : null;
 }
@@ -496,13 +540,19 @@ async function uidAtual() {
   return u?.id || null;
 }
 async function proFetch(pathQ, opts = {}) {
+  const { throwOnError = false, ...fetchOpts } = opts;
   const s = await refreshIfNeeded();
-  if (!s?.access_token) return null;
+  if (!s?.access_token) { if (throwOnError) throw new Error("Sessão expirada. Entre novamente."); return null; }
   const r = await fetch(`${SUPA_URL}${pathQ}`, {
-    ...opts,
-    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json", ...(opts.headers || {}) },
+    ...fetchOpts,
+    headers: { apikey: SUPA_KEY, Authorization: `Bearer ${s.access_token}`, "Content-Type": "application/json", ...(fetchOpts.headers || {}) },
   });
-  if (!r.ok) return null;
+  if (!r.ok) {
+    const body = await r.json().catch(()=>null);
+    console.error("Supabase request failed", { path:pathQ.split("?")[0], status:r.status, code:body?.code });
+    if (throwOnError) throw new Error(body?.message || "Não foi possível concluir a operação.");
+    return null;
+  }
   if (r.status === 204) return true;
   return r.json().catch(() => null);
 }
@@ -582,7 +632,7 @@ async function fetchAulas() {
   return (await proFetch(`/rest/v1/aulas?select=*,alunos(nome)&order=hora.asc`)) || [];
 }
 async function fetchAlunosPro() {
-  return (await proFetch(`/rest/v1/alunos?select=id,nome,status&order=nome.asc`)) || [];
+  return (await proFetch(`/rest/v1/alunos?select=id,nome,email,user_id,status&order=nome.asc`)) || [];
 }
 async function salvarAula(aula) {
   track(aula.id ? "aula_editada" : "aula_criada", {tipo: aula.tipo});
@@ -612,6 +662,8 @@ async function atualizarAluno(id, campos) {
 }
 async function salvarTreinoAluno(alunoId, plano, treinoId) {
   const uid = await uidAtual(); if (!uid) return null;
+  const publicado = await proFetch(`/rest/v1/rpc/publicar_treino_aluno`, { method:"POST", headers:{ Prefer:"return=representation" }, body:JSON.stringify({ p_aluno_id:alunoId, p_plano:plano, p_treino_origem:treinoId||null }) });
+  if (publicado) { track("treino_publicado",{modo:treinoId?"nova_versao":"novo"}); return Array.isArray(publicado)?publicado[0]:publicado; }
   if (treinoId) {
     track("treino_publicado",{modo:"atualizado"});
     return proFetch(`/rest/v1/treinos_alunos?id=eq.${treinoId}`, { method: "PATCH",
@@ -626,6 +678,9 @@ async function salvarTreinoAluno(alunoId, plano, treinoId) {
 async function fetchTreinoAtivoCompleto(alunoId) {
   const rows = await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&ativo=eq.true&select=id,plano,atualizado_em&order=atualizado_em.desc&limit=1`);
   return rows?.[0] || null;
+}
+async function fetchHistoricoTreinosAluno(alunoId) {
+  return (await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&select=id,plano,ativo,atualizado_em&order=atualizado_em.desc&limit=10`)) || [];
 }
 async function fetchExerciciosCustom() {
   return (await proFetch(`/rest/v1/exercicios_custom?select=*&order=criado_em.desc`)) || [];
@@ -711,7 +766,8 @@ async function enviarMensagem(alunoId, autor, texto, contexto) {
     body: JSON.stringify({ aluno_id: alunoId, autor, texto: texto.slice(0, 2000), contexto: contexto || null }) });
 }
 async function fetchMensagens(alunoId) {
-  return (await proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&select=*&order=criado_em.asc&limit=200`)) || [];
+  const rows=(await proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&select=*&order=criado_em.desc&limit=200`)) || [];
+  return rows.reverse();
 }
 async function marcarMensagensLidas(alunoId, autorLido) {
   return proFetch(`/rest/v1/mensagens?aluno_id=eq.${alunoId}&autor=eq.${autorLido}&lida=eq.false`, {
@@ -737,7 +793,7 @@ function mimeDoPath(path) {
 }
 function nomeDoDoc(doc) { return (doc.path.split("/").pop()||"documento").replace(/^\d+_/,""); }
 
-async function uploadDocumentoSaude(file, alunoId, tipo) {
+async function uploadDocumentoSaude(file, alunoId, tipo, consentimento) {
   track("doc_anexado",{tipo});
   if (!MIMES_DOC[file.type]) return { erro: "Formato não suportado. Envie PDF, JPG, PNG ou WebP." };
   if (file.size > TAM_MAX_DOC) return { erro: "Arquivo acima de 10 MB." };
@@ -752,8 +808,11 @@ async function uploadDocumentoSaude(file, alunoId, tipo) {
   });
   if (!r.ok) return { erro: "Falha no upload do arquivo." };
   const rows = await proFetch(`/rest/v1/documentos_saude`, { method: "POST", headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ dono_user_id: uid, aluno_id: alunoId || null, path, tipo: tipo || "outro" }) });
-  if (!rows?.[0]) return { erro: "Falha ao registrar o documento." };
+    body: JSON.stringify({ dono_user_id: uid, aluno_id: alunoId || null, path, tipo: tipo || "outro", consentimento }) });
+  if (!rows?.[0]) {
+    await fetch(`${SUPA_URL}/storage/v1/object/documentos-saude/${path}`, {method:"DELETE",headers:{apikey:SUPA_KEY,Authorization:`Bearer ${s.access_token}`}}).catch(()=>{});
+    return { erro: "Falha ao registrar o documento." };
+  }
   track("doc_saude_enviado", { tipo, contexto: alunoId ? "pro" : "b2c" });
   return { doc: rows[0] };
 }
@@ -804,7 +863,7 @@ async function blocosDeDocumentos(docs) {
 }
 
 // ─── HIGIENE DE CACHE LOCAL POR CONTA ────────────────────────────────────────
-const CHAVES_DE_CONTA = ["abody:plan","abody:history","abody:bodyhistory"];
+const CHAVES_DE_CONTA = ["abody:plan","abody:history","abody:bodyhistory","abody:workout-draft"];
 function limparCacheLocalDeConta() {
   CHAVES_DE_CONTA.forEach(k => { try { localStorage.removeItem(k); } catch {} });
 }
@@ -993,12 +1052,15 @@ const getPose = (name="") => {
 
 const convertAIPlan = (aiPlan, userName) => ({
   userName: userName||"Atleta", planName: aiPlan.planName||"Meu Plano", planDescription: aiPlan.planDescription||"",
-  mode:"ai",
+  mode:"ai", evidenceVersion:aiPlan.evidenceVersion||null, progressionStrategy:aiPlan.progressionStrategy||"",
+  safetyNotes:Array.isArray(aiPlan.safetyNotes)?aiPlan.safetyNotes:[], requiresMedicalClearance:!!aiPlan.requiresMedicalClearance,
+  weeklyPrescription:aiPlan.weeklyPrescription||null,
   weekDays:(aiPlan.weekDays||[]).map((d,di)=>({
     id:d.id||`day${di+1}`, label:d.label||`Dia ${di+1}`, sub:d.sub||"",
     exercises:(d.exercises||[]).map((ex,ei)=>({
       id:ex.id||`ex_${di}_${ei}`, name:ex.name,
       sets:Number(ex.sets)||3, reps:String(ex.reps||"10-12"), rest:Number(ex.rest)||60,
+      rir:Number.isInteger(ex.rir)?ex.rir:3, progressionRule:ex.progressionRule||"Complete o topo da faixa antes de aumentar a carga.",
       pose:getPose(ex.name), iso:!!ex.isometric, isoSec:ex.isometric?(Number(ex.isoSeconds)||45):null,
     })),
     mobility:(d.mobility||[]).map(m=>({name:m.name,dur:m.duration||"10 reps"})),
@@ -1008,9 +1070,11 @@ const convertAIPlan = (aiPlan, userName) => ({
 
 const buildManualPlan = (name, splitDays, dayExercises) => ({
   userName: name||"Atleta", planName:"Meu Plano Personalizado", planDescription:"Plano montado por você.",
-  mode:"manual",
+  mode:"manual", evidenceVersion:"ABODY-ACSM-2026.1", progressionStrategy:"Dupla progressão orientada por repetições e RIR",
+  safetyNotes:[], requiresMedicalClearance:false,
+  weeklyPrescription:{aerobicMinutesTarget:75,aerobicMinutesUpper:150,strengthDaysTarget:2,flexibilityDaysTarget:2,intensityMethod:"RPE 3–6/10 ou teste da fala",sedentaryGuidance:"Interromper períodos prolongados sentado",notes:["Complete a meta aeróbica com atividades adicionais na semana."]},
   weekDays: splitDays.map(d=>{
-    const exs = (dayExercises[d.id]||[]).map(ex=>({...ex}));
+    const exs = (dayExercises[d.id]||[]).map(ex=>({...ex,rir:Number.isInteger(ex.rir)?ex.rir:3,progressionRule:ex.progressionRule||"Aumentar após atingir o topo da faixa com RIR 3"}));
     const groups = [...new Set(d.suggestedGroups)];
     const mobility = groups.flatMap(g=>MOBILITY_BY_GROUP[g]||[]).slice(0,4);
     return {
@@ -1069,33 +1133,23 @@ function Figure({ pose, phase }) {
 
 const ANAMNESIS_INIT = { name:"",age:"",height:"",weight:"",goals:[],level:"",daysPerWeek:"",duration:"",equipment:"",injuries:"",conditions:"" };
 const PHOTOS_INIT = { front:null, back:null, side:null };
+const WORKOUT_DRAFT_KEY = "abody:workout-draft";
+const WORKOUT_DRAFT_MAX_AGE = 18 * 60 * 60 * 1000;
+const ACTIVE_WORKOUT_SCREENS = new Set(["workoutOverview","warmup","workout","rest"]);
 
-function UpdateBanner() {
-  const [nova, setNova] = useState(false);
-  useEffect(() => {
-    const atual = document.querySelector('script[src*="/assets/index-"]')?.getAttribute("src");
-    if (!atual) return;
-    let parou = false;
-    const checar = async () => {
-      try {
-        const r = await fetch("/", { cache: "no-store" });
-        const m = (await r.text()).match(/\/assets\/index-[^"]+\.js/);
-        if (!parou && m && m[0] !== atual) setNova(true);
-      } catch {}
-    };
-    const iv = setInterval(checar, 5 * 60 * 1000);
-    const onVis = () => { if (!document.hidden) checar(); };
-    document.addEventListener("visibilitychange", onVis);
-    checar();
-    return () => { parou = true; clearInterval(iv); document.removeEventListener("visibilitychange", onVis); };
-  }, []);
-  if (!nova) return null;
-  return (
-    <button onClick={()=>location.reload()}
-      style={{position:"fixed",top:10,left:"50%",transform:"translateX(-50%)",zIndex:9999,background:"#e8a23a",color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer"}}>
-      ⬆️ Atualização disponível — toque para recarregar
-    </button>
-  );
+function readWorkoutDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY));
+    if (!draft || draft.version!==1 || !draft.currentDay || !Array.isArray(draft.queue) || !draft.queue.length || Date.now()-draft.updatedAt>WORKOUT_DRAFT_MAX_AGE) {
+      localStorage.removeItem(WORKOUT_DRAFT_KEY);
+      return null;
+    }
+    return draft;
+  } catch { return null; }
+}
+
+function clearWorkoutDraft() {
+  try { localStorage.removeItem(WORKOUT_DRAFT_KEY); } catch {}
 }
 
 export default function App() {
@@ -1131,7 +1185,9 @@ export default function App() {
   const [currentWeights, setCurrentWeights] = useState({});
   const [weightInput, setWeightInput]   = useState("");
   const [repsInput, setRepsInput]       = useState("");
+  const [rirInput, setRirInput]         = useState("");
   const [currentReps, setCurrentReps]   = useState({});
+  const [currentRirs, setCurrentRirs]   = useState({});
   const [currentDay, setCurrentDay]     = useState(null);
   const [showSubs, setShowSubs]         = useState(false);
 
@@ -1142,9 +1198,13 @@ export default function App() {
   const [isoTotal, setIsoTotal]   = useState(0);
   const [isoRunning, setIsoRunning] = useState(false);
   const [isoDone, setIsoDone]     = useState(false);
+  const [unilateralSide, setUnilateralSide] = useState(0);
+  const [firstSideElapsed, setFirstSideElapsed] = useState(0);
+  const [currentSideDurations, setCurrentSideDurations] = useState({});
   const [restSec, setRestSec]     = useState(0);
   const [restTotal, setRestTotal] = useState(0);
   const [report, setReport]       = useState(null);
+  const workoutStartedAt = useRef(null);
 
   const seriesRef=useRef(null), isoRef=useRef(null), restRef=useRef(null);
 
@@ -1154,6 +1214,68 @@ export default function App() {
   const [vinculo, setVinculo] = useState(null);
   const [treinoNovo, setTreinoNovo] = useState(null); // timestamp do treino atualizado ainda não visto   // {aluno, treino} do aluno gerido por personal
   const [docsIA, setDocsIA] = useState([]);       // documentos de saúde marcados p/ geração IA
+
+  const restoreWorkoutDraft = () => {
+    const draft = readWorkoutDraft();
+    if (!draft) return false;
+    setCurrentDay(draft.currentDay);
+    setQueue(draft.queue);
+    setCompleted(draft.completed||[]);
+    setSetIdx(draft.setIdx||0);
+    setCurrentWeights(draft.currentWeights||{});
+    setCurrentReps(draft.currentReps||{});
+    setCurrentRirs(draft.currentRirs||{});
+    setCurrentSideDurations(draft.currentSideDurations||{});
+    setWeightInput(draft.weightInput||"");
+    setRepsInput(draft.repsInput||"");
+    setRirInput(draft.rirInput||"");
+    setCardioChoice(draft.cardioChoice||null);
+    setSeriesElapsed(draft.seriesElapsed||0);
+    setSeriesRunning(false);
+    setIsoSec(draft.isoSec||0);
+    setIsoTotal(draft.isoTotal||0);
+    setIsoDone(!!draft.isoDone);
+    setIsoRunning(false);
+    setUnilateralSide(draft.unilateralSide||0);
+    setFirstSideElapsed(draft.firstSideElapsed||0);
+    setRestTotal(draft.restTotal||0);
+    const restoredRest = draft.restEndsAt ? Math.max(0,Math.ceil((draft.restEndsAt-Date.now())/1000)) : (draft.restSec||0);
+    setRestSec(draft.screen==="rest"?Math.max(1,restoredRest):restoredRest);
+    workoutStartedAt.current = draft.workoutStartedAt||null;
+    const restoredScreen = draft.screen;
+    setScreen(ACTIVE_WORKOUT_SCREENS.has(restoredScreen)?restoredScreen:"workoutOverview");
+    track("treino_em_andamento_restaurado",{tela:restoredScreen,concluidos:(draft.completed||[]).length});
+    return true;
+  };
+
+  // Cada tela é uma nova etapa da jornada: começa no topo e sem convocar o teclado.
+  useEffect(()=>{
+    const active = document.activeElement;
+    if (active && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) active.blur();
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    const resetScroll = ()=>{
+      window.scrollTo({top:0,left:0,behavior:"auto"});
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+    resetScroll();
+    const frame = requestAnimationFrame(resetScroll);
+    return ()=>cancelAnimationFrame(frame);
+  },[screen]);
+
+  useEffect(()=>{
+    if (!ACTIVE_WORKOUT_SCREENS.has(screen) || !currentDay || !queue.length) return;
+    const timer = setTimeout(()=>{
+      try {
+        localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({
+          version:1,updatedAt:Date.now(),screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,
+          weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,
+          restSec,restTotal,restEndsAt:screen==="rest"?Date.now()+restSec*1000:null,workoutStartedAt:workoutStartedAt.current
+        }));
+      } catch {}
+    },180);
+    return ()=>clearTimeout(timer);
+  },[screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,restSec,restTotal]);
 
   useEffect(()=>{
     (async () => {
@@ -1180,8 +1302,8 @@ export default function App() {
       track("app_aberto"); const [p, h, bh] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history"), loadStorage("abody:bodyhistory")]);
       if (h) setHistory(h);
       if (bh) setBodyHistory(bh);
-      if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
-      else if (p) { setPlan(p); setScreen("home"); }
+      if (planoDoPersonal) { setPlan(planoDoPersonal); if(!restoreWorkoutDraft())setScreen("home"); }
+      else if (p) { setPlan(p); if(!restoreWorkoutDraft())setScreen("home"); }
       else if (vinculoLocal) setScreen("aguardandoTreino");
       else setScreen("onboarding");
     })();
@@ -1200,8 +1322,8 @@ export default function App() {
     fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
     const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
     if (h) setHistory(h);
-    if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
-    else if (p) { setPlan(p); setScreen("home"); }
+    if (planoDoPersonal) { setPlan(planoDoPersonal); if(!restoreWorkoutDraft())setScreen("home"); }
+    else if (p) { setPlan(p); if(!restoreWorkoutDraft())setScreen("home"); }
     else if (v) setScreen("aguardandoTreino");
     else setScreen("onboarding");
   };
@@ -1210,7 +1332,7 @@ export default function App() {
     localStorage.setItem("abody:skipauth", "1");
     const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
     if (h) setHistory(h);
-    if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+    if (p) { setPlan(p); if(!restoreWorkoutDraft())setScreen("home"); } else setScreen("onboarding");
   };
 
   const doLogout = () => {
@@ -1268,16 +1390,6 @@ export default function App() {
     setGen(true); setGenError(null); setScreen("generating");
     const goalsText = form.goals.map(g=>GOALS.find(x=>x.id===g)?.label||g).join(", ");
 
-    // Restringe o plano aos exercícios com card visual na biblioteca
-    let libraryText = "";
-    try {
-      const lib = await fetchBiblioteca();
-      const porGrupo = {};
-      lib.forEach(e=>{ (porGrupo[e.grupo_muscular] = porGrupo[e.grupo_muscular]||[]).push(e.nome); });
-      libraryText = "\n\nEXERCÍCIOS DISPONÍVEIS (use APENAS estes, com o nome EXATAMENTE como escrito):\n"
-        + Object.entries(porGrupo).map(([g,ns])=>`${g}: ${ns.join("; ")}`).join("\n");
-    } catch(e) { console.warn("Biblioteca indisponível, plano sem restrição:", e.message); }
-
     let bodyAnalysisText = "";
     if((photos.front || photos.back || photos.side) && !form.photoConsent) {
       setGen(false); setScreen("anamnesis");
@@ -1312,12 +1424,14 @@ PERFIL:
 - Dias/semana: ${form.daysPerWeek} | Duração: ${form.duration}
 - Equipamentos: ${form.equipment}
 - Lesões/Limitações: ${form.injuries||"Nenhuma"}
-- Condições médicas: ${form.conditions||"Nenhuma"}${bodyAnalysisText}${libraryText}
+- Condições médicas: ${form.conditions||"Nenhuma"}${bodyAnalysisText}
 
-Retorne SOMENTE JSON válido sem markdown:
-{"planName":"X","planDescription":"Y","weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
+Retorne SOMENTE JSON válido sem markdown. A raiz deve incluir evidenceVersion, progressionStrategy, safetyNotes e requiresMedicalClearance. Cada exercício deve incluir rir e progressionRule:
+{"planName":"X","planDescription":"Y","evidenceVersion":"ABODY-ACSM-2026.1","progressionStrategy":"Dupla progressão orientada por RIR","safetyNotes":[],"requiresMedicalClearance":false,"weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"rir":2,"progressionRule":"Aumentar após atingir o topo com RIR 2","isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
-REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
+REGRAS DE SELEÇÃO: escolha cada exercício exclusivamente pelo melhor resultado esperado para este aluno, considerando objetivo, evidência, nível, limitações, equipamentos, segurança, fadiga, recuperação e composição semanal. NÃO considere existência de ilustração, presença em biblioteca interna ou disponibilidade de mídia — nem mesmo como critério de desempate. Você pode prescrever qualquer exercício tecnicamente apropriado. Use o nome canônico e claro em pt-BR, incluindo equipamento ou variação quando isso evitar ambiguidade.
+
+REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
     try {
       const blocosDocs = await blocosDeDocumentos(docsIA);
@@ -1331,7 +1445,8 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       const aiPlan=extractJSON(rawPlan);
       const converted=convertAIPlan(aiPlan,form.name);
       converted.duracao = form.duration;
-      track("plano_ia_gerado",{dias:converted?.weekDays?.length}); setPlan(converted); await saveStorage("abody:plan",converted); setScreen("planPreview");
+      const planoCatalogado = await catalogarIlustracoesPendentes(converted, "geracao_aluno");
+      track("plano_ia_gerado",{dias:planoCatalogado?.weekDays?.length,ilustracoes_pendentes:planoCatalogado.missingIllustrations?.length||0}); setPlan(planoCatalogado); await saveStorage("abody:plan",planoCatalogado); setScreen("planPreview");
     } catch(err){ setGenError(err.message||"Erro ao gerar plano."); setScreen("anamnesis"); }
     setGen(false);
   };
@@ -1408,7 +1523,10 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
         const r = (pEx.reps || []).filter(v => v != null && !isNaN(v));
         const todasSeries = w.length >= (pEx.sets || ex.sets);
         const temReps = r.length >= (pEx.sets || ex.sets);
-        if (todasSeries && temReps && topo && r.every(v => v >= topo)) {
+        const rirs = (pEx.rirs || []).filter(v => Number.isInteger(v));
+        const rirAlvo = Number.isInteger(ex.rir) ? ex.rir : 3;
+        const esforcoAdequado = rirs.length >= (pEx.sets || ex.sets) && rirs.every(v => v >= rirAlvo);
+        if (todasSeries && temReps && topo && r.every(v => v >= topo) && (rirs.length===0 || esforcoAdequado)) {
           const base = Math.max(...w);
           const inc = base >= 40 ? 2.5 : base >= 15 ? 2 : 1;
           return { base, sugerido: Math.round((base + inc) * 2) / 2, topo };
@@ -1421,7 +1539,9 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
 
   // ── TREINO ────────────────────────────────────────────────────────────────
 
-  const initTimer=(ex)=>{ setSeriesElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(false);setIsoDone(false);setSeriesRunning(false);}else{setSeriesRunning(true);setIsoRunning(false);setIsoDone(false);}};
+  // A primeira série de cada exercício aguarda o aluno montar o equipamento.
+  // As seguintes começam automaticamente ao terminar ou pular o descanso.
+  const initTimer=(ex,autoStart=false)=>{ setSeriesElapsed(0);setSeriesRunning(autoStart&&!ex.iso);setUnilateralSide(0);setFirstSideElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(autoStart);setIsoDone(false);}else{setIsoRunning(false);setIsoDone(false);}};
   const ultimoPeso = (ex, sIdx) => {
     // varre o histórico do mais recente ao mais antigo procurando o exercício (por id, depois por nome)
     for (let i = history.length - 1; i >= 0; i--) {
@@ -1444,31 +1564,54 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     });
   }, [screen, queue[0]?._key, setIdx]);
 
-  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setCardioChoice(null);setScreen("warmup"); };
-  const beginWorkout=()=>{ track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
-  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));initTimer(next); };
-  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));initTimer(newEx);setShowSubs(false); };
+  const startDay=(dayObj)=>{ clearWorkoutDraft(); const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setCurrentSideDurations({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("workoutOverview"); };
+  const beginWorkout=()=>{ workoutStartedAt.current=Date.now(); track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
+  const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));setRirInput("");initTimer(next); };
+  const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));setRirInput("");initTimer(newEx);setShowSubs(false); };
+
+  const advanceUnilateralSide=()=>{
+    const cur=queue[0]; if(!cur||!isUnilateralExercise(cur)||unilateralSide!==0)return;
+    const elapsed=cur.iso?(isoTotal-isoSec):seriesElapsed;
+    if(elapsed<=0||cur.iso&&!isoDone)return;
+    setFirstSideElapsed(elapsed);setUnilateralSide(1);setSeriesElapsed(0);setSeriesRunning(!cur.iso);
+    if(cur.iso){setIsoSec(isoTotal);setIsoRunning(true);setIsoDone(false);}
+  };
 
   const completeSet=()=>{
     const cur=queue[0]; if(!cur)return;
-    let value=cur.iso?(isoTotal-isoSec||isoTotal):parseFloat(weightInput.replace(",","."));
+    const unilateral=isUnilateralExercise(cur);
+    const currentElapsed=cur.iso?(isoTotal-isoSec):seriesElapsed;
+    if(unilateral&&(unilateralSide!==1||firstSideElapsed<=0||currentElapsed<=0||cur.iso&&!isoDone))return;
+    let value=cur.iso?(unilateral?Math.round((firstSideElapsed+currentElapsed)/2):(isoTotal-isoSec||isoTotal)):parseFloat(weightInput.replace(",","."));
     if(!cur.iso&&(isNaN(value)||value<=0))return;
     let reps=cur.iso?null:parseInt(repsInput);
     if(!cur.iso&&(isNaN(reps)||reps<=0))return;
+    const rir=cur.iso?null:parseInt(rirInput);
+    if(!cur.iso&&(!Number.isInteger(rir)||rir<0||rir>5))return;
     setSeriesRunning(false);setIsoRunning(false);
     const updW={...currentWeights}; const arr=[...(updW[cur._key]||[])]; arr[setIdx]=value; updW[cur._key]=arr; setCurrentWeights(updW);
     const updR={...currentReps}; const arrR=[...(updR[cur._key]||[])]; arrR[setIdx]=reps; updR[cur._key]=arrR; setCurrentReps(updR);
-    if(setIdx+1>=cur.sets){ const[done,...rest]=queue; const nc=[...completed,{id:done.id,name:done.name,sets:done.sets,reps:[...arrR],targetReps:done.reps,iso:done.iso,weights:[...arr],skipped:done._skipped,substitutedFor:done._substitutedFor}]; setCompleted(nc); if(rest.length===0){finishWorkout(updW,nc);return;} setQueue(rest);setSetIdx(0);setWeightInput("");setRepsInput("");setRestTotal(done.rest);setRestSec(done.rest);setScreen("rest"); }
+    const updRir={...currentRirs}; const arrRir=[...(updRir[cur._key]||[])]; arrRir[setIdx]=rir; updRir[cur._key]=arrRir; setCurrentRirs(updRir);
+    const updSides={...currentSideDurations}; const sideSets=[...(updSides[cur._key]||[])]; if(unilateral)sideSets[setIdx]=[firstSideElapsed,currentElapsed]; updSides[cur._key]=sideSets; setCurrentSideDurations(updSides);
+    if(setIdx+1>=cur.sets){ const[done,...rest]=queue; const nc=[...completed,{id:done.id,name:done.name,sets:done.sets,reps:[...arrR],rirs:[...arrRir],targetRir:done.rir??3,targetReps:done.reps,iso:done.iso,unilateral,sideDurations:unilateral?[...sideSets]:undefined,weights:[...arr],skipped:done._skipped,substitutedFor:done._substitutedFor}]; setCompleted(nc); if(rest.length===0){finishWorkout(updW,nc);return;} setQueue(rest);setSetIdx(0);setWeightInput("");setRepsInput("");setRirInput("");setRestTotal(done.rest);setRestSec(done.rest);setScreen("rest"); }
     else { setRestTotal(cur.rest);setRestSec(cur.rest);setSetIdx(setIdx+1);setScreen("rest"); }
   };
 
-  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));initTimer(queue[0]);setScreen("workout"); };
+  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0],shouldAutoStartSeries(setIdx));setScreen("workout"); };
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
-  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
+  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),durationMinutes:workoutStartedAt.current?Math.max(1,Math.round((Date.now()-workoutStartedAt.current)/60000)):null,completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);clearWorkoutDraft();buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
 
   const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId && !s.manual); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
+  const saveLatestFeedback = async (feedback) => {
+    const index = history.length - 1;
+    if (index < 0) return;
+    const updated = history.map((session,i)=>i===index?{...session,feedback}:session);
+    setHistory(updated);
+    await saveStorage("abody:history",updated);
+    track("feedback_recuperacao_registrado",{pain:!!feedback.pain,recovery:feedback.recovery});
+  };
 
 
   // Reavaliação corporal comparativa (habilitada 30 dias após a última)
@@ -1500,14 +1643,13 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
     setReBusy(false);
   };
 
-  const goHome=()=>{ setScreen("home");setCurrentDay(null);setReport(null);setSeriesRunning(false);setIsoRunning(false); };
+  const goHome=()=>{ clearWorkoutDraft();setScreen("home");setCurrentDay(null);setReport(null);setSeriesRunning(false);setIsoRunning(false); };
   const current=queue[0]||null;
 
   if(screen==="boot") return <div style={S.page}><p style={{color:C.acc,marginTop:80,fontFamily:"sans-serif"}}>Carregando…</p></div>;
 
   return (
-    <div style={S.page}>
-      <UpdateBanner/>
+    <div style={S.page} className="ab-app-shell">
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
           style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
@@ -1539,9 +1681,10 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
       {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
-      {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={goHome}/>}
+      {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
+      {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={()=>setScreen("workoutOverview")}/>}
       {screen==="workout"      && currentDay && current && (<>
-        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={goHome}/>
+        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} unilateralSide={unilateralSide} firstSideElapsed={firstSideElapsed} onNextSide={advanceUnilateralSide} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
@@ -1558,7 +1701,7 @@ REGRAS: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia. Se houver li
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="evolucao"     && <EvolucaoScreen history={history} onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
-      {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo}/>}
+      {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo} onFeedback={saveLatestFeedback}/>}
     </div>
   );
 }
@@ -1597,15 +1740,28 @@ function AuthScreen({ onDone, onSkip }) {
   };
 
   return (
-    <div style={{...S.box, paddingTop: 40}}>
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:32}}>
+    <div className="ab-auth">
+      <section className="ab-auth-hero" aria-label="A-Body Personal AI Trainer">
+        <div className="ab-logo-lockup">
+          <BrandMark/>
+          <div className="ab-logo-copy"><strong>A-BODY</strong><span>PERSONAL AI TRAINER</span></div>
+        </div>
+        <h2>Seu treino evolui.<br/><em>Você também.</em></h2>
+        <p>Treinos inteligentes, acompanhamento profissional e evolução mensurável em uma experiência feita para manter você em movimento.</p>
+        <div className="ab-auth-proof" aria-label="Benefícios do A-Body">
+          <span>Treino personalizado</span><span>Progresso em tempo real</span><span>IA com contexto</span>
+        </div>
+      </section>
+      <section className="ab-auth-panel">
+      <div className="ab-kicker">BEM-VINDO AO A-BODY</div>
+      <div style={{display:"none"}}>
         <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:16,marginBottom:14}}>A</div>
         <div style={S.brand}>A-BODY</div>
       </div>
 
-      <h1 style={{...S.h1,fontSize:24}}>{mode==="login" ? "Entrar" : "Criar conta"}</h1>
+      <h1>{mode==="login" ? "Entre para continuar" : "Crie sua conta"}</h1>
       {convitePendente ? (
-        <div style={{background:"#0d2218",border:`1px solid ${C.acc}`,borderRadius:12,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
+        <div style={{background:"#edf6f1",border:`1px solid ${C.acc}`,borderRadius:12,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
           🎟️ <b>Você foi convidado pelo seu personal.</b> {mode==="signup" ? "Crie sua conta abaixo" : "Entre com sua conta"} e seu acesso será ativado automaticamente.
         </div>
       ) : (
@@ -1614,60 +1770,54 @@ function AuthScreen({ onDone, onSkip }) {
 
       {mode==="signup" && !convitePendente && (
         <>
-          <label style={S.fieldLabel}>EU SOU</label>
-          <div style={{display:"flex",gap:8,marginBottom:12}}>
+          <label className="ab-label">EU SOU</label>
+          <div className="ab-role-grid">
             {[["aluno","🏋️ Aluno"],["pro","📋 Personal Trainer"]].map(([k,rotulo])=>(
-              <button key={k} onClick={()=>setTipo(k)}
-                style={{...S.card,flex:1,alignItems:"center",padding:"12px 8px",fontSize:13,fontWeight:700,
-                  color: tipo===k ? C.acc : C.muted,
-                  border: `1px solid ${tipo===k ? C.acc : C.border}`}}>
+              <button key={k} onClick={()=>setTipo(k)} className="ab-role" data-active={tipo===k}>
                 {rotulo}
               </button>
             ))}
           </div>
           {tipo==="pro" && (
             <>
-              <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
-              <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem" autoComplete="name"/>
+              <label className="ab-label">NOME PROFISSIONAL</label>
+              <input className="ab-input" type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem" autoComplete="name"/>
               <p style={{fontSize:11,color:C.muted,margin:"6px 2px 10px"}}>Seus alunos verão este nome e sua foto no A-Body. Se entrar com Google e deixar em branco, usamos o nome da sua conta Google (dá pra ajustar depois no perfil).</p>
             </>
           )}
         </>
       )}
 
-      <button style={{...S.card, flexDirection:"row", alignItems:"center", justifyContent:"center", gap:10, marginBottom:16, fontWeight:600, fontSize:14, color:C.text}} onClick={()=>{ if(mode==="signup" && tipo==="pro") localStorage.setItem("abody:pendingpro", nome.trim()); authSignInGoogle(); }}>
+      <button className="ab-google" onClick={()=>{ if(mode==="signup" && tipo==="pro") localStorage.setItem("abody:pendingpro", nome.trim()); authSignInGoogle(); }}>
         <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.2 6.1 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.4-11.3-8H6.1l-6.5 5C6.9 39.6 14.8 44 24 44z" transform="translate(6.5,0) scale(0.87)"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C41.4 35.3 44 30.1 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
         Continuar com Google
       </button>
 
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
-        <div style={{flex:1,height:1,background:C.border}}/>
-        <span style={{fontSize:11,color:C.muted}}>ou com e-mail</span>
-        <div style={{flex:1,height:1,background:C.border}}/>
-      </div>
+      <div className="ab-divider">OU COM E-MAIL</div>
 
-      <label style={S.fieldLabel}>E-MAIL</label>
-      <input style={S.field} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
-      <label style={S.fieldLabel}>SENHA</label>
-      <input style={S.field} type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
+      <label className="ab-label">E-MAIL</label>
+      <input className="ab-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
+      <label className="ab-label">SENHA</label>
+      <input className="ab-input" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
 
       {err  && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
       {info && <div style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
 
-      <button style={{...S.btn,marginTop:18,opacity:(email&&pass.length>=6&&!busy)?1:0.4}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
+      <button className="ab-primary" style={{marginTop:18}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
         {busy ? "Aguarde…" : (mode==="login" ? "Entrar" : "Criar conta")}
       </button>
 
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:600,marginTop:16,width:"100%",textAlign:"center"}}
+      <button className="ab-link"
         onClick={()=>{setMode(mode==="login"?"signup":"login");setErr(null);setInfo(null);}}>
         {mode==="login" ? "Não tem conta? Cadastre-se" : "Já tem conta? Entrar"}
       </button>
 
       {!convitePendente && (
-        <button style={{...S.btnOutline,marginTop:20,fontSize:13}} onClick={onSkip}>
+        <button className="ab-guest" onClick={onSkip}>
           Continuar sem conta (dados só neste aparelho)
         </button>
       )}
+      </section>
     </div>
   );
 }
@@ -1714,67 +1864,53 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
   ];
   const incompleto = passos && passos.some(p=>!p.ok);
   return (
-    <div style={S.box}>
-      <div style={S.brandRow}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={S.logo}>A</div><span style={S.brand}>A-BODY</span>
-          <span style={{fontSize:10,fontWeight:800,color:C.acc,letterSpacing:"0.12em",border:`1px solid ${C.acc}`,borderRadius:8,padding:"3px 7px"}}>PRO</span>
-        </div>
-      </div>
+    <div className="ab-dashboard">
+      <header className="ab-dashboard-header">
+        <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY PRO</strong><span>GESTÃO DE PERFORMANCE</span></div></div>
+        <button className="ab-icon-button" onClick={onPerfil} aria-label="Editar perfil"><AvatarFoto url={pro.foto_url} nome={pro.nome} size={34}/></button>
+      </header>
 
-      <button style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:20}} onClick={onPerfil}>
+      <section className="ab-hero-card">
+      <div className="ab-kicker">PAINEL PROFISSIONAL</div>
+      <h1>Bom trabalho começa<br/>com uma visão clara.</h1>
+      <p className="ab-copy">Gerencie seus alunos, agenda e treinos em um só lugar.</p>
+      <button className="ab-personal-chip" style={{background:"none",border:0,padding:0,marginTop:22}} onClick={onPerfil}>
         <AvatarFoto url={pro.foto_url} nome={pro.nome} size={52}/>
         <div style={{textAlign:"left"}}>
           <div style={{fontSize:16,fontWeight:800,color:C.text}}>{pro.nome}</div>
           <div style={{fontSize:12,color:C.muted}}>Personal Trainer · editar perfil</div>
         </div>
-        <span style={{marginLeft:"auto",color:C.acc,fontSize:18}}>→</span>
+        <Icon name="arrow" size={18}/>
       </button>
-
-      <h1 style={S.h1}>Seu espaço profissional</h1>
-      <p style={S.sub}>Gerencie agenda, alunos e treinos em um só lugar.</p>
+      </section>
 
       {incompleto && (
-        <div style={{...S.card,marginBottom:14,border:`1.5px solid ${C.acc}`}}>
-          <div style={{fontSize:12,fontWeight:800,color:C.acc,letterSpacing:"0.06em",marginBottom:8}}>🚀 PRIMEIROS PASSOS</div>
+        <div className="ab-onboarding-list">
+          <h3>PRIMEIROS PASSOS</h3>
           {passos.map((p,i)=>(
-            <button key={i} onClick={p.acao} disabled={p.ok}
-              style={{display:"flex",alignItems:"center",gap:10,background:"none",border:"none",padding:"6px 0",width:"100%",textAlign:"left",cursor:p.ok?"default":"pointer"}}>
-              <span style={{fontSize:15}}>{p.ok?"✅":"⬜"}</span>
-              <span style={{fontSize:13,fontWeight:600,color:p.ok?C.muted:C.text,textDecoration:p.ok?"line-through":"none"}}>{p.t}</span>
+            <button key={i} onClick={p.acao} disabled={p.ok} className="ab-onboarding-item" data-done={p.ok}>
+              <i>{p.ok?"✓":i+1}</i><span>{p.t}</span>
             </button>
           ))}
         </div>
       )}
 
       {resumo && !incompleto && (
-        <div style={{...S.card,flexDirection:"row",gap:0,marginBottom:14,padding:"12px 6px"}}>
-          {[["👥",resumo.ativos,"ativos"],["📋",resumo.comTreino,"com treino"],["🔥",resumo.treinosSemana,"treinos na semana"]].map(([ic,v,l],i)=>(
-            <div key={i} style={{flex:1,textAlign:"center",borderLeft:i?`1px solid ${C.border}`:"none"}}>
-              <div style={{fontSize:17,fontWeight:800,color:C.acc}}>{ic} {v}</div>
-              <div style={{fontSize:10,color:C.muted,marginTop:2}}>{l}</div>
+        <div className="ab-pro-summary">
+          {[["users",resumo.ativos,"Alunos ativos"],["dumbbell",resumo.comTreino,"Com treino"],["flame",resumo.treinosSemana,"Treinos na semana"]].map(([ic,v,l],i)=>(
+            <div key={i} className="ab-metric">
+              <div className="ab-metric-icon"><Icon name={ic}/></div>
+              <strong>{v}</strong><span>{l}</span>
             </div>
           ))}
         </div>
       )}
 
-      <button style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}} onClick={onAgenda}>
-        <div style={{textAlign:"left"}}>
-          <div style={{fontSize:17,fontWeight:800,color:C.text}}>📅 Agenda semanal</div>
-          <div style={{fontSize:12,color:C.muted,marginTop:2}}>horários, alunos e locais das aulas</div>
-        </div>
-        <span style={{color:C.acc,fontSize:18}}>→</span>
-      </button>
-
-      <button style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:12}} onClick={onAlunos}>
-        <div style={{textAlign:"left"}}>
-          <div style={{fontSize:17,fontWeight:800,color:C.text,display:"flex",alignItems:"center",gap:8}}>👥 Meus alunos
-            {naoLidas>0 && <span style={{background:"#e05555",color:"#fff",borderRadius:12,fontSize:11,fontWeight:800,padding:"2px 8px"}}>{naoLidas} nova{naoLidas>1?"s":""}</span>}
-          </div>
-          <div style={{fontSize:12,color:C.muted,marginTop:2}}>{naoLidas>0?"mensagens de alunos aguardando resposta":"cadastro e montagem de treinos"}</div>
-        </div>
-        <span style={{color:C.acc,fontSize:18}}>→</span>
-      </button>
+      <div className="ab-section-title"><h2>Acesso rápido</h2><span>Gestão diária</span></div>
+      <div className="ab-pro-actions">
+        <button className="ab-pro-action" onClick={onAgenda}><div className="ab-pro-action-top"><Icon name="calendar"/><Icon name="arrow" size={18}/></div><strong>Agenda semanal</strong><p>Horários, alunos e locais das aulas.</p></button>
+        <button className="ab-pro-action" onClick={onAlunos}><div className="ab-pro-action-top"><Icon name="users"/>{naoLidas>0?<span className="ab-badge">{naoLidas} nova{naoLidas>1?"s":""}</span>:<Icon name="arrow" size={18}/>}</div><strong>Meus alunos</strong><p>{naoLidas>0?"Mensagens aguardando resposta.":"Cadastro, evolução e montagem de treinos."}</p></button>
+      </div>
 
       <button style={{...S.btnOutline,width:"100%",marginTop:8}} onClick={onLogout}>Sair da conta</button>
     </div>
@@ -1810,27 +1946,29 @@ function ProPerfilScreen({ pro, onSaved, onBack }) {
   };
 
   return (
-    <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:16,padding:0}} onClick={onBack}>← Voltar</button>
-      <h1 style={{...S.h1,fontSize:22}}>Perfil profissional</h1>
-      <p style={S.sub}>É assim que seus alunos verão você no app.</p>
-
-      <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:20}}>
-        <AvatarFoto url={foto} nome={nome} size={92}/>
-        <button style={{...S.btnOutline,marginTop:12,fontSize:13,padding:"10px 18px",width:"auto"}} disabled={busy} onClick={()=>fileRef.current?.click()}>
-          {foto ? "Trocar foto" : "Adicionar foto"}
-        </button>
-        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
+    <div className="ab-pro-page ab-pro-profile-page">
+      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <div className="ab-page-head">
+        <div><div className="ab-eyebrow">SUA IDENTIDADE</div><h1>Perfil profissional</h1><p className="ab-copy">Mantenha sua apresentação reconhecível e consistente para todos os alunos.</p></div>
       </div>
-
-      <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
-      <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem"/>
-
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-
-      <button style={{...S.btn,marginTop:18,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>
-        {busy ? "Aguarde…" : "Salvar perfil"}
-      </button>
+      <div className="ab-profile-layout">
+        <aside className="ab-profile-preview">
+          <span>VISÃO DO ALUNO</span>
+          <AvatarFoto url={foto} nome={nome} size={104}/>
+          <h2>{nome || "Seu nome"}</h2>
+          <p>Profissional A-Body</p>
+          <button className="ab-secondary-action" disabled={busy} onClick={()=>fileRef.current?.click()}>{foto ? "Trocar fotografia" : "Adicionar fotografia"}</button>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
+        </aside>
+        <section className="ab-profile-form">
+          <div className="ab-section-title"><div><span>INFORMAÇÕES PÚBLICAS</span><h2>Como você aparece no app</h2></div></div>
+          <label style={S.fieldLabel}>NOME PROFISSIONAL</label>
+          <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="como seus alunos te conhecem"/>
+          <p className="ab-field-help">Use o mesmo nome pelo qual seus alunos já conhecem você.</p>
+          {err && <div className="ab-form-error">{err}</div>}
+          <div className="ab-form-actions"><button className="ab-primary" disabled={busy} onClick={salvar}>{busy ? "Salvando…" : "Salvar alterações"}</button></div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -1864,31 +2002,32 @@ function ProAgendaScreen({ onBack }) {
     .filter(a => (a.dia_semana === idx+1 && !a.data) || a.data === isoData(d))
     .sort((x,y) => x.hora.localeCompare(y.hora));
 
-  const novaAula = () => setEditando({ dia_semana: 1, data: null, hora: "07:00", duracao_min: 60, local: "", tipo: "presencial", aluno_id: null });
+  const novaAula = () => setEditando({ dia_semana: diaSel+1, data: null, hora: "07:00", duracao_min: 60, local: "", tipo: "presencial", aluno_id: null });
 
   return (
-    <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onBack}>← Voltar</button>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-        <h1 style={{...S.h1,fontSize:22,margin:0}}>Agenda semanal</h1>
-        <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13}} onClick={novaAula}>+ Aula</button>
+    <div className="ab-pro-page">
+      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <div className="ab-pro-page-head">
+        <div><div className="ab-eyebrow">ORGANIZAÇÃO SEMANAL</div><h1>Agenda</h1><p>Acompanhe seus atendimentos e acesse o treino de cada aluno.</p></div>
+        <button className="ab-primary ab-compact-button" onClick={novaAula}><Icon name="calendar" size={17}/> Nova aula</button>
       </div>
 
       {/* Linha 1 — mês */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",margin:"12px 0 10px"}}>
-        <button style={{...S.btnOutline,width:"auto",padding:"7px 14px",fontSize:14}} onClick={()=>{
+      <section className="ab-calendar-shell">
+      <div className="ab-calendar-month">
+        <button className="ab-icon-button" aria-label="Mês anterior" onClick={()=>{
           const m=new Date(mes.getFullYear(),mes.getMonth()-1,1); setMes(m); const s=inicioSemana(m); setSemana(s);
         }}>‹</button>
-        <span style={{fontSize:15,fontWeight:800,color:C.text,textTransform:"capitalize"}}>
+        <strong>
           {mes.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}
-        </span>
-        <button style={{...S.btnOutline,width:"auto",padding:"7px 14px",fontSize:14}} onClick={()=>{
+        </strong>
+        <button className="ab-icon-button" aria-label="Próximo mês" onClick={()=>{
           const m=new Date(mes.getFullYear(),mes.getMonth()+1,1); setMes(m); const s=inicioSemana(m); setSemana(s);
         }}>›</button>
       </div>
 
       {/* Linha 2 — semanas do mês */}
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:8,marginBottom:8}}>
+      <div className="ab-calendar-weeks">
         {(()=>{
           const semanas=[]; let s=inicioSemana(new Date(mes.getFullYear(),mes.getMonth(),1));
           while (s.getMonth()===mes.getMonth() || new Date(s.getFullYear(),s.getMonth(),s.getDate()+6).getMonth()===mes.getMonth()) {
@@ -1899,9 +2038,7 @@ function ProAgendaScreen({ onBack }) {
             const fim=new Date(s); fim.setDate(fim.getDate()+6);
             const sel = isoData(s)===isoData(semana);
             return (
-              <button key={i} onClick={()=>setSemana(new Date(s))}
-                style={{flexShrink:0,padding:"7px 13px",borderRadius:18,fontSize:12,fontWeight:700,cursor:"pointer",
-                  border:`1.5px solid ${sel?C.acc:C.border}`,background:sel?C.acc:"transparent",color:sel?"#06140e":C.muted}}>
+              <button className="ab-filter-chip" data-active={sel} key={i} onClick={()=>setSemana(new Date(s))}>
                 {s.getDate()}–{fim.getDate()}
               </button>
             );
@@ -1910,63 +2047,53 @@ function ProAgendaScreen({ onBack }) {
       </div>
 
       {/* Linha 3 — dias da semana */}
-      <div style={{display:"flex",gap:6,marginBottom:16}}>
+      <div className="ab-calendar-days">
         {dias.map((d,i)=>{
           const sel = i===diaSel;
           const ehHojeChip = isoData(d)===hoje;
           return (
-            <button key={i} onClick={()=>setDiaSel(i)}
-              style={{flex:1,padding:"8px 0",borderRadius:12,cursor:"pointer",textAlign:"center",
-                border:`1.5px solid ${sel?C.acc:ehHojeChip?C.acc+"66":C.border}`,
-                background:sel?C.acc:"transparent"}}>
-              <div style={{fontSize:10,fontWeight:800,letterSpacing:"0.04em",color:sel?"#06140e":ehHojeChip?C.acc:C.muted}}>{DIAS_PT[i].slice(0,3).toUpperCase()}</div>
-              <div style={{fontSize:13,fontWeight:800,color:sel?"#06140e":C.text,marginTop:2}}>{d.getDate()}</div>
+            <button key={i} data-active={sel} data-today={ehHojeChip} onClick={()=>setDiaSel(i)}>
+              <span>{DIAS_PT[i].slice(0,3).toUpperCase()}</span><strong>{d.getDate()}</strong>
             </button>
           );
         })}
       </div>
 
-      {aulas === null && <p style={{color:C.muted,fontSize:13}}>Carregando agenda…</p>}
+      </section>
+
+      {aulas === null && <div className="ab-loading-row">Carregando agenda…</div>}
 
       {aulas !== null && (()=>{
         const d = dias[diaSel];
         const doDia = aulasDoDia(d, diaSel);
         const ehHoje = isoData(d) === hoje;
         return (
-          <div style={{marginBottom:14}}>
-            <div style={{fontSize:12,fontWeight:800,letterSpacing:"0.08em",color: ehHoje ? C.acc : C.muted, marginBottom:8}}>
+          <div className="ab-appointments">
+            <div className="ab-appointments-label" data-today={ehHoje}>
               {DIAS_PT[diaSel].toUpperCase()} · {d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})}{ehHoje ? " · HOJE" : ""}
             </div>
-            {doDia.length === 0 && <div style={{fontSize:13,color:C.muted,opacity:0.7,padding:"10px 2px"}}>— sem aulas neste dia</div>}
+            {doDia.length === 0 && <div className="ab-empty-inline"><Icon name="calendar" size={24}/><div><strong>Dia livre</strong><span>Nenhuma aula agendada para esta data.</span></div></div>}
             {doDia.map(a => (
-              <div key={a.id} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:8,padding:"12px 14px",
-                borderLeft:`3px solid ${a.tipo==="presencial" ? C.acc : "#d9a441"}`}}>
-                <div style={{minWidth:52,textAlign:"center"}}>
-                  <div style={{fontSize:15,fontWeight:800,color:C.text}}>{a.hora.slice(0,5)}</div>
-                  <div style={{fontSize:10,color:C.muted}}>{a.duracao_min} min</div>
-                </div>
-                <button style={{flex:1,background:"none",border:"none",textAlign:"left",padding:0,cursor:"pointer"}} onClick={()=>setTreinoDe({aula:a})}>
-                  <div style={{fontSize:14,fontWeight:700,color:C.text}}>{a.alunos?.nome || "Sem aluno vinculado"}</div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                    {a.tipo==="presencial" ? "🏋️ Presencial" : "🏃 Independente"}
-                    {a.local ? ` · 📍 ${a.local}` : ""}
-                    {a.data ? " · data única" : " · semanal"}
-                  </div>
+              <div key={a.id} className="ab-appointment" data-type={a.tipo}>
+                <div className="ab-appointment-time"><strong>{a.hora.slice(0,5)}</strong><span>{a.duracao_min} min</span></div>
+                <button className="ab-appointment-main" onClick={()=>setTreinoDe({aula:a})}>
+                  <strong>{a.alunos?.nome || "Sem aluno vinculado"}</strong>
+                  <span>{a.tipo==="presencial" ? "Presencial" : "Independente"}{a.local ? ` · ${a.local}` : ""}{a.data ? " · data única" : " · semanal"}</span>
                 </button>
-                <button style={{background:"none",border:"none",color:C.muted,fontSize:16,cursor:"pointer"}} onClick={()=>setEditando({...a})}>✎</button>
+                <button className="ab-icon-button" aria-label={`Editar aula de ${a.alunos?.nome || "aluno"}`} onClick={()=>setEditando({...a})}>✎</button>
               </div>
             ))}
           </div>
         );
       })()}
 
-      {editando && <AulaModal aula={editando} alunos={alunos} onClose={()=>setEditando(null)} onSaved={async()=>{setEditando(null);await carregar();}}/>}
+      {editando && <AulaModal aula={editando} alunos={alunos} aulas={aulas||[]} onClose={()=>setEditando(null)} onSaved={async()=>{setEditando(null);await carregar();}}/>}
       {treinoDe && <TreinoDoDiaModal aula={treinoDe.aula} onClose={()=>setTreinoDe(null)}/>}
     </div>
   );
 }
 
-function AulaModal({ aula, alunos, onClose, onSaved }) {
+function AulaModal({ aula, alunos, aulas, onClose, onSaved }) {
   const [form, setForm] = useState(aula);
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
@@ -1975,6 +2102,7 @@ function AulaModal({ aula, alunos, onClose, onSaved }) {
 
   const salvar = async () => {
     if (!form.hora) { setErr("Informe o horário."); return; }
+    if (schedulesOverlap(form, aulas)) { setErr("Este horário conflita com outra aula da agenda."); return; }
     setErr(null); setBusy(true);
     const payload = {...form, dia_semana: recorrente ? form.dia_semana : null, local: form.local?.trim() || null};
     const r = await salvarAula(payload);
@@ -1983,6 +2111,7 @@ function AulaModal({ aula, alunos, onClose, onSaved }) {
   };
   const remover = async () => {
     if (!form.id) return;
+    if (!window.confirm("Excluir esta aula da agenda?")) return;
     setBusy(true);
     const r = await excluirAula(form.id);
     setBusy(false);
@@ -2116,15 +2245,39 @@ function TreinoDoDiaModal({ aula, onClose }) {
 
 // ─── B2B: GESTÃO DE ALUNOS E EDITOR DE TREINOS ───────────────────────────────
 
-const OVERLAY_B2B = {position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:70};
-const SHEET_B2B = {background:C.bg,border:`1px solid ${C.border}`,borderRadius:"20px 20px 0 0",padding:"20px 18px 28px",width:"100%",maxWidth:480,maxHeight:"90vh",overflowY:"auto"};
 const STATUS_ALUNO = { convidado:{rotulo:"Convidado",cor:"#d9a441"}, ativo:{rotulo:"Ativo",cor:C.acc}, inativo:{rotulo:"Inativo",cor:C.muted} };
+
+function ModalShell({ title, eyebrow, onClose, children, layer=70, wide=false, bodyClass="" }) {
+  const panelRef = useRef(null);
+  const titleId = useId();
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      const openPanels = document.querySelectorAll(".ab-modal-sheet");
+      if (event.key === "Escape" && openPanels[openPanels.length-1] === panelRef.current) onClose();
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    panelRef.current?.focus();
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", closeOnEscape); };
+  }, [onClose]);
+
+  return (
+    <div className="ab-modal-overlay" style={{zIndex:layer}} onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}>
+      <section ref={panelRef} className={`ab-modal-sheet${wide?" ab-modal-wide":""}${bodyClass?` ${bodyClass}`:""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+        <header className="ab-modal-header"><div>{eyebrow && <span>{eyebrow}</span>}<h2 id={titleId}>{title}</h2></div><button className="ab-modal-close" aria-label="Fechar" onClick={onClose}>×</button></header>
+        {children}
+      </section>
+    </div>
+  );
+}
 
 function ProAlunosScreen({ onBack }) {
   const [vista, setVista]   = useState("lista"); // lista | detalhe | editor | ia
   const [alunos, setAlunos] = useState(null);
   const [sel, setSel]       = useState(null);    // aluno selecionado
   const [treino, setTreino] = useState(null);    // {id, plano} ativo do selecionado
+  const [historico, setHistorico] = useState(null);
   const [novoAluno, setNovoAluno] = useState(false);
   const [convite, setConvite]     = useState(false);
   const [mensagens, setMensagens] = useState(false);
@@ -2141,8 +2294,9 @@ function ProAlunosScreen({ onBack }) {
   useEffect(() => { carregar(); }, []);
 
   const abrirDetalhe = async (a) => {
-    setSel(a); setTreino(null); setVista("detalhe");
-    setTreino(await fetchTreinoAtivoCompleto(a.id));
+    setSel(a); setTreino(null); setHistorico(null); setVista("detalhe");
+    const [ativo, versoes] = await Promise.all([fetchTreinoAtivoCompleto(a.id), fetchHistoricoTreinosAluno(a.id)]);
+    setTreino(ativo); setHistorico(versoes);
   };
   const abrirEditor = (plano, treinoId) => { setPlanoBase({ plano, treinoId: treinoId || null }); setVista("editor"); };
   const abrirAvaliacao = async () => {
@@ -2157,7 +2311,7 @@ function ProAlunosScreen({ onBack }) {
   if (vista === "editor" && sel && planoBase) return (
     <ProTreinoEditor aluno={sel} base={planoBase}
       onCancel={()=>setVista("detalhe")}
-      onSaved={async()=>{ setTreino(await fetchTreinoAtivoCompleto(sel.id)); setVista("detalhe"); }}/>
+      onSaved={async()=>{ const [ativo,versoes]=await Promise.all([fetchTreinoAtivoCompleto(sel.id),fetchHistoricoTreinosAluno(sel.id)]);setTreino(ativo);setHistorico(versoes);setVista("detalhe"); }}/>
   );
   if (vista === "avaliacao" && sel) {
     if (avals === null) return <div style={S.box}><p style={{color:C.muted,fontSize:13}}>Carregando avaliações…</p></div>;
@@ -2182,46 +2336,57 @@ function ProAlunosScreen({ onBack }) {
   if (vista === "detalhe" && sel) {
     const st = STATUS_ALUNO[sel.status] || STATUS_ALUNO.convidado;
     return (
-      <div style={S.box}>
-        <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={()=>{setVista("lista");carregar();}}>← Alunos</button>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
-          <AvatarFoto nome={sel.nome} size={52}/>
-          <div style={{flex:1}}>
-            <h1 style={{...S.h1,fontSize:20,margin:0}}>{sel.nome}</h1>
-            <div style={{fontSize:12,color:C.muted}}>{sel.email}</div>
+      <div className="ab-pro-page">
+        <button className="ab-back-link" onClick={()=>{setVista("lista");carregar();}}>← Todos os alunos</button>
+        <header className="ab-student-profile-head">
+          <AvatarFoto nome={sel.nome} size={68}/>
+          <div className="ab-student-identity">
+            <div className="ab-eyebrow">PERFIL DO ALUNO</div>
+            <h1>{sel.nome}</h1><span>{sel.email}</span>
           </div>
-          <span style={{fontSize:11,fontWeight:800,color:st.cor,border:`1px solid ${st.cor}`,borderRadius:8,padding:"4px 8px"}}>{st.rotulo.toUpperCase()}</span>
-        </div>
-        <div style={{display:"flex",gap:8,marginBottom:16}}>
-          <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"11px"}} onClick={()=>setConvite(true)}>📨 Convite de acesso</button>
-          <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"11px"}} onClick={()=>setMensagens(true)}>💬 Mensagens</button>
-        </div>
-        <DocsSaude alunoId={sel.id}/>
+          <span className="ab-status-pill" style={{color:st.cor,borderColor:st.cor}}>{st.rotulo.toUpperCase()}</span>
+          <div className="ab-student-head-actions">
+            <button className="ab-secondary-action" onClick={()=>setConvite(true)}><Icon name="user" size={16}/> Convite</button>
+            <button className="ab-secondary-action" onClick={()=>setMensagens(true)}>Mensagens</button>
+          </div>
+        </header>
 
-        <div style={S.eyebrow}>TREINO ATIVO</div>
-        {treino === null && <p style={{color:C.muted,fontSize:13}}>Verificando…</p>}
-        {treino === false || (treino && !treino.plano) ? null : null}
-        {treino !== null && !treino && (
-          <div style={{...S.card,padding:"14px",marginBottom:14}}>
-            <div style={{fontSize:13,color:C.muted}}>Nenhum treino ativo ainda. Monte manualmente ou gere por IA.</div>
-          </div>
-        )}
-        {treino && treino.plano && (
-          <button style={{...S.card,marginBottom:14,padding:"14px",width:"100%",textAlign:"left"}} onClick={()=>abrirEditor(treino.plano, treino.id)}>
-            <div style={{fontSize:15,fontWeight:800,color:C.text}}>{treino.plano.planName}</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:3}}>
-              {(treino.plano.weekDays||[]).length} dia(s) · atualizado {new Date(treino.atualizado_em).toLocaleDateString("pt-BR")} · toque para editar
+        <div className="ab-student-workspace">
+          <main>
+            <div className="ab-section-title"><div><span>PROGRAMA ATUAL</span><h2>Treino ativo</h2></div></div>
+            {treino === null && <div className="ab-loading-row">Verificando treino…</div>}
+            {treino !== null && !treino && <div className="ab-empty-inline"><Icon name="dumbbell" size={24}/><div><strong>Nenhum treino ativo</strong><span>Monte um programa manualmente ou use a IA como ponto de partida.</span></div></div>}
+            {treino && treino.plano && (
+              <button className="ab-active-plan-card" onClick={()=>abrirEditor(treino.plano, treino.id)}>
+                <div className="ab-active-plan-icon"><Icon name="dumbbell"/></div>
+                <div><span>PLANO EM ANDAMENTO</span><strong>{treino.plano.planName}</strong><p>{(treino.plano.weekDays||[]).length} dia(s) · atualizado em {new Date(treino.atualizado_em).toLocaleDateString("pt-BR")}</p></div>
+                <Icon name="arrow" size={18}/>
+              </button>
+            )}
+            <div className="ab-student-action-grid">
+              <button onClick={()=>abrirEditor(planoVazio(), null)}><Icon name="dumbbell"/><strong>Montar treino</strong><span>Criação manual detalhada</span></button>
+              <button onClick={()=>setVista("ia")}><Icon name="sparkles"/><strong>Gerar com IA</strong><span>Plano personalizado em minutos</span></button>
+              <button onClick={abrirAvaliacao}><Icon name="chart"/><strong>Avaliação corporal</strong><span>Medidas, fotos e comparativo</span></button>
             </div>
-          </button>
-        )}
-
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <button style={S.btn} onClick={()=>abrirEditor(planoVazio(), null)}>🛠 Montar treino manual</button>
-          <button style={{...S.btnOutline}} onClick={()=>setVista("ia")}>✨ Gerar treino por IA</button>
-          <button style={{...S.btnOutline}} onClick={abrirAvaliacao}>📊 Avaliação corporal e comparativo</button>
+            <section style={{marginTop:24}}>
+              <div className="ab-section-title"><div><span>VERSÕES</span><h2>Histórico de treinos</h2></div></div>
+              {historico===null && <div className="ab-loading-row">Carregando histórico…</div>}
+              {historico && historico.length===0 && <p className="ab-field-help">Nenhuma versão publicada.</p>}
+              {(historico||[]).map(v=><div key={v.id} className="ab-active-plan-card" style={{marginBottom:8}}>
+                <div><span>{v.ativo?"ATIVO":"VERSÃO ANTERIOR"}</span><strong>{v.plano?.planName||"Plano sem nome"}</strong><p>{new Date(v.atualizado_em).toLocaleString("pt-BR")}</p></div>
+                {!v.ativo && <button className="ab-secondary-action" onClick={async()=>{if(!window.confirm("Restaurar esta versão como um novo treino ativo?"))return;const r=await salvarTreinoAluno(sel.id,v.plano,null);if(r){const [ativo,versoes]=await Promise.all([fetchTreinoAtivoCompleto(sel.id),fetchHistoricoTreinosAluno(sel.id)]);setTreino(ativo);setHistorico(versoes);}}}>Restaurar</button>}
+              </div>)}
+            </section>
+          </main>
+          <aside className="ab-student-sidebar">
+            <div className="ab-section-title"><div><span>PRONTUÁRIO</span><h2>Saúde e documentos</h2></div></div>
+            <DocsSaude alunoId={sel.id}/>
+          </aside>
+        </div>
+        <div className="ab-danger-zone">
           {sel.status !== "inativo"
-            ? <button style={{...S.btnOutline,fontSize:13,color:"#ff8080",borderColor:"#8b2a2a"}} onClick={async()=>{await atualizarAluno(sel.id,{status:"inativo"});setSel({...sel,status:"inativo"});}}>Desativar aluno</button>
-            : <button style={{...S.btnOutline,fontSize:13}} onClick={async()=>{await atualizarAluno(sel.id,{status: sel.user_id ? "ativo" : "convidado"});setSel({...sel,status: sel.user_id ? "ativo" : "convidado"});}}>Reativar aluno</button>}
+            ? <button onClick={async()=>{if(!window.confirm("Desativar o acesso deste aluno?"))return;const r=await atualizarAluno(sel.id,{status:"inativo"});if(r)setSel({...sel,status:"inativo"});}}>Desativar acesso do aluno</button>
+            : <button onClick={async()=>{const status=sel.user_id?"ativo":"convidado";const r=await atualizarAluno(sel.id,{status});if(r)setSel({...sel,status});}}>Reativar acesso do aluno</button>}
         </div>
         {convite && <ConviteModal aluno={sel} onClose={()=>setConvite(false)}/>}
         {mensagens && <MensagensModal aluno={sel} onClose={()=>setMensagens(false)}/>}
@@ -2230,30 +2395,33 @@ function ProAlunosScreen({ onBack }) {
   }
 
   return (
-    <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onBack}>← Voltar</button>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <h1 style={{...S.h1,fontSize:22,margin:0}}>Meus alunos</h1>
-        <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13}} onClick={()=>setNovoAluno(true)}>+ Aluno</button>
+    <div className="ab-pro-page">
+      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <div className="ab-pro-page-head">
+        <div><div className="ab-eyebrow">CARTEIRA PROFISSIONAL</div><h1>Meus alunos</h1><p>Treinos, evolução e comunicação em uma visão organizada.</p></div>
+        <button className="ab-primary ab-compact-button" onClick={()=>setNovoAluno(true)}><Icon name="users" size={17}/> Novo aluno</button>
       </div>
 
-      {alunos === null && <p style={{color:C.muted,fontSize:13}}>Carregando…</p>}
-      {alunos && alunos.length === 0 && <p style={{color:C.muted,fontSize:13}}>Nenhum aluno ainda. Cadastre o primeiro no botão acima.</p>}
+      {alunos === null && <div className="ab-loading-row">Carregando alunos…</div>}
+      {alunos && alunos.length === 0 && <div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="users"/></div><h1>Sua carteira começa aqui</h1><p>Cadastre o primeiro aluno para montar treinos, registrar avaliações e acompanhar a frequência.</p><button className="ab-primary ab-compact-button" onClick={()=>setNovoAluno(true)}>Cadastrar aluno</button></div></div>}
+      {alunos && alunos.length > 0 && <div className="ab-student-list-head"><span>{alunos.length} aluno{alunos.length!==1?"s":""}</span><span>STATUS E ATIVIDADE</span></div>}
+      <div className="ab-student-list">
       {(alunos||[]).map(a => {
         const st = STATUS_ALUNO[a.status] || STATUS_ALUNO.convidado;
         return (
-          <button key={a.id} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,marginBottom:8,padding:"12px 14px",width:"100%"}} onClick={()=>abrirDetalhe(a)}>
-            <AvatarFoto nome={a.nome} size={40}/>
-            <div style={{flex:1,textAlign:"left"}}>
-              <div style={{fontSize:14,fontWeight:700,color:C.text,display:"flex",alignItems:"center",gap:7}}>{a.nome}
-                {nlPorAluno[a.id]>0 && <span style={{background:"#e05555",color:"#fff",borderRadius:10,fontSize:10,fontWeight:800,padding:"1px 7px"}}>💬 {nlPorAluno[a.id]}</span>}
-              </div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{a.status==="ativo" ? `🔥 ${ckPorAluno[a.id]||0} treino${(ckPorAluno[a.id]||0)!==1?"s":""} esta semana` : a.email}</div>
+          <button key={a.id} className="ab-student-row" onClick={()=>abrirDetalhe(a)}>
+            <AvatarFoto nome={a.nome} size={46}/>
+            <div className="ab-student-row-main">
+              <strong>{a.nome}{nlPorAluno[a.id]>0 && <b>{nlPorAluno[a.id]} nova{nlPorAluno[a.id]!==1?"s":""}</b>}</strong>
+              <span>{a.email}</span>
             </div>
-            <span style={{fontSize:10,fontWeight:800,color:st.cor,border:`1px solid ${st.cor}`,borderRadius:8,padding:"3px 7px"}}>{st.rotulo.toUpperCase()}</span>
+            <div className="ab-student-frequency"><strong>{ckPorAluno[a.id]||0}</strong><span>treinos esta semana</span></div>
+            <span className="ab-status-pill" style={{color:st.cor,borderColor:st.cor}}>{st.rotulo.toUpperCase()}</span>
+            <Icon name="arrow" size={18}/>
           </button>
         );
       })}
+      </div>
 
       {novoAluno && <AlunoModal onClose={()=>setNovoAluno(false)} onSaved={async()=>{setNovoAluno(false);await carregar();}}/>}
     </div>
@@ -2274,17 +2442,14 @@ function AlunoModal({ onClose, onSaved }) {
     if (r) { track("aluno_cadastrado"); onSaved(); } else setErr("Não foi possível cadastrar. Tente novamente.");
   };
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 14px"}}>Novo aluno</h2>
+    <ModalShell title="Novo aluno" eyebrow="CARTEIRA PROFISSIONAL" onClose={onClose}>
         <label style={S.fieldLabel}>NOME</label>
         <input style={S.field} type="text" value={nome} onChange={e=>setNome(e.target.value)} placeholder="nome completo"/>
         <label style={S.fieldLabel}>E-MAIL</label>
         <input style={S.field} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="para onde vai o convite de acesso"/>
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-        <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Cadastrar aluno"}</button>
-      </div>
-    </div>
+        {err && <div className="ab-form-error" role="alert">{err}</div>}
+        <button className="ab-primary" style={{marginTop:16}} disabled={busy} onClick={salvar}>{busy?"Cadastrando…":"Cadastrar aluno"}</button>
+    </ModalShell>
   );
 }
 
@@ -2293,7 +2458,9 @@ function AlunoModal({ onClose, onSaved }) {
 function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
   // normaliza: garante subs em todos os exercícios
   const normalizar = (p) => ({ ...p, weekDays: (p.weekDays||[]).map(d => ({ ...d,
-    exercises: (d.exercises||[]).map(ex => ({ ...ex, subs: ex.subs || sugerirSubs(ex) })) })) });
+    exercises: (d.exercises||[]).map(ex => ({ ...ex, rir: Number.isInteger(Number(ex.rir)) ? Number(ex.rir) : 3,
+      progressionRule: ex.progressionRule || "Aumentar após atingir o topo da faixa com técnica e RIR alvo",
+      subs: ex.subs || sugerirSubs(ex) })) })) });
   const [plano, setPlano] = useState(normalizar(base.plano));
   const [busy, setBusy]   = useState(false);
   const [err, setErr]     = useState(null);
@@ -2302,13 +2469,14 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
 
   const upDia = (di, campos) => setPlano(p => ({ ...p, weekDays: p.weekDays.map((d,i)=> i===di ? {...d,...campos} : d) }));
   const upEx = (di, ei, campos) => upDia(di, { exercises: plano.weekDays[di].exercises.map((e,j)=> j===ei ? {...e,...campos} : e) });
-  const removerEx = (di, ei) => upDia(di, { exercises: plano.weekDays[di].exercises.filter((_,j)=>j!==ei) });
+  const removerEx = (di, ei) => { if (window.confirm("Remover este exercício do treino?")) upDia(di, { exercises: plano.weekDays[di].exercises.filter((_,j)=>j!==ei) }); };
   const addDia = () => setPlano(p => ({ ...p, weekDays: [...p.weekDays, { id:`d${p.weekDays.length+1}`, label:String.fromCharCode(65+p.weekDays.length), sub:"", exercises:[] }] }));
-  const removerDia = (di) => setPlano(p => ({ ...p, weekDays: p.weekDays.filter((_,i)=>i!==di) }));
+  const removerDia = (di) => { if (window.confirm("Remover este dia e todos os seus exercícios?")) setPlano(p => ({ ...p, weekDays: p.weekDays.filter((_,i)=>i!==di) })); };
   const addEx = (di, ex) => { upDia(di, { exercises: [...plano.weekDays[di].exercises, { ...ex, id:`e_${uid()}`, subs: ex.subs || sugerirSubs(ex) }] }); setPicker(null); };
 
   const salvar = async () => {
-    if (!plano.weekDays.length || plano.weekDays.some(d=>!d.exercises.length)) { setErr("Todo dia precisa de ao menos 1 exercício."); return; }
+    const erros = validateProfessionalPlan(plano);
+    if (erros.length) { setErr(erros[0]); return; }
     setErr(null); setBusy(true);
     const r = await salvarTreinoAluno(aluno.id, plano, base.treinoId);
     setBusy(false);
@@ -2321,13 +2489,18 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
       <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}>← Cancelar</button>
       <div style={S.eyebrow}>TREINO DE {aluno.nome.toUpperCase()}</div>
       <input style={{...S.field,fontSize:17,fontWeight:800}} value={plano.planName} onChange={e=>setPlano(p=>({...p,planName:e.target.value}))} placeholder="nome do plano"/>
+      {(plano.missingIllustrations||[]).length>0 && <section role="status" style={{background:"#fff8e8",border:"1px solid #e2bd69",borderRadius:14,padding:"12px 14px",margin:"10px 0 14px",color:"#4b3510"}}>
+        <strong style={{display:"block",fontSize:13,marginBottom:5}}>Ilustrações a providenciar · {plano.missingIllustrations.length}</strong>
+        <p style={{fontSize:11,lineHeight:1.45,margin:"0 0 7px"}}>Estes exercícios foram escolhidos pelo resultado esperado, sem influência da biblioteca visual, e já entraram na fila de produção:</p>
+        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{plano.missingIllustrations.map(nome=><span key={nome} style={{background:"#fff",borderRadius:7,padding:"4px 7px",fontSize:11,fontWeight:700}}>{nome}</span>)}</div>
+      </section>}
 
       {plano.weekDays.map((d, di) => (
         <div key={di} style={{...S.card,marginTop:12,padding:"14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
             <div style={{width:34,height:34,borderRadius:10,background:C.bg,border:`1px solid ${C.acc}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:C.acc}}>{d.label}</div>
             <input style={{...S.field,margin:0,flex:1}} value={d.sub} onChange={e=>upDia(di,{sub:e.target.value})} placeholder="grupos do dia (ex.: Peito + Tríceps)"/>
-            {plano.weekDays.length>1 && <button style={{background:"none",border:"none",color:C.muted,fontSize:16}} onClick={()=>removerDia(di)}>🗑</button>}
+            {plano.weekDays.length>1 && <button aria-label={`Remover dia ${d.label}`} style={{background:"none",border:"none",color:C.muted,fontSize:16}} onClick={()=>removerDia(di)}>🗑</button>}
           </div>
 
           {d.exercises.map((ex, ei) => {
@@ -2339,8 +2512,8 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
                     <div style={{fontSize:13,fontWeight:700,color:C.text}}>{ex.name}{ex.custom && <span style={{fontSize:9,color:"#d9a441",marginLeft:6,fontWeight:800}}>PRÓPRIO</span>}</div>
                     {ex.iso && <div style={{fontSize:10,color:C.acc,marginTop:2}}>⏱ cronômetro: {ex.isoSec}s</div>}
                   </div>
-                  <button style={{background:"none",border:"none",color:C.acc,fontSize:12,fontWeight:700}} onClick={()=>setSubsDe(aberto?null:{di,ei})}>subs {aberto?"▾":"▸"}</button>
-                  <button style={{background:"none",border:"none",color:C.muted,fontSize:14}} onClick={()=>removerEx(di,ei)}>✕</button>
+                  <button aria-label={`Editar substituições de ${ex.name}`} style={{background:"none",border:"none",color:C.acc,fontSize:12,fontWeight:700}} onClick={()=>setSubsDe(aberto?null:{di,ei})}>subs {aberto?"▾":"▸"}</button>
+                  <button aria-label={`Remover ${ex.name}`} style={{background:"none",border:"none",color:C.muted,fontSize:14}} onClick={()=>removerEx(di,ei)}>✕</button>
                 </div>
                 <div style={{display:"flex",gap:8,marginTop:8}}>
                   <div style={{flex:1}}><label style={{...S.fieldLabel,fontSize:9}}>SÉRIES</label>
@@ -2349,13 +2522,15 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
                     <input style={{...S.field,margin:0,padding:"8px 10px"}} value={ex.reps} onChange={e=>upEx(di,ei,{reps:e.target.value})}/></div>
                   <div style={{flex:1}}><label style={{...S.fieldLabel,fontSize:9}}>DESC. (S)</label>
                     <input style={{...S.field,margin:0,padding:"8px 10px"}} type="number" min="15" max="300" step="15" value={ex.rest} onChange={e=>upEx(di,ei,{rest:Math.max(15,Math.min(300,Number(e.target.value)||60))})}/></div>
+                  <div style={{flex:0.8}}><label style={{...S.fieldLabel,fontSize:9}}>RIR</label>
+                    <input style={{...S.field,margin:0,padding:"8px 10px"}} type="number" min="0" max="5" value={ex.rir} onChange={e=>upEx(di,ei,{rir:Math.max(0,Math.min(5,Number(e.target.value)||0))})}/></div>
                 </div>
                 {aberto && (
                   <div style={{marginTop:10,background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px"}}>
                     <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>SUBSTITUIÇÕES QUE O ALUNO PODE USAR</div>
                     {(ex.subs||[]).map((sb,si)=>(
                       <div key={si} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-                        <button style={{background:"none",border:"none",fontSize:15}} onClick={()=>{
+                        <button aria-label={`${sb.ativa?"Desativar":"Ativar"} substituição ${si+1}`} style={{background:"none",border:"none",fontSize:15}} onClick={()=>{
                           const subs=[...ex.subs]; subs[si]={...subs[si],ativa:!subs[si].ativa}; upEx(di,ei,{subs});
                         }}>{sb.ativa?"✅":"⬜"}</button>
                         <input style={{...S.field,margin:0,padding:"7px 10px",fontSize:12,opacity:sb.ativa?1:0.5}} value={sb.name}
@@ -2396,8 +2571,7 @@ function ExercicioPickerModal({ onClose, onPick }) {
     subs: [{name:"",ativa:false},{name:"",ativa:false}] });
 
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
+    <ModalShell title="Adicionar exercício" eyebrow="EDITOR DE TREINO" onClose={onClose} wide>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
           {[["lib","📚 Biblioteca"],["meus","⭐ Meus exercícios"]].map(([k,r])=>(
             <button key={k} onClick={()=>setAba(k)} style={{...S.card,flex:1,alignItems:"center",padding:"10px 8px",fontSize:13,fontWeight:700,
@@ -2441,10 +2615,9 @@ function ExercicioPickerModal({ onClose, onPick }) {
           </>
         )}
 
-        <button style={{...S.btnOutline,marginTop:12,fontSize:13}} onClick={onClose}>Fechar</button>
+        <button className="ab-secondary-action" style={{width:"100%",marginTop:12}} onClick={onClose}>Fechar</button>
         {criando && <ExercicioCustomModal onClose={()=>setCriando(false)} onCreated={(row)=>{setCriando(false);setMeus(m=>[row,...(m||[])]);}}/>}
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -2463,9 +2636,7 @@ function ExercicioCustomModal({ onClose, onCreated }) {
     if (r) { track("exercicio_custom_criado"); onCreated(r); } else setErr("Não foi possível criar.");
   };
   return (
-    <div style={{...OVERLAY_B2B,zIndex:80}} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Exercício próprio</h2>
+    <ModalShell title="Exercício próprio" eyebrow="BIBLIOTECA PARTICULAR" onClose={onClose} layer={80}>
         <p style={{fontSize:12,color:C.muted,margin:"0 0 14px"}}>Para movimentos sem imagem de execução na biblioteca.</p>
         <label style={S.fieldLabel}>NOME</label>
         <input style={S.field} value={form.nome} onChange={e=>up("nome",e.target.value)} placeholder="ex.: Prancha com deslize no TRX"/>
@@ -2486,10 +2657,9 @@ function ExercicioCustomModal({ onClose, onCreated }) {
         )}
         <label style={S.fieldLabel}>OBSERVAÇÕES DE EXECUÇÃO (OPCIONAL)</label>
         <textarea style={{...S.field,minHeight:70}} maxLength={500} value={form.observacoes} onChange={e=>up("observacoes",e.target.value)} placeholder="dicas de postura, pegada, amplitude…"/>
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-        <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Criar exercício"}</button>
-      </div>
-    </div>
+        {err && <div className="ab-form-error" role="alert">{err}</div>}
+        <button className="ab-primary" style={{marginTop:14}} disabled={busy} onClick={salvar}>{busy?"Criando…":"Criar exercício"}</button>
+    </ModalShell>
   );
 }
 
@@ -2501,6 +2671,7 @@ function ProIAScreen({ aluno, onCancel, onGerado }) {
   const [form, setForm] = useState({ idade:"", altura:"", peso:"", objetivos:[], nivel:"iniciante", dias:3, duracao:"60 min", equipamentos:"Academia completa", lesoes:"", condicoes:"" });
   const [docsSel, setDocsSel] = useState([]);
   const [fotos, setFotos] = useState({ front:null, back:null, side:null }); // {data(base64), type}
+  const [consentFotos, setConsentFotos] = useState(false);
   const [slotFoto, setSlotFoto] = useState(null); // slot aguardando arquivo
   const [busy, setBusy] = useState(false);
   const [err, setErr]   = useState(null);
@@ -2521,17 +2692,9 @@ function ProIAScreen({ aluno, onCancel, onGerado }) {
 
   const gerar = async () => {
     if (!form.objetivos.length) { setErr("Selecione ao menos um objetivo."); return; }
+    if ((fotos.front||fotos.back||fotos.side) && !consentFotos) { setErr("Confirme o consentimento do aluno para analisar as fotos."); return; }
     setErr(null); setBusy(true);
     try {
-      let libraryText = "";
-      try {
-        const lib = await fetchBiblioteca();
-        const porGrupo = {};
-        lib.forEach(x=>{ (porGrupo[x.grupo_muscular] = porGrupo[x.grupo_muscular]||[]).push(x.nome); });
-        libraryText = "\n\nEXERCÍCIOS DISPONÍVEIS (use APENAS estes, com o nome EXATAMENTE como escrito):\n"
-          + Object.entries(porGrupo).map(([g,ns])=>`${g}: ${ns.join("; ")}`).join("\n");
-      } catch {}
-
       let avalText = "";
       try {
         const avs = await fetchAvaliacoesAluno(aluno.id);
@@ -2549,12 +2712,14 @@ PERFIL DO ALUNO:
 - Dias/semana: ${form.dias} | Duração: ${form.duracao}
 - Equipamentos: ${form.equipamentos}
 - Lesões/Limitações: ${form.lesoes||"Nenhuma"}
-- Condições médicas: ${form.condicoes||"Nenhuma"}${avalText}${libraryText}
+- Condições médicas: ${form.condicoes||"Nenhuma"}${avalText}
 
-Retorne SOMENTE JSON válido sem markdown:
-{"planName":"X","planDescription":"Y","weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
+Retorne SOMENTE JSON válido sem markdown. Inclua evidenceVersion="ABODY-ACSM-2026.1", progressionStrategy, safetyNotes, requiresMedicalClearance e, em cada exercício, rir e progressionRule:
+{"planName":"X","planDescription":"Y","evidenceVersion":"ABODY-ACSM-2026.1","progressionStrategy":"Dupla progressão orientada por RIR","safetyNotes":[],"requiresMedicalClearance":false,"weekDays":[{"id":"d1","label":"A","sub":"B","exercises":[{"id":"e1","name":"N","sets":3,"reps":"8-12","rest":60,"rir":2,"progressionRule":"Aumentar após atingir o topo com RIR 2","isometric":false,"isoSeconds":null}],"mobility":[{"name":"M","duration":"D"}],"postCardio":{"text":"T","minMinutes":10,"maxMinutes":15,"intensity":"Leve"}}]}
 
-REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de EXERCÍCIOS DISPONÍVEIS, todo exercise.name DEVE ser copiado literalmente dela (proibido inventar variações).\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
+REGRAS DE SELEÇÃO: escolha cada exercício exclusivamente pelo melhor resultado esperado para este aluno, considerando objetivo, evidência, nível, limitações, equipamentos, segurança, fadiga, recuperação e composição semanal. NÃO considere existência de ilustração, presença em biblioteca interna ou disponibilidade de mídia — nem mesmo como critério de desempate. Você pode prescrever qualquer exercício tecnicamente apropriado. Use o nome canônico e claro em pt-BR, incluindo equipamento ou variação quando isso evitar ambiguidade.
+
+REGRAS DE FORMATO: exatamente ${form.dias} dias. Max 5 exercícios/dia.\n\nMOBILIDADES DISPONÍVEIS (todo mobility.name DEVE ser copiado literalmente desta lista): Rotação de Ombros; Círculos de Braços; Alongamento de Peitoral na Parede; Gato-Vaca; Rotação de Tronco; Alongamento de Isquiotibiais em Pé; Alongamento de Quadríceps em Pé; Agachamento Profundo; Afundo com Rotação; Elevação de Joelhos; Rotação de Quadril; Alongamento de Panturrilhas na Parede; Rotação de Punhos; Alongamento de Tríceps; Borboleta; Cobra; Polichinelos; Corrida Estacionária Max 2 mobilidades/dia. IDs curtos (d1,d2/e1,e2). Nomes curtos em pt-BR. postCardio.text máximo 5 palavras. planDescription máximo 10 palavras. SEJA MINIMALISTA.`;
 
       const blocosDocs = await blocosDeDocumentos(docsSel);
       if (blocosDocs.length) track("docs_usados_ia", { qtd: blocosDocs.length, contexto: "pro" });
@@ -2568,8 +2733,9 @@ REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de 
       const plano = convertAIPlan(extractJSON(raw), aluno.nome);
       plano.mode = "pro";
       plano.duracao = form.duracao;
-      track("treino_pro_ia_gerado",{dias:plano.weekDays.length,fotos:["front","back","side"].filter(k=>fotos[k]).length});
-      onGerado(plano); // abre no editor para revisão total do personal
+      const planoCatalogado = await catalogarIlustracoesPendentes(plano, "geracao_personal");
+      track("treino_pro_ia_gerado",{dias:planoCatalogado.weekDays.length,fotos:["front","back","side"].filter(k=>fotos[k]).length,ilustracoes_pendentes:planoCatalogado.missingIllustrations?.length||0});
+      onGerado(planoCatalogado); // abre no editor para revisão total do personal
     } catch(e2) { setErr(e2.message||"Erro ao gerar treino."); }
     setBusy(false);
   };
@@ -2630,6 +2796,7 @@ REGRAS: exatamente ${form.dias} dias. Max 5 exercícios/dia. Se houver lista de 
         ))}
       </div>
       <p style={{fontSize:10,color:C.muted,margin:"0 0 8px"}}>Usadas apenas nesta geração para priorizar grupos musculares e assimetrias. Não são armazenadas. Peça o consentimento do aluno.</p>
+      {(fotos.front||fotos.back||fotos.side) && <label className="ab-pain-check"><input type="checkbox" checked={consentFotos} onChange={e=>setConsentFotos(e.target.checked)}/><span>Confirmo que o aluno autorizou o processamento destas fotos pela IA para personalização do treino.</span></label>}
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
 
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
@@ -2684,32 +2851,28 @@ function ConviteModal({ aluno, onClose }) {
   const mailto = `mailto:${encodeURIComponent(aluno.email)}?subject=${encodeURIComponent("Seu acesso ao A-Body")}&body=${encodeURIComponent(textoConvite)}`;
 
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={SHEET_B2B} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 4px"}}>Convite de acesso</h2>
+    <ModalShell title="Convite de acesso" eyebrow={aluno.nome.toUpperCase()} onClose={onClose}>
         <p style={{fontSize:12,color:C.muted,margin:"0 0 14px"}}>O aluno abre o link, cria login e senha, e o vínculo com você é ativado automaticamente.</p>
 
         {!conv && !err && <p style={{color:C.muted,fontSize:13}}>Gerando convite…</p>}
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080"}}>{err}</div>}
+        {err && <div className="ab-form-error" role="alert">{err}</div>}
 
         {conv && (
           <>
             <div style={{...S.card,padding:"12px 14px",marginBottom:10,wordBreak:"break-all",fontSize:12,color:C.acc}}>{link}</div>
             <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Válido até {new Date(conv.expira_em).toLocaleDateString("pt-BR")} · uso único</div>
-            <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
+            <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
               ℹ️ O envio sai do <b style={{color:C.text}}>seu</b> aparelho: os botões abaixo abrem o app escolhido com a mensagem pronta — é só confirmar o envio lá.
             </div>
-            <button style={{...S.btn,marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank"); }}>💬 Enviar por WhatsApp</button>
-            <button style={{...S.btnOutline,marginBottom:10}} onClick={()=>{ track("convite_email_aberto"); window.location.href = mailto; }}>📨 Abrir no e-mail ({aluno.email})</button>
+            <button className="ab-primary" style={{marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank", "noopener,noreferrer"); }}>Enviar por WhatsApp</button>
+            <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={()=>{ track("convite_email_aberto"); window.location.href = mailto; }}>Abrir no e-mail ({aluno.email})</button>
             {typeof navigator !== "undefined" && navigator.share && (
-              <button style={{...S.btnOutline,marginBottom:10}} onClick={async()=>{ track("convite_share"); try { await navigator.share({ title: "Acesso ao A-Body", text: textoConvite }); } catch {} }}>📤 Compartilhar…</button>
+              <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={async()=>{ track("convite_share"); try { await navigator.share({ title: "Acesso ao A-Body", text: textoConvite }); } catch {} }}>Compartilhar…</button>
             )}
-            <button style={{...S.btnOutline,marginBottom:10}} onClick={copiar}>{copiado ? "✓ Mensagem copiada!" : "📋 Copiar mensagem"}</button>
+            <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={copiar}>{copiado ? "✓ Mensagem copiada!" : "Copiar mensagem"}</button>
           </>
         )}
-        <button style={{...S.btnOutline,fontSize:13}} onClick={onClose}>Fechar</button>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -2743,11 +2906,9 @@ function MensagensModal({ aluno, onClose }) {
   };
 
   return (
-    <div style={OVERLAY_B2B} onClick={onClose}>
-      <div style={{...SHEET_B2B,display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
-        <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 12px"}}>💬 {aluno.nome}</h2>
+    <ModalShell title={aluno.nome} eyebrow="MENSAGENS" onClose={onClose} bodyClass="ab-message-modal">
 
-        <div style={{flex:1,overflowY:"auto",minHeight:180,maxHeight:"48vh",marginBottom:12}}>
+        <div className="ab-message-thread" aria-live="polite">
           {msgs === null && <p style={{color:C.muted,fontSize:13}}>Carregando…</p>}
           {msgs && msgs.length === 0 && <p style={{color:C.muted,fontSize:13}}>Nenhuma mensagem ainda. O aluno pode escrever durante o descanso e ao final do treino.</p>}
           {(msgs||[]).map(m => {
@@ -2766,12 +2927,11 @@ function MensagensModal({ aluno, onClose }) {
           <div ref={fimRef}/>
         </div>
 
-        <div style={{display:"flex",gap:8}}>
-          <input style={{...S.field,margin:0,flex:1}} value={texto} maxLength={2000} onChange={e=>setTexto(e.target.value)} placeholder="responder ao aluno…" onKeyDown={e=>{if(e.key==="Enter")enviar();}}/>
-          <button style={{...S.btn,width:"auto",padding:"10px 16px",fontSize:13,opacity:(texto.trim()&&!busy)?1:0.4}} disabled={!texto.trim()||busy} onClick={enviar}>➤</button>
+        <div className="ab-message-compose">
+          <input style={{...S.field,margin:0,flex:1}} value={texto} maxLength={2000} onChange={e=>setTexto(e.target.value)} placeholder="responder ao aluno…" aria-label="Mensagem" onKeyDown={e=>{if(e.key==="Enter")enviar();}}/>
+          <button className="ab-primary" aria-label="Enviar mensagem" disabled={!texto.trim()||busy} onClick={enviar}><Icon name="arrow" size={17}/></button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -2785,6 +2945,7 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
   const [busy, setBusy]   = useState(false);
   const [err, setErr]     = useState(null);
   const [meuUid, setMeuUid] = useState(null);
+  const [consentDoc, setConsentDoc] = useState(false);
   const fileRef = useRef(null);
 
   useEffect(() => { (async () => {
@@ -2794,14 +2955,16 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
 
   const enviar = async (e) => {
     const file = e.target.files?.[0]; if (!file) return;
+    if (alunoId && !consentDoc) { setErr("Confirme a autorização do aluno antes de enviar o documento."); e.target.value=""; return; }
     setErr(null); setBusy(true);
-    const r = await uploadDocumentoSaude(file, alunoId, tipo);
+    const r = await uploadDocumentoSaude(file, alunoId, tipo, {confirmado:true,confirmadoEm:new Date().toISOString(),finalidade:"prontuario_e_personalizacao_de_treino",versao:"ABODY-LGPD-2026.1"});
     setBusy(false);
     if (r.erro) setErr(r.erro);
     else setDocs(d => [r.doc, ...(d||[])]);
     e.target.value = "";
   };
   const excluir = async (doc) => {
+    if (!window.confirm(`Excluir permanentemente ${nomeDoDoc(doc)}?`)) return;
     if (await excluirDocumentoSaude(doc)) {
       setDocs(d => d.filter(x => x.id !== doc.id));
       if (selecionaveis) setSelecionados(sel => sel.filter(x => x.id !== doc.id));
@@ -2829,13 +2992,13 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
         const sel = selecionaveis && (selecionados||[]).some(x=>x.id===doc.id);
         return (
           <div key={doc.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-            {selecionaveis && <button style={{background:"none",border:"none",fontSize:15,padding:0}} onClick={()=>toggle(doc)}>{sel?"✅":"⬜"}</button>}
+            {selecionaveis && <button aria-label={`${sel?"Desmarcar":"Marcar"} ${nomeDoDoc(doc)} para análise`} style={{background:"none",border:"none",fontSize:15,padding:0}} onClick={()=>toggle(doc)}>{sel?"✅":"⬜"}</button>}
             <span style={{fontSize:15}}>{t.icon}</span>
             <button style={{flex:1,background:"none",border:"none",textAlign:"left",padding:0}} onClick={()=>abrir(doc)}>
               <div style={{fontSize:12,fontWeight:700,color:C.text,wordBreak:"break-all"}}>{nomeDoDoc(doc)}</div>
               <div style={{fontSize:10,color:C.muted}}>{t.rotulo} · {new Date(doc.criado_em).toLocaleDateString("pt-BR")}</div>
             </button>
-            {meuUid && doc.dono_user_id === meuUid && <button style={{background:"none",border:"none",color:C.muted,fontSize:13}} onClick={()=>excluir(doc)}>✕</button>}
+            {meuUid && doc.dono_user_id === meuUid && <button aria-label={`Excluir ${nomeDoDoc(doc)}`} style={{background:"none",border:"none",color:C.muted,fontSize:13}} onClick={()=>excluir(doc)}>✕</button>}
           </div>
         );
       })}
@@ -2847,6 +3010,7 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
         <button style={{...S.btnOutline,width:"auto",padding:"9px 14px",fontSize:12,opacity:busy?0.5:1}} disabled={busy} onClick={()=>fileRef.current?.click()}>{busy?"Enviando…":"+ Enviar"}</button>
         <input ref={fileRef} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" style={{display:"none"}} onChange={enviar}/>
       </div>
+      {alunoId && <label className="ab-pain-check" style={{marginTop:10}}><input type="checkbox" checked={consentDoc} onChange={e=>setConsentDoc(e.target.checked)}/><span>Confirmo que o aluno autorizou o armazenamento deste dado sensível de saúde para prontuário e personalização do treino.</span></label>}
       {selecionaveis && <p style={{fontSize:10,color:C.muted,margin:"8px 0 0"}}>Marque até {MAX_DOCS_IA} documentos para a IA considerar na geração do treino. O conteúdo é tratado como dado não-confiável (proteção contra instruções embutidas).</p>}
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"9px 12px",fontSize:12,color:"#ff8080",marginTop:8}}>{err}</div>}
     </div>
@@ -2860,7 +3024,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
   const [slot, setSlot]     = useState(null);
   const [perfil, setPerfil] = useState({ idade:"", altura:"", peso:"" });
   const [consent, setConsent] = useState(false);
-  const [guardar, setGuardar] = useState(true);
+  const [guardar, setGuardar] = useState(false);
   const [busy, setBusy]     = useState(false);
   const [err, setErr]       = useState(null);
   const [docsAluno, setDocsAluno] = useState([]);
@@ -2886,7 +3050,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       const analysis = await analisarCorpoAlunoIA(fotos, perfil, anterior || null, docsAluno || []);
       let photoPaths = null;
       if (guardar) { photoPaths = await uploadFotosCorporaisPro(fotos, aluno.id); if (photoPaths) track("fotos_aluno_armazenadas"); }
-      const dados = { date: todayISO(), analysis, ...(photoPaths ? { photoPaths } : {}) };
+      const dados = { date: todayISO(), analysis, consentimento:{ confirmado:true, confirmadoEm:new Date().toISOString(), finalidade:"avaliacao_corporal_ia", armazenamento:!!guardar, versao:"ABODY-LGPD-2026.1" }, ...(photoPaths ? { photoPaths } : {}) };
       const r = await salvarAvaliacaoAluno(aluno.id, dados);
       if (!r) throw new Error("Não foi possível salvar a avaliação.");
       track("avaliacao_aluno_criada", { comparativo: !!anterior });
@@ -2927,11 +3091,11 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       <p style={{fontSize:11,color:C.muted,margin:"0 0 8px 0"}}>Marque os documentos que a IA deve considerar nesta avaliação.</p>
       <DocsSaude alunoId={aluno.id} selecionaveis selecionados={docsAluno} setSelecionados={setDocsAluno}/>
 
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
         <span>Confirmo que o aluno <b>consentiu</b> com o envio das fotos para análise pela IA. São <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para esta avaliação.</span>
       </label>
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={guardar} onChange={e=>setGuardar(e.target.checked)} style={{marginTop:2}}/>
         <span><b>Armazenar as fotos</b> em área privada para o <b>comparativo visual antes/depois</b> nas próximas avaliações. Podem ser excluídas a qualquer momento no relatório.</span>
       </label>
@@ -2950,7 +3114,7 @@ function ContaGlobal({ user, onLogout }) {
   const inicial = (user?.email || "?").charAt(0).toUpperCase();
   return (
     <>
-      <button onClick={()=>setAberto(a=>!a)} aria-label="Conta"
+      <button onClick={()=>setAberto(a=>!a)} aria-label="Conta" className="ab-account-button"
         style={{position:"fixed",top:14,right:14,zIndex:55,width:36,height:36,borderRadius:"50%",
           background:"rgba(17,40,31,0.92)",border:`1px solid ${C.border}`,color:C.acc,
           fontSize:15,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",
@@ -3017,13 +3181,26 @@ function AguardandoTreinoScreen({ vinculo, personal, onAtualizar }) {
 
 function OnboardingScreen({ onStart }) {
   return (
-    <div style={{...S.box,display:"flex",flexDirection:"column",alignItems:"center",paddingTop:60,textAlign:"center"}}>
-      <div style={{...S.logo,width:64,height:64,fontSize:32,borderRadius:18,marginBottom:24}}>A</div>
-      <div style={S.brand}>A-BODY</div>
-      <div style={{fontSize:12,color:C.muted,letterSpacing:"0.12em",marginBottom:48}}>PERSONAL AI TRAINER</div>
-      <h1 style={{...S.h1,fontSize:28,marginBottom:12}}>Seu treino começa aqui</h1>
-      <p style={{...S.sub,maxWidth:300,marginBottom:48}}>Crie um plano 100% personalizado — com a ajuda da IA ou montando você mesmo.</p>
-      <button style={S.btn} onClick={onStart}>Começar →</button>
+    <div className="ab-onboarding">
+      <section className="ab-onboarding-copy">
+        <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>PERSONAL AI TRAINER</span></div></div>
+        <h1>Treino criado para o seu <span>próximo nível.</span></h1>
+        <p>Combine inteligência artificial, acompanhamento profissional e dados de evolução em um plano que se adapta à sua realidade.</p>
+        <div className="ab-onboarding-actions"><button className="ab-primary" onClick={onStart}>Criar meu plano <Icon name="arrow" size={18}/></button><small>Leva poucos minutos.<br/>Você mantém o controle.</small></div>
+      </section>
+      <aside className="ab-onboarding-visual" aria-label="Exemplo de plano semanal personalizado">
+        <div className="ab-static-plan">
+          <header><div><span>PLANO DA SEMANA</span><h2>Seu ritmo, organizado.</h2></div><b>3/5</b></header>
+          <div className="ab-static-week" aria-hidden="true">
+            <i data-done="true">S<strong>01</strong></i><i data-done="true">T<strong>02</strong></i><i data-active="true">Q<strong>03</strong></i><i>Q<strong>04</strong></i><i>S<strong>05</strong></i>
+          </div>
+          <div className="ab-static-session">
+            <div className="ab-static-session-head"><span><small>PRÓXIMO TREINO</small><strong>Força · Superior</strong></span><b><Icon name="clock" size={14}/>42 min</b></div>
+            <div className="ab-static-exercises"><span>Supino com halteres <b>4 × 10</b></span><span>Remada unilateral <b>3 × 10</b></span><span>Desenvolvimento <b>3 × 12</b></span></div>
+          </div>
+          <footer><Icon name="sparkles" size={17}/><span><strong>Plano adaptativo</strong><small>Cargas e volume evoluem com seus registros.</small></span></footer>
+        </div>
+      </aside>
     </div>
   );
 }
@@ -3032,32 +3209,12 @@ function OnboardingScreen({ onStart }) {
 
 function ModeSelectScreen({ onAI, onManual }) {
   return (
-    <div style={S.box}>
-      <div style={S.brandRow}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
-      <div style={S.eyebrow}>CRIAR PLANO DE TREINO</div>
-      <h1 style={S.h1}>Como prefere montar seu treino?</h1>
-      <p style={S.sub}>Escolha a opção que faz mais sentido para você.</p>
-      <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <button style={{...S.card,border:`1px solid ${C.acc}`,gap:10,textAlign:"left"}} onClick={onAI}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{fontSize:32}}>🤖</div>
-            <div>
-              <div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>Montar com Inteligência Artificial</div>
-              <div style={{fontSize:13,color:C.muted,lineHeight:1.4}}>Responda uma anamnese e a IA cria um plano 100% adaptado ao seu perfil, objetivos e limitações.</div>
-            </div>
-          </div>
-          <div style={{textAlign:"right",color:C.acc,fontSize:13,fontWeight:600,marginTop:4}}>Recomendado →</div>
-        </button>
-        <button style={{...S.card,gap:10,textAlign:"left"}} onClick={onManual}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{fontSize:32}}>🏋️</div>
-            <div>
-              <div style={{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}}>Montar meu próprio treino</div>
-              <div style={{fontSize:13,color:C.muted,lineHeight:1.4}}>Escolha o tipo de divisão (Upper/Lower, PPL, Full Body…) e selecione seus próprios exercícios.</div>
-            </div>
-          </div>
-          <div style={{textAlign:"right",color:C.muted,fontSize:13,marginTop:4}}>Personalizado →</div>
-        </button>
+    <div className="ab-choice-page">
+      <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>CRIAR PLANO</span></div></div>
+      <header className="ab-page-head"><div><div className="ab-kicker">ESCOLHA SEU CAMINHO</div><h1>Como quer começar?</h1><p className="ab-copy">Você poderá ajustar o plano depois, independentemente da escolha.</p></div></header>
+      <div className="ab-choice-grid">
+        <button className="ab-choice-card" data-featured="true" onClick={onAI}><div className="ab-choice-icon"><Icon name="sparkles" size={28}/></div><h2>Inteligência Artificial</h2><p>Responda uma avaliação guiada e receba um plano adaptado aos seus objetivos, experiência, rotina e limitações.</p><footer><span>RECOMENDADO</span><Icon name="arrow" size={18}/></footer></button>
+        <button className="ab-choice-card" onClick={onManual}><div className="ab-choice-icon"><Icon name="dumbbell" size={28}/></div><h2>Montagem manual</h2><p>Escolha a divisão semanal e construa cada treino usando a biblioteca de exercícios do A-Body.</p><footer><span>CONTROLE TOTAL</span><Icon name="arrow" size={18}/></footer></button>
       </div>
     </div>
   );
@@ -3073,19 +3230,21 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
   const s3ok=form.daysPerWeek&&form.duration&&form.equipment;
   const s5ok = true; // fotos são opcionais
   const canNext=[null,s1ok,s2ok,s3ok,true,s5ok][step];
+  const stepNames=["Perfil","Objetivos","Rotina","Saúde","Análise"];
   return (
-    <div style={S.box}>
-      <div style={S.brandRow}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
-      <div style={{display:"flex",gap:6,marginBottom:20}}>
-        {[1,2,3,4,5].map(i=><div key={i} style={{flex:1,height:4,borderRadius:2,background:i<=step?C.acc:C.border,transition:"background .3s"}}/>)}
-      </div>
-      <div style={S.eyebrow}>ANAMNESE · ETAPA {step} DE 5</div>
+    <div className="ab-form-shell">
+      <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>PLANO INTELIGENTE</span></div></div>
+      <header className="ab-form-header">
+        <div className="ab-stepper">{stepNames.map((name,i)=>{const n=i+1;return <div key={name} className="ab-step" data-state={n<step?"done":n===step?"current":"pending"}><i>{n<step?"✓":n}</i><span>{name}</span></div>;})}</div>
+        <div className="ab-form-step-copy"><div className="ab-kicker">ETAPA {step} DE 5</div><h1>{stepNames[step-1]}</h1><p className="ab-copy">Suas respostas orientam a personalização do plano.</p></div>
+      </header>
+      <section className="ab-form-card">
 
       {step===1&&(<>
-        <h1 style={S.h1}>Dados pessoais</h1>
+        <h2 style={S.h1}>Dados pessoais</h2>
         <label style={S.fieldLabel}>Nome</label>
         <input style={S.field} value={form.name} onChange={e=>set("name",e.target.value)} placeholder="Seu nome"/>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div className="ab-field-grid">
           <div><label style={S.fieldLabel}>Idade</label><input style={S.field} type="number" inputMode="numeric" value={form.age} onChange={e=>set("age",e.target.value)} placeholder="40"/></div>
           <div><label style={S.fieldLabel}>Peso (kg)</label><input style={S.field} type="number" inputMode="decimal" value={form.weight} onChange={e=>set("weight",e.target.value)} placeholder="80"/></div>
         </div>
@@ -3094,42 +3253,40 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
       </>)}
 
       {step===2&&(<>
-        <h1 style={S.h1}>Objetivos e nível</h1>
+        <h2 style={S.h1}>Objetivos e nível</h2>
         <p style={S.sub}>Você pode selecionar mais de um objetivo.</p>
         <label style={S.fieldLabel}>OBJETIVOS (múltipla escolha)</label>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:18}}>
+        <div className="ab-option-grid" style={{marginBottom:18}}>
           {GOALS.map(g=>{ const sel=(form.goals||[]).includes(g.id); return(
-            <button key={g.id} style={{...S.card,alignItems:"center",...(sel?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>toggleGoal(g.id)}>
-              <div style={{fontSize:24}}>{g.icon}</div>
-              <div style={{fontSize:12,fontWeight:600,marginTop:6,color:C.text}}>{g.label}</div>
-              {sel&&<div style={{fontSize:10,color:C.acc,marginTop:4}}>✓ selecionado</div>}
+            <button key={g.id} className="ab-option" data-active={sel} onClick={()=>toggleGoal(g.id)}>
+              <strong>{g.label}</strong><span>{sel?"✓ Selecionado":"Toque para selecionar"}</span>
             </button>
           );})}
         </div>
         <label style={S.fieldLabel}>NÍVEL DE EXPERIÊNCIA</label>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {LEVELS.map(l=><button key={l.id} style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",...(form.level===l.id?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("level",l.id)}><span style={{fontWeight:700,fontSize:14}}>{l.label}</span><span style={{fontSize:12,color:C.muted}}>{l.sub}</span></button>)}
+          {LEVELS.map(l=><button key={l.id} className="ab-option" data-active={form.level===l.id} onClick={()=>set("level",l.id)}><strong>{l.label}</strong><span>{l.sub}</span></button>)}
         </div>
       </>)}
 
       {step===3&&(<>
-        <h1 style={S.h1}>Disponibilidade</h1>
+        <h2 style={S.h1}>Disponibilidade</h2>
         <label style={S.fieldLabel}>DIAS POR SEMANA</label>
         <div style={{display:"flex",gap:8,marginBottom:18}}>
-          {["3","4","5","6"].map(d=><button key={d} style={{flex:1,...S.card,alignItems:"center",...(form.daysPerWeek===d?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("daysPerWeek",d)}><span style={{fontSize:20,fontWeight:800}}>{d}</span><span style={{fontSize:10,color:C.muted}}>dias</span></button>)}
+          {["3","4","5","6"].map(d=><button key={d} className="ab-option" data-active={form.daysPerWeek===d} style={{flex:1,textAlign:"center"}} onClick={()=>set("daysPerWeek",d)}><strong style={{fontSize:20}}>{d}</strong><span>dias</span></button>)}
         </div>
         <label style={S.fieldLabel}>DURAÇÃO DA SESSÃO</label>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:18}}>
-          {DURATION_OPTIONS.map(d=><button key={d} style={{...S.card,alignItems:"center",...(form.duration===d?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("duration",d)}><span style={{fontSize:14,fontWeight:700}}>{d}</span></button>)}
+        <div className="ab-option-grid" style={{marginBottom:18}}>
+          {DURATION_OPTIONS.map(d=><button key={d} className="ab-option" data-active={form.duration===d} onClick={()=>set("duration",d)}><strong>{d}</strong></button>)}
         </div>
         <label style={S.fieldLabel}>EQUIPAMENTOS</label>
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {EQUIPMENT_OPTIONS.map(e=><button key={e.id} style={{...S.card,flexDirection:"row",alignItems:"center",...(form.equipment===e.id?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>set("equipment",e.id)}><span style={{fontSize:14,fontWeight:600}}>{e.label}</span></button>)}
+          {EQUIPMENT_OPTIONS.map(e=><button key={e.id} className="ab-option" data-active={form.equipment===e.id} onClick={()=>set("equipment",e.id)}><strong>{e.label}</strong></button>)}
         </div>
       </>)}
 
       {step===4&&(<>
-        <h1 style={S.h1}>Saúde</h1>
+        <h2 style={S.h1}>Saúde</h2>
         <p style={S.sub}>Informe limitações para personalizar seu plano com segurança. Campos opcionais.</p>
         <label style={S.fieldLabel}>LESÕES OU LIMITAÇÕES FÍSICAS</label>
         <textarea style={{...S.field,height:90,resize:"none"}} value={form.injuries} onChange={e=>set("injuries",e.target.value)} placeholder="Ex: dor no joelho, hérnia lombar… (ou deixe em branco)"/>
@@ -3139,20 +3296,20 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
       </>)}
 
       {step===5&&(<>
-        <h1 style={S.h1}>Análise corporal</h1>
+        <h2 style={S.h1}>Análise corporal</h2>
         <p style={S.sub}>Envie fotos de roupa de banho para que a IA identifique seus pontos fortes e fracos e personalize seu plano. <b style={{color:C.acc}}>As fotos são processadas apenas pela IA e não são armazenadas.</b></p>
         <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
-        <div style={{background:"#0d2218",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
+        <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
           ℹ️ As fotos são opcionais. Sem elas, o plano será gerado apenas com base na anamnese.
         </div>
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoConsent} onChange={e=>setForm({...form,photoConsent:e.target.checked})} style={{marginTop:2}}/>
             <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b>. Entendo que são <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para gerar minha análise corporal.</span>
           </label>
         )}
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoStoreConsent} onChange={e=>setForm({...form,photoStoreConsent:e.target.checked})} style={{marginTop:2}}/>
             <span><b>Opcional:</b> autorizo o <b>armazenamento seguro</b> das minhas fotos em área privada, acessível somente por mim, com a finalidade exclusiva de gerar <b>comparativos visuais da minha evolução</b>. Posso excluí-las a qualquer momento no Relatório Corporal.</span>
           </label>
@@ -3161,10 +3318,11 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         {error&&<div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"12px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{error}</div>}
       </>)}
 
-      <div style={{display:"flex",gap:10,marginTop:24}}>
-        {step>1&&<button style={{...S.btnOutline,flex:1}} onClick={()=>setStep(s=>s-1)}>← Voltar</button>}
-        {step<5?<button style={{...S.btn,flex:1,opacity:canNext?1:0.35}} disabled={!canNext} onClick={()=>setStep(s=>s+1)}>Continuar →</button>
-               :<button style={{...S.btn,flex:1}} onClick={onSubmit}>Gerar meu plano ✨</button>}
+      </section>
+      <div className="ab-form-actions">
+        {step>1&&<button className="ab-secondary-action" onClick={()=>setStep(s=>s-1)}>← Voltar</button>}
+        {step<5?<button className="ab-primary" disabled={!canNext} onClick={()=>setStep(s=>s+1)}>Continuar <Icon name="arrow" size={18}/></button>
+               :<button className="ab-primary" onClick={onSubmit}>Gerar meu plano <Icon name="sparkles" size={18}/></button>}
       </div>
     </div>
   );
@@ -3173,17 +3331,10 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
 // ─── GENERATING ───────────────────────────────────────────────────────────────
 
 function GeneratingScreen({ name, photoAnalyzing }) {
-  const [dot,setDot]=useState(0); useEffect(()=>{const t=setInterval(()=>setDot(d=>(d+1)%4),500);return()=>clearInterval(t);},[]);
   const msgs=["Analisando seu perfil","Definindo grupos musculares","Calculando volume ideal","Montando periodização","Ajustando intensidade","Finalizando plano"];
   const [mi,setMi]=useState(0); useEffect(()=>{const t=setInterval(()=>setMi(i=>(i+1)%msgs.length),1800);return()=>clearInterval(t);},[]);
   return (
-    <div style={{...S.box,display:"flex",flexDirection:"column",alignItems:"center",paddingTop:80,textAlign:"center"}}>
-      <div style={{...S.logo,width:60,height:60,fontSize:28,borderRadius:16,marginBottom:32}}>A</div>
-      <h2 style={{...S.h1,marginBottom:8}}>Criando seu plano{".".repeat(dot+1)}</h2>
-      <p style={{...S.sub}}>{name?"Aguarde, "+name:"Aguarde"} um momento</p>
-      {photoAnalyzing&&<div style={{background:"#1a2f20",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 16px",fontSize:12,color:"#e8a23a",marginBottom:8}}>📸 Analisando suas fotos com IA…</div>}
-      <div style={{marginTop:16,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 20px",fontSize:13,color:C.acc}}>{msgs[mi]}</div>
-    </div>
+    <div className="ab-generating"><div><div className="ab-generating-core"><Icon name="sparkles" size={46}/></div><div className="ab-kicker">A-BODY INTELLIGENCE</div><h1>Criando seu plano</h1><p className="ab-copy">{name?`${name}, estamos combinando suas respostas`:"Estamos combinando suas respostas"} para construir uma rotina coerente e personalizada.</p>{photoAnalyzing&&<p style={{color:"#f0b45a",fontSize:11}}>Análise corporal incluída no processamento.</p>}<div className="ab-generating-status" aria-live="polite">{msgs[mi]}</div></div></div>
   );
 }
 
@@ -3370,7 +3521,7 @@ function SplitSelectScreen({ onSelect, onBack }) {
             <div style={{flex:1}}>
               <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{s.label}</div>
               <div style={{fontSize:12,color:C.muted}}>{s.description}</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{s.days.map(d=><span key={d.id} style={{fontSize:10,background:"#0d2218",borderRadius:6,padding:"2px 8px",color:C.muted}}>{d.label}</span>)}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{s.days.map(d=><span key={d.id} style={{fontSize:10,background:"#e8f1ec",borderRadius:6,padding:"2px 8px",color:C.muted}}>{d.label}</span>)}</div>
             </div>
             <span style={{color:C.acc,fontSize:18}}>→</span>
           </button>
@@ -3413,7 +3564,7 @@ function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, o
 
             {isEditing&&(<>
               {exs.map((ex,i)=>(
-                <div key={ex._key||i} style={{background:"#0d2218",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
+                <div key={ex._key||i} style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                     <div style={{fontSize:13,fontWeight:600,flex:1}}>{ex.name}</div>
                     <button style={{background:"none",border:"none",color:"#e87a3a",fontSize:16,padding:"0 4px"}} onClick={()=>onRemove(d.id,ex.id)}>✕</button>
@@ -3441,7 +3592,7 @@ function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, o
 
             {!isEditing&&exs.length>0&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {exs.map((ex,i)=><span key={i} style={{fontSize:11,background:"#0d2218",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
+                {exs.map((ex,i)=><span key={i} style={{fontSize:11,background:"#e8f1ec",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
               </div>
             )}
             {!isEditing&&exs.length===0&&<div style={{fontSize:12,color:"#8fb8a2",fontStyle:"italic"}}>Nenhum exercício adicionado ainda</div>}
@@ -3568,49 +3719,53 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
 }
 function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
   return (
-    <div style={S.box}>
-      <div style={S.eyebrow}>{plan.mode==="ai"?"PLANO GERADO PELA IA 🤖":"SEU PLANO PERSONALIZADO 🏋️"} — PRONTO!</div>
-      <h1 style={S.h1}>{plan.planName}</h1>
-      {plan.planDescription&&<p style={{...S.sub,marginBottom:24}}>{plan.planDescription}</p>}
+    <div className="ab-data-page">
+      <div className="ab-plan-layout"><aside className="ab-plan-summary">
+      <div className="ab-kicker">{plan.mode==="ai"?"PLANO GERADO PELA IA":"PLANO PERSONALIZADO"} · PRONTO</div>
+      <h1>{plan.planName}</h1>
+      {plan.planDescription&&<p className="ab-copy">{plan.planDescription}</p>}
 
       {bodyAnalysis&&(
-        <div style={{...S.card,marginBottom:24,gap:12}}>
-          <div style={S.eyebrow}>ANÁLISE CORPORAL IA 📸</div>
+        <div className="ab-insight-card" data-accent="true" style={{marginTop:18}}>
+          <h2>ANÁLISE CORPORAL IA</h2>
           {bodyAnalysis.overallAnalysis&&<p style={{fontSize:13,color:C.muted,margin:0,lineHeight:1.5}}>{bodyAnalysis.overallAnalysis}</p>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div style={{background:"#0d2218",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>PONTOS FORTES</div>
               {(bodyAnalysis.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>✓ {p}</div>)}
             </div>
-            <div style={{background:"#0d2218",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
               {(bodyAnalysis.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>→ {p}</div>)}
             </div>
           </div>
           {(bodyAnalysis.postureNotes||[]).length>0&&(
-            <div style={{background:"#0d2218",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>POSTURA</div>
               {bodyAnalysis.postureNotes.map((p,i)=><div key={i} style={{fontSize:12,color:C.muted,marginBottom:3}}>• {p}</div>)}
             </div>
           )}
         </div>
       )}
-
-      <div style={S.sectionLabel}>ESTRUTURA SEMANAL</div>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:28}}>
+      {plan.evidenceVersion&&<div className="ab-science-card"><Icon name="sparkles" size={18}/><div><strong>Protocolo {plan.evidenceVersion}</strong><span>{plan.progressionStrategy||"Progressão orientada por desempenho e RIR"}</span></div></div>}
+      {plan.weeklyPrescription&&<div className="ab-safety-notes"><strong>Meta semanal do protocolo</strong><span>• {plan.weeklyPrescription.aerobicMinutesTarget}–{plan.weeklyPrescription.aerobicMinutesUpper} min aeróbicos</span><span>• Força em pelo menos {plan.weeklyPrescription.strengthDaysTarget} dias</span><span>• Intensidade: {plan.weeklyPrescription.intensityMethod}</span><span>• {plan.weeklyPrescription.sedentaryGuidance}</span></div>}
+      {(plan.safetyNotes||[]).length>0&&<div className="ab-safety-notes"><strong>Cuidados do plano</strong>{plan.safetyNotes.map((note,i)=><span key={i}>• {note}</span>)}</div>}
+      {plan.requiresMedicalClearance&&<div className="ab-clearance-warning" role="alert"><strong>Avaliação necessária</strong><span>Antes de iniciar, procure liberação de um profissional de saúde para as condições informadas.</span></div>}
+      <button className="ab-primary" style={{marginTop:20}} disabled={plan.requiresMedicalClearance} onClick={onStart}>{plan.requiresMedicalClearance?"Aguardando liberação":"Iniciar treinamento"} <Icon name="arrow" size={18}/></button>
+      </aside><main><div className="ab-section-title" style={{marginTop:0}}><h2>Estrutura semanal</h2><span>{plan.weekDays.length} sessões</span></div>
+      <div className="ab-plan-days">
         {plan.weekDays.map((d,i)=>(
-          <div key={i} style={S.card}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-              <div><div style={{fontWeight:700,fontSize:15}}>{d.label}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{d.sub}</div></div>
-              <div style={{fontSize:12,color:C.acc,fontWeight:700}}>{d.exercises.length} exercícios</div>
+          <div key={i} className="ab-plan-day">
+            <div className="ab-plan-day-head">
+              <div><strong>{String(i+1).padStart(2,"0")} · {d.label}</strong><p>{d.sub}</p></div><span>{d.exercises.length} EXERCÍCIOS</span>
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-              {d.exercises.map((ex,j)=><span key={j} style={{fontSize:11,background:"#0d2218",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
+            <div className="ab-plan-exercises">
+              {d.exercises.map((ex,j)=><span key={j}>{ex.name}{Number.isInteger(ex.rir)?` · RIR ${ex.rir}`:""}</span>)}
             </div>
           </div>
         ))}
       </div>
-      <button style={S.btn} onClick={onStart}>Iniciar treinamento →</button>
+      </main></div>
     </div>
   );
 }
@@ -3619,26 +3774,18 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
 
 function SettingsModal({ onClose, user, onLogout }) {
   return (
-    <div style={S.modalOverlay}>
-      <div style={S.modal}>
-        <div style={S.eyebrow}>CONFIGURAÇÕES</div>
+    <ModalShell title="Configurações" eyebrow="PREFERÊNCIAS DO APP" onClose={onClose}>
         {AUTH_ENABLED && (
-          <div style={{...S.card,flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <div className="ab-settings-row">
             {user
-              ? (<><div><div style={{fontSize:11,color:C.muted}}>CONTA</div><div style={{fontSize:13,fontWeight:600}}>{user.email}</div></div>
-                 <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:12}} onClick={onLogout}>Sair</button></>)
-              : (<><div style={{fontSize:13,color:C.muted}}>Sem conta — dados apenas neste aparelho</div>
-                 <button style={{...S.btnOutline,width:"auto",padding:"8px 14px",fontSize:12}} onClick={onLogout}>Entrar</button></>)}
+              ? (<><div><span>CONTA CONECTADA</span><strong>{user.email}</strong></div><button className="ab-secondary-action" onClick={onLogout}>Sair</button></>)
+              : (<><div><span>MODO LOCAL</span><strong>Dados apenas neste aparelho</strong></div><button className="ab-secondary-action" onClick={onLogout}>Entrar</button></>)}
           </div>
         )}
-        <div style={{...S.card,marginBottom:18}}>
-          <div style={{fontSize:11,color:C.muted,marginBottom:4}}>SOBRE</div>
-          <div style={{fontSize:13,color:C.text}}>A-BODY v1.1 — Personal AI Trainer</div>
-          <div style={{fontSize:12,color:C.muted,marginTop:4}}>Geração de treinos por IA incluída, sem custo para você.</div>
+        <div className="ab-settings-about">
+          <BrandMark/><div><span>SOBRE</span><strong>A-BODY v1.2</strong><p>Personal AI Trainer com geração de treinos assistida por IA.</p></div>
         </div>
-        <button style={S.btnOutline} onClick={onClose}>Fechar</button>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -3647,14 +3794,17 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
   const weekCount = history.filter(s=>new Date(s.date)>=ws).length;
+  const adaptive = adaptiveInsight(history);
+  const nextDay = plan.weekDays[weekCount % plan.weekDays.length] || plan.weekDays[0];
   return (
-    <div style={S.box}>
-      <div style={{...S.brandRow,justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><div style={S.logo}>A</div><span style={S.brand}>A-BODY</span></div>
-        <button onClick={onSettings} style={{background:"none",border:"none",fontSize:20,cursor:"pointer"}}>⚙️</button>
-      </div>
+    <div className="ab-dashboard">
+      <header className="ab-dashboard-header">
+        <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>MOVE SMARTER</span></div></div>
+        <button onClick={onSettings} className="ab-icon-button" aria-label="Configurações"><Icon name="settings"/></button>
+      </header>
+      <section className="ab-hero-card">
       {personal && (
-        <div style={{display:"flex",alignItems:"center",gap:10,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 14px",marginBottom:16}}>
+        <div className="ab-personal-chip">
           <AvatarFoto url={personal.foto_url} nome={personal.nome} size={38}/>
           <div>
             <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>SEU PERSONAL</div>
@@ -3662,45 +3812,108 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
           </div>
         </div>
       )}
-      <div style={S.eyebrow}>{plan.planName}</div>
-      <h1 style={S.h1}>Olá, {plan.userName}!</h1>
-      <p style={S.sub}>Escolha o treino do dia.</p>
+      <div className="ab-kicker">{plan.planName}</div>
+      <h1>Vamos treinar,<br/>{plan.userName}?</h1>
+      <p className="ab-copy">{nextDay?.label} · {nextDay?.sub}</p>
+      <button className="ab-primary ab-hero-action" onClick={()=>onStart(nextDay)}><span className="ab-play-dot"><Icon name="play" size={16}/></span>Começar treino</button>
+      <div className="ab-week-progress">
+        <div className="ab-week-progress-label"><span>PROGRESSO SEMANAL</span><span>{weekCount} TREINO{weekCount!==1?"S":""}</span></div>
+        <div className="ab-progress-track"><span style={{width:`${Math.min(100,weekCount*25)}%`}}/></div>
+      </div>
+      </section>
 
-      <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:18}}>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onCalendar}>
-          <div style={{fontSize:22,marginBottom:4}}>📅</div>
+      {adaptive&&<div className="ab-adaptive-card" data-tone={adaptive.tone}><div className="ab-adaptive-icon"><Icon name="sparkles" size={18}/></div><div><span>AJUSTE ADAPTATIVO</span><strong>{adaptive.title}</strong><p>{adaptive.message}</p></div></div>}
+
+      <div className="ab-section-title"><h2>Visão geral</h2><span>Esta semana</span></div>
+      <div className="ab-metric-grid">
+        <button className="ab-metric" onClick={onCalendar}>
+          <div className="ab-metric-icon"><Icon name="calendar"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Frequência</div>
           <div style={{fontSize:11,color:C.acc,marginTop:2}}>{weekCount} treino{weekCount!==1?"s":""} esta semana</div>
         </button>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px",opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
-          <div style={{fontSize:22,marginBottom:4}}>📊</div>
+        <button className="ab-metric" style={{opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
+          <div className="ab-metric-icon"><Icon name="chart"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Avaliação corporal</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>{hasBody?"ver relatório":"sem avaliação"}</div>
         </button>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onLibrary}>
-          <div style={{fontSize:22,marginBottom:4}}>📚</div>
+        <button className="ab-metric" onClick={onLibrary}>
+          <div className="ab-metric-icon"><Icon name="book"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Biblioteca</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>146 exercícios</div>
         </button>
-        <button style={{...S.card,flexBasis:"calc(50% - 5px)",alignItems:"center",padding:"14px 8px"}} onClick={onEvolucao}>
-          <div style={{fontSize:22,marginBottom:4}}>📈</div>
+        <button className="ab-metric" onClick={onEvolucao}>
+          <div className="ab-metric-icon"><Icon name="sparkles"/></div>
           <div style={{fontSize:12,fontWeight:700,color:C.text}}>Evolução</div>
           <div style={{fontSize:11,color:C.muted,marginTop:2}}>cargas por exercício</div>
         </button>
       </div>
 
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
-        {plan.duracao && <div style={{fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>⏱ TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
+      <div id="ab-workouts" className="ab-section-title"><h2>Seus treinos</h2><span>{plan.weekDays.length} sessões</span></div>
+      <div className="ab-day-grid">
+        {plan.duracao && <div style={{gridColumn:"1 / -1",fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
         {plan.weekDays.map((d,i)=>{ const last=lastByDay[d.id]; return(
-          <button key={i} style={S.dayCard} onClick={()=>onStart(d)}>
-            <div><div style={{fontSize:17,fontWeight:700}}>{d.label}</div><div style={{fontSize:13,color:C.muted,marginTop:2}}>{d.sub}{plan.duracao?` · ⏱ ~${plan.duracao}`:""}</div>{last&&<div style={{fontSize:11,color:"#8fb8a2",marginTop:5}}>Último: {new Date(last).toLocaleDateString("pt-BR")}</div>}</div>
-            <span style={{color:C.acc,fontSize:20}}>→</span>
+          <button key={i} className="ab-day-card" onClick={()=>onStart(d)}>
+            <div className="ab-day-number">{String(i+1).padStart(2,"0")}</div>
+            <div className="ab-day-copy"><strong>{d.label}</strong><span>{d.sub}{plan.duracao?` · ~${plan.duracao}`:""}</span>{last&&<span>Último: {new Date(last).toLocaleDateString("pt-BR")}</span>}</div>
+            <Icon name="arrow" size={20}/>
           </button>
         );})}
       </div>
       {locked
         ? <p style={{fontSize:11,color:C.muted,textAlign:"center"}}>🔒 Treino gerenciado pelo seu personal. Alterações e substituições só por ele — use o campo de mensagem no descanso ou ao final do treino.</p>
         : <button style={{...S.btnOutline,fontSize:13,padding:"12px"}} onClick={onReset}>↺ Refazer anamnese / novo plano</button>}
+      <nav className="ab-bottom-nav" aria-label="Navegação principal">
+        <button className="ab-nav-item" data-active="true"><Icon name="home" size={19}/><span>Hoje</span></button>
+        <button className="ab-nav-item" onClick={()=>document.getElementById("ab-workouts")?.scrollIntoView({behavior:"smooth"})}><Icon name="dumbbell" size={19}/><span>Treinos</span></button>
+        <button className="ab-nav-item" onClick={onEvolucao}><Icon name="chart" size={19}/><span>Progresso</span></button>
+        <button className="ab-nav-item" onClick={onSettings}><Icon name="user" size={19}/><span>Perfil</span></button>
+      </nav>
+    </div>
+  );
+}
+
+// ─── WORKOUT OVERVIEW ────────────────────────────────────────────────────────
+
+function OverviewExerciseMedia({ exercise, catalogo }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (catalogo === undefined) return <div className="ab-overview-media ab-overview-media--loading" aria-label="Carregando ilustração"/>;
+  const match = catalogo ? matchExercicio(exercise.name,catalogo) : null;
+  if (match?.imagem_url && !imageFailed) return <div className="ab-overview-media"><img src={match.imagem_url} alt={`Ilustração de ${exercise.name}`} loading="lazy" onError={()=>setImageFailed(true)}/></div>;
+  return <div className="ab-overview-media ab-overview-media--pending" role="status"><b aria-hidden="true">A</b><span>Ilustração<small>em desenvolvimento</small></span></div>;
+}
+
+function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) {
+  const totalSeries = exercises.reduce((total,ex)=>total+(Number(ex.sets)||0),0);
+  const [catalogo, setCatalogo] = useState(undefined);
+  useEffect(()=>{
+    let active=true;
+    fetchBiblioteca().then(lista=>{if(active)setCatalogo(lista);}).catch(()=>{if(active)setCatalogo(null);});
+    return ()=>{active=false;};
+  },[]);
+  return (
+    <div className="ab-workout-overview">
+      <button className="ab-workout-exit" onClick={onBack}>← Sair do treino</button>
+      <header className="ab-overview-heading">
+        <div className="ab-kicker">{day.label} · VISÃO DO TREINO</div>
+        <h1>Saiba o que vem pela frente.</h1>
+        <p className="ab-copy">Revise a sequência antes de começar e organize mentalmente cargas, equipamentos e ritmo.</p>
+      </header>
+      <div className="ab-overview-metrics" aria-label="Resumo do treino">
+        <div><strong>{exercises.length}</strong><span>exercícios</span></div>
+        <div><strong>{totalSeries}</strong><span>séries totais</span></div>
+        <div><strong>{duracao?`~${duracao}`:"—"}</strong><span>tempo previsto</span></div>
+      </div>
+      <section className="ab-overview-card">
+        <div className="ab-overview-card__head"><div><span>SEQUÊNCIA</span><h2>{day.sub||"Treino do dia"}</h2></div><small>Séries × repetições</small></div>
+        <ol className="ab-overview-list">
+          {exercises.map((ex,i)=><li key={ex._key||ex.id||`${ex.name}-${i}`}>
+            <span className="ab-overview-number">{String(i+1).padStart(2,"0")}</span>
+            <OverviewExerciseMedia exercise={ex} catalogo={catalogo}/>
+            <div><strong>{ex.name}</strong><span>{ex.sets} {Number(ex.sets)===1?"série":"séries"} × {ex.reps}{ex.iso?"":" repetições"}</span></div>
+          </li>)}
+        </ol>
+      </section>
+      <div className="ab-overview-footer"><button className="ab-primary" onClick={onContinue}>Preparar para o treino <Icon name="arrow" size={18}/></button></div>
     </div>
   );
 }
@@ -3709,46 +3922,63 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
 
 function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }) {
   return (
-    <div style={S.box}>
-      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label} · AQUECIMENTO</div></div>
-      <h1 style={S.h1}>Antes de começar</h1>
-      <p style={S.sub}>Escolha o cardio (5 min) e faça a mobilidade indicada.</p>
-      <div style={S.sectionLabel}>CARDIO DE AQUECIMENTO</div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
-        {CARDIO_OPTIONS.map(c=><button key={c.id} style={{...S.card,...(cardioChoice===c.id?{border:`1.5px solid ${C.acc}`,background:"#102d20"}:{})}} onClick={()=>setCardioChoice(c.id)}><div style={{fontSize:22}}>{c.icon}</div><div style={{fontSize:13,fontWeight:600,marginTop:4}}>{c.name}</div></button>)}
+    <div className="ab-warmup">
+      <button className="ab-workout-exit" onClick={onBack}>← Sair do treino</button>
+      <header className="ab-warmup-heading">
+        <div className="ab-kicker">{day.label} · PREPARAÇÃO</div>
+        <h1>Prepare o corpo.<br/>Eleve a performance.</h1>
+        <p className="ab-copy">Cinco minutos de cardio e uma sequência rápida de mobilidade.</p>
+      </header>
+      <div className="ab-warmup-layout">
+        <section className="ab-warmup-card">
+          <h2>Cardio de aquecimento</h2><p>Escolha o equipamento disponível.</p>
+          <div className="ab-cardio-grid">
+            {CARDIO_OPTIONS.map(c=><button key={c.id} className="ab-cardio-choice" data-active={cardioChoice===c.id} onClick={()=>setCardioChoice(c.id)}><Icon name={c.id==="bike"?"repeat":c.id==="remo"?"users":"zap"}/><strong>{c.name}</strong></button>)}
+          </div>
+        </section>
+        <section className="ab-warmup-card">
+          <h2>Mobilidade orientada</h2><p>Complete os movimentos antes de avançar.</p>
+          {(day.mobility||[]).map((m,i)=><div key={i} className="ab-mobility-item"><div className="ab-mobility-number">{String(i+1).padStart(2,"0")}</div><div><strong>{m.name}</strong><span>{m.dur}</span></div></div>)}
+        </section>
       </div>
-      <div style={S.sectionLabel}>MOBILIDADE</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
-        {(day.mobility||[]).map((m,i)=><div key={i} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12}}><div style={{width:8,height:8,borderRadius:"50%",background:C.acc,flexShrink:0}}/><div><div style={{fontSize:13,fontWeight:600}}>{m.name}</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>{m.dur}</div></div></div>)}
-      </div>
-      <button style={{...S.btn,opacity:cardioChoice?1:0.35}} disabled={!cardioChoice} onClick={onContinue}>Iniciar treino</button>
+      <div className="ab-warmup-footer"><button className="ab-primary" disabled={!cardioChoice} onClick={onContinue}>Iniciar treino <Icon name="arrow" size={18}/></button></div>
     </div>
   );
 }
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, ultimaCarga, sugestao, elapsed, running, isoSec, isoTotal, isoRunning, isoDone, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, onStartSeries, onPauseSeries, isoSec, isoTotal, isoRunning, isoDone, unilateralSide, firstSideElapsed, onNextSide, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
   const isIso=exercise.iso;
+  const unilateral=isUnilateralExercise(exercise);
+  const sideLabel=unilateral?(unilateralSide===0?"Lado esquerdo":"Lado direito"):null;
   const isoCirc=2*Math.PI*52, isoOff=isoTotal>0?isoCirc*(isoSec/isoTotal):0;
-  const canComplete = (isIso?(isoRunning||isoDone):weightInput.length>0) && (exercise.iso || (parseInt(repsInput)||0) > 0);
+  const sideReady=!unilateral||unilateralSide===1&&firstSideElapsed>0;
+  const canComplete = sideReady && (isIso?isoDone:(elapsed>0&&weightInput.length>0)) && (exercise.iso || ((parseInt(repsInput)||0) > 0 && Number.isInteger(parseInt(rirInput)) && parseInt(rirInput)>=0 && parseInt(rirInput)<=5));
   return (
-    <div style={S.box}>
-      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Sair</button><div style={S.eyebrow}>{day.label}{duracao?` · ⏱ ~${duracao}`:""}</div></div>
-      <div style={{height:4,background:C.border,borderRadius:2,marginBottom:4}}><div style={{height:4,background:C.acc,borderRadius:2,width:`${pct}%`,transition:"width .3s"}}/></div>
-      <div style={{fontSize:11,color:C.muted,marginBottom:14}}>{doneSets} série{doneSets!==1?"s":""} concluída{doneSets!==1?"s":""} · {totalSets-doneSets} restante{(totalSets-doneSets)!==1?"s":""}</div>
-      <FigureBlock exercise={exercise}/>
+    <div className="ab-workout-shell">
+      <div className="ab-workout-topbar">
+        <button className="ab-workout-exit" onClick={onBack}>← Sair</button>
+        <div className="ab-workout-progress"><div className="ab-workout-progress-copy"><span>{day.label}{duracao?` · ~${duracao}`:""}</span><span>{pct}% CONCLUÍDO</span></div><div className="ab-progress-track"><span style={{width:`${pct}%`}}/></div></div>
+      </div>
+      <div className="ab-workout-grid">
+      <section className="ab-exercise-stage">
+      <div className="ab-figure-wrap"><FigureBlock exercise={exercise}/></div>
       {exercise._substitutedFor&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>↔ Substituiu: {exercise._substitutedFor}</div>}
       {exercise._skipped&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>⏩ Reagendado</div>}
-      <div style={{fontSize:11,color:"#8fb8a2",marginBottom:4}}>{completed.length+1}º de {completed.length+queue.length} exercícios</div>
-      <h2 style={{fontSize:20,fontWeight:800,margin:"0 0 4px 0"}}>{exercise.name}</h2>
-      <p style={{...S.sub,marginBottom:10}}>{exercise.reps} {isIso?"· isométrico":"reps"} · descanso {exercise.rest}s</p>
-      <div style={{display:"flex",gap:6,marginBottom:12}}>
-        {Array.from({length:exercise.sets}).map((_,i)=><div key={i} style={{width:24,height:6,borderRadius:3,background:i<setIdx?C.acc:i===setIdx?"#e8a23a":C.border}}/>)}
+      <div className="ab-exercise-count">EXERCÍCIO {completed.length+1} DE {completed.length+queue.length}</div>
+      <h1>{exercise.name}</h1>
+      <div className="ab-exercise-sub"><span>{exercise.reps} {isIso?"· isométrico":"repetições"}</span><span>·</span><span>{exercise.rest}s de descanso</span></div>
+      <div className="ab-set-dots">
+        {Array.from({length:exercise.sets}).map((_,i)=><div key={i} className="ab-set-dot" data-state={i<setIdx?"done":i===setIdx?"current":"pending"}/>)}
       </div>
+      </section>
+      <aside className="ab-workout-panel">
+      <div className="ab-series-heading"><strong>Série {setIdx+1} de {exercise.sets}</strong><span>{totalSets-doneSets} restantes</span></div>
+      {unilateral&&<div className="ab-side-status"><span className={unilateralSide===0?"active":"done"}>1 · Esquerdo</span><span className={unilateralSide===1?"active":""}>2 · Direito</span></div>}
       {isIso?(
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,marginBottom:14}}>
           <div style={{position:"relative",width:130,height:130,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -3756,32 +3986,38 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
               <circle cx="65" cy="65" r="52" stroke={C.border} strokeWidth="7" fill="none"/>
               <circle cx="65" cy="65" r="52" stroke={isoDone?"#3ddc84":"#e8a23a"} strokeWidth="7" fill="none" strokeDasharray={isoCirc} strokeDashoffset={isoOff} strokeLinecap="round" transform="rotate(-90 65 65)" style={{transition:"stroke-dashoffset 1s linear"}}/>
             </svg>
-            <div style={{position:"absolute",textAlign:"center"}}><div style={{fontSize:28,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(isoSec)}</div><div style={{fontSize:10,color:C.muted}}>/{fmt(isoTotal)}</div></div>
+            <div style={{position:"absolute",textAlign:"center"}}><div style={{fontSize:28,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(isoSec)}</div><div style={{fontSize:10,color:C.muted}}>{sideLabel||`/${fmt(isoTotal)}`}</div></div>
           </div>
           {!isoDone&&<button style={{...S.btn,width:"auto",padding:"12px 32px",fontSize:14}} onClick={isoRunning?onPauseIso:onStartIso}>{isoRunning?"⏸ Pausar":(isoSec===isoTotal?"▶ Iniciar":"▶ Continuar")}</button>}
-          {isoDone&&<div style={{fontSize:13,color:C.acc,fontWeight:700}}>✓ Tempo concluído!</div>}
+          {isoDone&&unilateralSide===0&&<button className="ab-primary ab-next-side" onClick={onNextSide}>Iniciar lado direito <Icon name="arrow" size={17}/></button>}
+          {isoDone&&(!unilateral||unilateralSide===1)&&<div style={{fontSize:13,color:C.acc,fontWeight:700}}>✓ {unilateral?"Dois lados concluídos!":"Tempo concluído!"}</div>}
         </div>
       ):(
         <>
-          <div style={S.seriesTimer}><span style={{fontSize:11,color:C.muted,letterSpacing:"0.08em"}}>SÉRIE {setIdx+1}/{exercise.sets}</span><span style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(elapsed)}</span><span style={{fontSize:11,color:C.muted}}>{running?"em execução":"pausado"}</span></div>
-          <label style={{...S.sectionLabel,marginTop:12}}>Peso e repetições desta série{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
+          <div className="ab-series-clock"><div><span>{sideLabel?`TEMPO · ${sideLabel}`:"TEMPO DA SÉRIE"}</span><strong style={{display:"block"}}>{fmt(elapsed)}</strong></div><span>{running?"em execução":elapsed>0?"pausado":"pronto"}</span></div>
+          <button className="ab-secondary-action" style={{width:"100%",marginTop:10}} onClick={running?onPauseSeries:onStartSeries}>{running?"Pausar cronômetro":elapsed>0?"Continuar série":"Iniciar série"}</button>
+          {unilateral&&unilateralSide===0&&<button className="ab-primary ab-next-side" disabled={elapsed<=0} onClick={onNextSide}>Concluir esquerdo e iniciar direito <Icon name="arrow" size={17}/></button>}
+          <label style={{...S.sectionLabel,marginTop:12}}>Registre a série e o esforço percebido{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
           {sugestao && String(sugestao.sugerido) !== weightInput && (
-            <button onClick={()=>setWeightInput(String(sugestao.sugerido))}
-              style={{display:"block",width:"100%",textAlign:"left",background:"#0d2a1c",border:`1.5px dashed ${C.acc}`,borderRadius:12,padding:"10px 12px",margin:"8px 0 2px",cursor:"pointer"}}>
-              <span style={{fontSize:12,fontWeight:700,color:C.acc}}>💡 Você atingiu {sugestao.topo} reps em todas as séries com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
-              <span style={{fontSize:11,color:C.muted,display:"block",marginTop:2}}>toque para aplicar</span>
+            <button onClick={()=>setWeightInput(String(sugestao.sugerido))} className="ab-suggestion">
+              <span>Você atingiu {sugestao.topo} reps com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
+              <small>TOQUE PARA APLICAR A SUGESTÃO</small>
             </button>
           )}
-          <div style={{display:"flex",gap:10}}>
-            <input type="number" inputMode="decimal" style={{...S.input,flex:1}} value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="Peso (kg)" autoFocus/>
-            <input type="number" inputMode="numeric" style={{...S.input,flex:1}} value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder={`Reps (meta ${exercise.reps})`}/>
+          <div className="ab-load-grid">
+            <div className="ab-load-field"><label>PESO (KG)</label><input aria-label="Peso em quilogramas" type="number" inputMode="decimal" className="ab-load-input" value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="0"/></div>
+            <div className="ab-load-field"><label>REPETIÇÕES</label><input aria-label="Número de repetições" type="number" inputMode="numeric" className="ab-load-input" value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder="0"/></div>
+            <div className="ab-load-field"><label>RIR · ALVO {exercise.rir??3}</label><input aria-label="Repetições em reserva" type="number" inputMode="numeric" min="0" max="5" className="ab-load-input" value={rirInput} onChange={e=>setRirInput(e.target.value)} placeholder="0–5"/></div>
           </div>
+          <p className="ab-rir-help">RIR é quantas repetições você ainda conseguiria fazer com boa técnica. Use 0 apenas quando nenhuma repetição adicional seria possível.</p>
         </>
       )}
-      <button style={{...S.btn,opacity:canComplete?1:0.35,marginBottom:10}} disabled={!canComplete} onClick={onComplete}>Concluir série</button>
-      <div style={{display:"flex",gap:8}}>
-        <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"12px 6px",opacity:canSkip?1:0.35}} disabled={!canSkip} onClick={onSkip}>⏩ Equipamento ocupado</button>
-        <button style={{...S.btnOutline,flex:1,fontSize:13,padding:"12px 6px"}} onClick={onShowSubs}>↔ Substituir</button>
+      {(!unilateral||unilateralSide===1)&&<button className="ab-primary" disabled={!canComplete} onClick={onComplete}>Concluir série <Icon name="arrow" size={18}/></button>}
+      <div className="ab-secondary-actions">
+        <button className="ab-secondary-action" disabled={!canSkip} onClick={onSkip}><Icon name="repeat" size={15}/> Ocupado</button>
+        <button className="ab-secondary-action" onClick={onShowSubs}><Icon name="swap" size={15}/> Substituir</button>
+      </div>
+      </aside>
       </div>
     </div>
   );
@@ -3816,15 +4052,11 @@ function SubModal({ exercise, onSelect, onClose, locked }) {
     : SUBS_POR_POSE(exercise.pose||"press_chest");
   const subs=fonte.map(s=>({...s,id:`sub_${uid()}`,sets:exercise.sets,reps:exercise.reps,rest:exercise.rest,iso:false,isoSec:null}));
   return (
-    <div style={S.modalOverlay}>
-      <div style={S.modal}>
-        <div style={S.eyebrow}>SUBSTITUIR EXERCÍCIO</div>
+    <ModalShell title="Substituir exercício" eyebrow="ALTERNATIVAS SEGURAS" onClose={onClose}>
         <p style={{...S.sub,marginBottom:16}}>Alternativas para <b style={{color:C.text}}>{exercise.name}</b>:</p>
         {subs.length===0&&<p style={{...S.sub,color:C.muted}}>{locked?"O personal não liberou substituições para este exercício. Envie uma mensagem a ele no descanso ou ao final do treino.":"Nenhuma alternativa disponível."}</p>}
         {subs.map((s,i)=><button key={i} style={{...S.card,marginBottom:10,textAlign:"left"}} onClick={()=>onSelect(s)}><div style={{fontSize:14,fontWeight:700,marginBottom:4}}>{s.name}</div><div style={{fontSize:12,color:C.muted}}>{s.sets} séries · {s.reps} reps</div></button>)}
-        <button style={{...S.btnOutline,marginTop:6}} onClick={onClose}>Cancelar</button>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -3834,34 +4066,31 @@ function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercic
   const circ=2*Math.PI*52, off=circ*(1-seconds/(total||1));
   const allItems=[...completed.map(e=>({...e,status:"done"})),...queue.map((e,i)=>({...e,status:i===0?"current":e._skipped?"skipped":"pending"}))];
   return (
-    <div style={S.box}>
-      <div style={S.eyebrow}>DESCANSO</div>
-      <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
-        <div style={{position:"relative",width:130,height:130,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <svg width="130" height="130" viewBox="0 0 130 130">
+    <div className="ab-rest">
+      <section className="ab-rest-hero">
+        <div className="ab-rest-timer">
+          <svg viewBox="0 0 130 130">
             <circle cx="65" cy="65" r="52" stroke={C.border} strokeWidth="7" fill="none"/>
             <circle cx="65" cy="65" r="52" stroke={C.acc} strokeWidth="7" fill="none" strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" transform="rotate(-90 65 65)" style={{transition:"stroke-dashoffset 1s linear"}}/>
           </svg>
-          <div style={{position:"absolute",textAlign:"center"}}><div style={{fontSize:30,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(seconds)}</div><div style={{fontSize:10,color:C.muted}}>descanso</div></div>
+          <div className="ab-rest-time"><strong>{fmt(seconds)}</strong><span>DESCANSO</span></div>
         </div>
-      </div>
-      {duracao && <div style={{fontSize:11,color:C.muted,marginBottom:10,textAlign:"center"}}>⏱ tempo previsto do treino: ~{duracao}</div>}
+        <div className="ab-rest-copy"><div className="ab-kicker">RECUPERE E RESPIRE</div><h1>Boa série.</h1><p>Prepare-se para a próxima. {exercicioAtual?`Você continua em ${exercicioAtual}.`:"O próximo exercício começa em breve."}</p><button className="ab-primary" style={{width:"auto"}} onClick={onSkip}>Pular descanso <Icon name="arrow" size={17}/></button>{duracao&&<p>Tempo previsto do treino: ~{duracao}</p>}</div>
+      </section>
       {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"descanso",exercicio:exercicioAtual||null}} placeholder="observação para o personal (dúvida, dor, pedido de troca)…"/>}
-      <div style={S.sectionLabel}>EXERCÍCIOS DO TREINO</div>
-      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+      <section className="ab-queue"><h2>Sequência do treino</h2>
         {allItems.map((ex,i)=>{ const isDone=ex.status==="done",isCurrent=ex.status==="current",isSkipped=ex.status==="skipped"; return(
-          <div key={i} style={{...S.card,flexDirection:"row",alignItems:"center",gap:12,padding:"10px 14px",border:isCurrent?`1.5px solid #e8a23a`:isSkipped?`1px dashed #8fb8a2`:`1px solid ${C.border}`,opacity:ex.status==="pending"?0.45:1}}>
-            <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,background:isDone?C.acc:isCurrent?"#e8a23a":isSkipped?"#2a4a34":C.border,color:(isDone||isCurrent)?"#06140e":C.muted}}>
+          <div key={i} className="ab-queue-item" data-status={ex.status}>
+            <div className="ab-queue-state">
               {isDone?"✓":isCurrent?"▶":isSkipped?"⏩":"○"}
             </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:600,color:isDone?C.muted:C.text}}>{ex.name}{isSkipped&&<span style={{fontSize:10,color:"#e8a23a",marginLeft:6}}>· reagendado</span>}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2}}>{isDone?`${ex.sets}/${ex.sets} séries ✓`:isCurrent?`em andamento · ${Math.min(nextSet||1,ex.sets)-1}/${ex.sets} séries · próxima: ${Math.min(nextSet||1,ex.sets)}ª`:`${ex.sets} séries · ${ex.reps}`}</div>
+            <div className="ab-queue-copy">
+              <strong>{ex.name}{isSkipped&&<span> · reagendado</span>}</strong>
+              <span>{isDone?`${ex.sets}/${ex.sets} séries concluídas`:isCurrent?`em andamento · ${Math.min(nextSet||1,ex.sets)-1}/${ex.sets} séries · próxima: ${Math.min(nextSet||1,ex.sets)}ª`:`${ex.sets} séries · ${ex.reps}`}</span>
             </div>
           </div>
         );})}
-      </div>
-      <button style={S.btnOutline} onClick={onSkip}>Pular descanso</button>
+      </section>
     </div>
   );
 }
@@ -3934,17 +4163,8 @@ function FotoComparativo({ bodyHistory, onFotosExcluidas }) {
   );
 }
 
-function BarraNota({ nota }) {
-  const n = Math.min(5, Math.max(1, Number(nota) || 3));
-  const cor = n <= 2 ? "#e8a23a" : n >= 4 ? C.acc : "#6fa88a";
-  return (
-    <div style={{display:"flex",gap:3,alignItems:"center"}}>
-      {[1,2,3,4,5].map(i=>(
-        <div key={i} style={{width:14,height:7,borderRadius:2,background:i<=n?cor:C.border}}/>
-      ))}
-      <span style={{fontSize:11,color:cor,fontWeight:800,marginLeft:4}}>{n}</span>
-    </div>
-  );
+function BodyInsightCard({ titulo, accent = false, children }) {
+  return <section className="ab-insight-card" data-accent={accent}><h2>{titulo}</h2>{children}</section>;
 }
 
 function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas }) {
@@ -3961,61 +4181,50 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
     ? a.postura
     : (a.postureNotes || []).map(p => ({ achado: p, implicacao: "" }));
 
-  const Bloco = ({ titulo, cor, children }) => (
-    <div style={{...S.card, marginBottom:14}}>
-      <div style={{fontSize:11,color:cor||C.muted,fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>{titulo}</div>
-      {children}
-    </div>
-  );
-
   return (
-    <div style={S.box}>
-      <div style={S.topRow}>
-        <button style={S.back} onClick={onBack}>← Voltar</button>
-        <div style={S.eyebrow}>AVALIAÇÃO CORPORAL</div>
-      </div>
-      <h1 style={S.h1}>Seu relatório</h1>
-      <p style={S.sub}>Avaliação de {new Date(last.date).toLocaleDateString("pt-BR")} · há {daysSince} dia{daysSince!==1?"s":""}{bodyHistory.length>1?` · ${bodyHistory.length}ª avaliação`:""}</p>
+    <div className="ab-data-page">
+      <button className="ab-workout-exit" onClick={onBack}>← Voltar</button>
+      <header className="ab-page-head"><div><div className="ab-kicker">AVALIAÇÃO CORPORAL</div><h1>Seu relatório inteligente</h1><p className="ab-copy">Avaliação de {new Date(last.date).toLocaleDateString("pt-BR")} · há {daysSince} dia{daysSince!==1?"s":""}{bodyHistory.length>1?` · ${bodyHistory.length}ª avaliação`:""}</p></div></header>
 
       {comp && (
-        <div style={{...S.card,marginBottom:14,border:`1.5px solid ${C.acc}`}}>
+        <section className="ab-insight-card" data-accent="true">
           <div style={{fontSize:11,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>EVOLUÇÃO vs AVALIAÇÃO ANTERIOR</div>
           {comp.summary && <p style={{fontSize:13,color:C.text,margin:"0 0 10px 0",lineHeight:1.5}}>{comp.summary}</p>}
           {(comp.improvements||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.acc,marginBottom:4}}>▲ {p}</div>)}
           {(comp.attentionPoints||[]).map((p,i)=><div key={i} style={{fontSize:13,color:"#e8a23a",marginBottom:4}}>⚠ {p}</div>)}
-        </div>
+        </section>
       )}
 
       {a.overallAnalysis && (
-        <Bloco titulo="SÍNTESE">
+        <BodyInsightCard titulo="SÍNTESE" accent>
           <p style={{fontSize:13,color:C.text,margin:0,lineHeight:1.5}}>{a.overallAnalysis}</p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {temNotas && (
-        <Bloco titulo="DESENVOLVIMENTO POR GRUPO">
+        <BodyInsightCard titulo="DESENVOLVIMENTO POR GRUPO">
           {["peito","costas","ombros","bracos","quadriceps","posteriores","gluteos","panturrilhas","core"].map(g=>{
             const ant = Number(anteriorNotas[g]);
             const at  = Number(notas[g]);
             const delta = Number.isFinite(ant) && Number.isFinite(at) ? at - ant : 0;
             return (
-              <div key={g} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:`1px solid ${C.border}`}}>
-                <span style={{fontSize:13,color:C.text}}>
+              <div key={g} className="ab-score-row">
+                <span>
                   {ROTULO_GRUPO[g]}
                   {delta !== 0 && <span style={{fontSize:11,fontWeight:700,marginLeft:6,color:delta>0?C.acc:"#e8a23a"}}>{delta>0?`▲${delta}`:`▼${Math.abs(delta)}`}</span>}
                 </span>
-                <BarraNota nota={notas[g]}/>
+                <div className="ab-score-track"><span style={{width:`${Math.min(100,Math.max(0,at*20))}%`}}/></div><b>{at}/5</b>
               </div>
             );
           })}
           <p style={{fontSize:11,color:C.muted,margin:"10px 0 0 0",lineHeight:1.5}}>
             Leitura visual comparando cada grupo com o restante do seu próprio corpo — 1 muito abaixo, 3 proporcional, 5 destaque. Não substitui medição.
           </p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.prioridades||[]).length > 0 && (
-        <Bloco titulo="PRIORIDADES DO SEU TREINO" cor={C.acc}>
+        <BodyInsightCard titulo="PRIORIDADES DO SEU TREINO" accent>
           {a.prioridades.map((p,i)=>(
             <div key={i} style={{marginBottom:10}}>
               <div style={{fontSize:13,fontWeight:700,color:C.text}}>{i+1}. {ROTULO_GRUPO[p.grupo]||p.grupo}</div>
@@ -4027,7 +4236,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
               Em manutenção: {a.manutencao.map(g=>ROTULO_GRUPO[g]||g).join(", ")}
             </div>
           )}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.restricoesMovimento||[]).length > 0 && (
@@ -4041,38 +4250,38 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
       )}
 
       {postura.length > 0 && (
-        <Bloco titulo="POSTURA">
+        <BodyInsightCard titulo="POSTURA">
           {postura.map((p,i)=>(
             <div key={i} style={{marginBottom:8}}>
               <div style={{fontSize:13,color:C.text}}>• {p.achado}</div>
               {p.implicacao && <div style={{fontSize:12,color:C.acc,marginLeft:12,marginTop:2}}>→ {p.implicacao}</div>}
             </div>
           ))}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.assimetrias||a.muscleImbalances||[]).length > 0 && (
-        <Bloco titulo="ASSIMETRIAS">
+        <BodyInsightCard titulo="ASSIMETRIAS">
           {(a.assimetrias||a.muscleImbalances||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.text,marginBottom:4}}>• {p}</div>)}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {a.distribuicaoGordura && (
-        <Bloco titulo="DISTRIBUIÇÃO DE GORDURA">
+        <BodyInsightCard titulo="DISTRIBUIÇÃO DE GORDURA">
           <p style={{fontSize:13,color:C.text,margin:0,lineHeight:1.5}}>{a.distribuicaoGordura}</p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {(a.achadosDocumentos||[]).length > 0 && (
-        <Bloco titulo="ACHADOS DOS DOCUMENTOS">
+        <BodyInsightCard titulo="ACHADOS DOS DOCUMENTOS">
           {a.achadosDocumentos.map((p,i)=><div key={i} style={{fontSize:13,color:C.text,marginBottom:4}}>• {p}</div>)}
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       {a.objetivoVsLeitura && (
-        <Bloco titulo="OBJETIVO x LEITURA CORPORAL">
+        <BodyInsightCard titulo="OBJETIVO x LEITURA CORPORAL">
           <p style={{fontSize:13,color:C.text,margin:0,lineHeight:1.5}}>{a.objetivoVsLeitura}</p>
-        </Bloco>
+        </BodyInsightCard>
       )}
 
       <div style={{display:"flex",gap:10,marginBottom:14}}>
@@ -4113,13 +4322,13 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
       <p style={S.sub}>Envie fotos atuais nas mesmas posições. A IA compara com sua avaliação anterior e mostra sua evolução.</p>
       <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
           <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b> (dados sensíveis de saúde — LGPD).</span>
         </label>
       )}
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#0d2218",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={!!storeConsent} onChange={e=>setStoreConsent(e.target.checked)} style={{marginTop:2}}/>
           <span><b>Opcional:</b> autorizo o <b>armazenamento seguro e privado</b> das fotos para comparativos visuais da minha evolução. Posso excluí-las quando quiser.</span>
         </label>
@@ -4301,31 +4510,54 @@ function PostCardioScreen({ day, onContinue }) {
   );
 }
 
-function ReportScreen({ report, onHome, vinculo }) {
+function ReportScreen({ report, onHome, vinculo, onFeedback }) {
+  const totalVolume = report.rows.filter(r=>!r.iso).reduce((sum,r)=>sum+(Number(r.curVolume)||0),0);
+  const evolucoes = report.rows.filter(r=>r.diffPct!=null&&r.diffPct>0).length;
+  const [recovery,setRecovery] = useState("good");
+  const [pain,setPain] = useState(false);
+  const [feedbackSaved,setFeedbackSaved] = useState(false);
+  const saveFeedback = async () => { await onFeedback({recovery,pain}); setFeedbackSaved(true); };
   return (
-    <div style={S.box}>
-      <div style={S.eyebrow}>RELATÓRIO</div>
-      <h1 style={S.h1}>{report.dayLabel}</h1>
+    <div className="ab-data-page">
+      <section className="ab-report-hero">
+        <div className="ab-kicker">TREINO CONCLUÍDO · ÓTIMO TRABALHO</div>
+        <h1>{report.dayLabel}</h1>
+        <p>{report.hasPrev?`${evolucoes} exercício${evolucoes!==1?"s":""} com evolução em relação à sessão anterior.`:"Sua primeira sessão foi registrada. Este é o começo da sua linha de evolução."}</p>
+        <div className="ab-stat-grid">
+          <div className="ab-stat-tile"><strong>{report.rows.length}</strong><span>Exercícios</span></div>
+          <div className="ab-stat-tile"><strong>{Math.round(totalVolume)}</strong><span>Volume em kg</span></div>
+          <div className="ab-stat-tile"><strong>{evolucoes}</strong><span>Evoluções</span></div>
+          <div className="ab-stat-tile"><strong>100%</strong><span>Concluído</span></div>
+        </div>
+      </section>
       {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"fim_treino",treino:report.dayLabel||null}} placeholder="fale com seu personal: dúvidas, feedback, pedido de substituição…"/>}
-      {!report.hasPrev&&<p style={S.sub}>Primeira sessão registrada. Comparação disponível no próximo treino.</p>}
-      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+      <div className="ab-section-title"><h2>Desempenho por exercício</h2><span>{report.hasPrev?"Comparado à sessão anterior":"Primeira referência"}</span></div>
+      <div className="ab-report-grid">
         {report.rows.map((r,i)=>(
-          <div key={i} style={S.card}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{r.name}</div>
-            <div style={{display:"flex",gap:12,fontSize:12,color:C.muted,flexWrap:"wrap"}}>
-              {r.iso?<><span>Melhor: <b style={{color:C.text}}>{r.curMax}s</b></span><span>Total: <b style={{color:C.text}}>{r.curVolume}s</b></span></>:<><span>Volume: <b style={{color:C.text}}>{r.curVolume}kg</b></span><span>Máx: <b style={{color:C.text}}>{r.curMax}kg</b></span></>}
-              {r.diffPct!=null&&<span style={{color:r.diffPct>=0?C.acc:"#e8a23a",fontWeight:700}}>{r.diffPct>=0?"▲":"▼"} {Math.abs(r.diffPct).toFixed(0)}%</span>}
+          <div key={i} className="ab-report-row">
+            <div className="ab-report-row-top"><strong>{r.name}</strong>{r.diffPct!=null&&<span className="ab-delta" data-negative={r.diffPct<0}>{r.diffPct>=0?"▲":"▼"} {Math.abs(r.diffPct).toFixed(0)}%</span>}</div>
+            <div className="ab-report-stats">
+              <div className="ab-report-stat"><span>{r.iso?"MELHOR":"VOLUME"}</span><b>{r.iso?`${r.curMax}s`:`${r.curVolume}kg`}</b></div>
+              <div className="ab-report-stat"><span>{r.iso?"TOTAL":"CARGA MÁX."}</span><b>{r.iso?`${r.curVolume}s`:`${r.curMax}kg`}</b></div>
             </div>
           </div>
         ))}
       </div>
       {report.strongest&&report.weakest&&(
-        <div style={{display:"flex",gap:10,marginBottom:24}}>
-          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#8fb8a2",letterSpacing:"0.08em",marginBottom:6}}>PONTO FORTE</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.strongest.name}</div><div style={{color:C.acc,fontSize:13,fontWeight:700}}>+{report.strongest.diffPct.toFixed(0)}%</div></div>
-          <div style={{...S.card,flex:1}}><div style={{fontSize:10,color:"#8fb8a2",letterSpacing:"0.08em",marginBottom:6}}>A MELHORAR</div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{report.weakest.name}</div><div style={{color:"#e8a23a",fontSize:13,fontWeight:700}}>{report.weakest.diffPct.toFixed(0)}%</div></div>
+        <div className="ab-highlight-grid">
+          <div className="ab-highlight"><span>MAIOR EVOLUÇÃO</span><strong>{report.strongest.name}</strong><b>+{report.strongest.diffPct.toFixed(0)}%</b></div>
+          <div className="ab-highlight" data-tone="attention"><span>PRÓXIMO FOCO</span><strong>{report.weakest.name}</strong><b>{report.weakest.diffPct.toFixed(0)}%</b></div>
         </div>
       )}
-      <button style={S.btn} onClick={onHome}>Voltar ao início</button>
+      <section className="ab-feedback-card">
+        <div className="ab-section-title"><div><span>PRÓXIMA ADAPTAÇÃO</span><h2>Como seu corpo respondeu?</h2></div></div>
+        <div className="ab-feedback-options">
+          {[["good","Recuperado"],["okay","Cansado, mas bem"],["poor","Muito fatigado"]].map(([value,label])=><button key={value} data-active={recovery===value} onClick={()=>{setRecovery(value);setFeedbackSaved(false);}}>{label}</button>)}
+        </div>
+        <label className="ab-pain-check"><input type="checkbox" checked={pain} onChange={event=>{setPain(event.target.checked);setFeedbackSaved(false);}}/><span>Senti dor articular, aguda ou diferente do esforço muscular esperado.</span></label>
+        <button className="ab-secondary-action" style={{width:"100%"}} onClick={saveFeedback}>{feedbackSaved?"✓ Resposta registrada":"Registrar resposta"}</button>
+      </section>
+      <button className="ab-primary" onClick={onHome}>Voltar para hoje <Icon name="arrow" size={18}/></button>
     </div>
   );
 }
@@ -4382,6 +4614,36 @@ function matchExercicio(nome, lista) {
   return r2 ? r2.ex : null;
 }
 
+async function catalogarIlustracoesPendentes(plano, contexto) {
+  let biblioteca;
+  try { biblioteca = await fetchBiblioteca(); }
+  catch {
+    track("catalogo_ilustracoes_indisponivel",{contexto});
+    return {...plano,missingIllustrations:[],illustrationAuditStatus:"unavailable"};
+  }
+  const porNome = new Map(biblioteca.map(ex => [_norm(ex.nome, false).join(" "), ex]));
+  const pendentes = new Map();
+  const weekDays = (plano.weekDays||[]).map(dia => ({
+    ...dia,
+    exercises:(dia.exercises||[]).map(ex => {
+      const catalogado = porNome.get(_norm(ex.name||"", false).join(" "));
+      const possuiIlustracao = !!catalogado?.imagem_url;
+      if (!possuiIlustracao && ex.name?.trim()) pendentes.set(_norm(ex.name,false).join(" "), ex.name.trim());
+      return {...ex, mediaStatus:possuiIlustracao?"available":"missing", libraryExerciseId:catalogado?.id||null};
+    })
+  }));
+  const missingIllustrations = [...pendentes.values()].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  if (missingIllustrations.length) {
+    await Promise.allSettled(missingIllustrations.map(nome => fetch(`${SUPA_URL}/rest/v1/sugestoes_exercicios`, {
+      method:"POST",
+      headers:{apikey:SUPA_KEY,Authorization:`Bearer ${SUPA_KEY}`,"Content-Type":"application/json",Prefer:"return=minimal"},
+      body:JSON.stringify({nome})
+    })));
+    track("fila_ilustracoes_gerada",{contexto,qtd:missingIllustrations.length});
+  }
+  return {...plano,weekDays,missingIllustrations,illustrationAuditStatus:"complete"};
+}
+
 function FigureBlock({ exercise }) {
   const [match, setMatch] = useState(undefined);
   useEffect(()=>{
@@ -4405,11 +4667,16 @@ function FigureBlock({ exercise }) {
       </div>
     );
   }
+  if (match === undefined) {
+    return <div className="ab-movement-placeholder ab-movement-placeholder--loading" aria-label="Carregando ilustração do movimento" />;
+  }
   return (
-    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-      <div style={S.figCard}><Figure pose={exercise.pose} phase="start"/><div style={S.figLbl}>Início</div></div>
-      <div style={{color:C.acc,fontSize:18,fontWeight:700}}>→</div>
-      <div style={S.figCard}><Figure pose={exercise.pose} phase="end"/><div style={S.figLbl}>Final</div></div>
+    <div className="ab-movement-placeholder" role="status">
+      <div className="ab-movement-placeholder__mark" aria-hidden="true">A</div>
+      <div>
+        <div className="ab-movement-placeholder__title">Ilustração de movimento</div>
+        <div className="ab-movement-placeholder__status">Em desenvolvimento</div>
+      </div>
     </div>
   );
 }
@@ -4440,49 +4707,37 @@ function ABSilhueta({ regiao }) {
 
 function ABodyCard({ ex }) {
   return (
-    <div style={{fontFamily:AB.fonte,background:AB.preto,borderRadius:18,padding:"0 8px 8px",width:"100%"}}>
-      <div style={{display:"flex",alignItems:"center",gap:9,padding:"11px 3px"}}>
-        <div style={{background:AB.verdeEsc,border:"2px solid #fff",borderRadius:10,color:"#fff",fontWeight:800,fontSize:19,lineHeight:1,padding:"7px 10px",minWidth:40,textAlign:"center"}}>{ex.numero}</div>
-        <div style={{border:`2px solid ${AB.verde}`,borderRadius:10,color:"#2ecc63",fontWeight:800,fontSize:14,letterSpacing:1,padding:"7px 10px"}}>{ex.categoria}</div>
-        <h2 style={{color:"#fff",fontWeight:800,fontSize:"clamp(15px,4vw,21px)",letterSpacing:0.4,textTransform:"uppercase",margin:0,flex:1,lineHeight:1.05}}>{ex.nome}</h2>
-      </div>
-      <div style={{background:AB.fundo,borderRadius:13,padding:"13px 14px 10px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:6}}>
-          <ABSilhueta regiao={ex.regiao_destaque}/>
-          <div style={{width:2,alignSelf:"stretch",background:AB.verde,opacity:0.85}}/>
-          <div>
-            <div style={{color:AB.verde,fontWeight:800,fontSize:15}}>Grupo muscular:</div>
-            <div style={{color:AB.texto,fontWeight:700,fontSize:14}}>{ex.grupo_muscular}</div>
-          </div>
-        </div>
-        {ex.imagem_url && <div style={{display:"flex",justifyContent:"center",padding:"4px 0 10px"}}>
-          <div style={{aspectRatio:"4/3",width:"100%",maxWidth:420}}><img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}} style={{width:"100%",height:"100%",objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/></div>
-        </div>}
-        <div style={{borderTop:"1.5px solid #d8d8dc",paddingTop:9,display:"flex",alignItems:"center"}}>
-          <div style={{flex:1}}>
-            <div style={{color:AB.verde,fontWeight:800,fontSize:13}}>Equipamento:</div>
-            <div style={{color:AB.texto,fontWeight:700,fontSize:12.5}}>{ex.equipamento}</div>
-          </div>
-          <div style={{width:1.5,height:32,background:"#c9c9ce"}}/>
-          <div style={{flex:1,paddingLeft:14}}>
-            <div style={{color:AB.verde,fontWeight:800,fontSize:13}}>Acessório:</div>
-            <div style={{color:AB.texto,fontWeight:700,fontSize:12.5}}>{ex.acessorio}</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <article className="ab-library-card">
+      <div className="ab-library-media">{ex.imagem_url?<img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}}/>:<ABSilhueta regiao={ex.regiao_destaque}/>}</div>
+      <div className="ab-library-body"><div className="ab-library-number">EXERCÍCIO {ex.numero||"—"} · {ex.categoria}</div><h2>{ex.nome}</h2><div className="ab-library-meta"><span>{ex.grupo_muscular}</span>{ex.equipamento&&<span>{ex.equipamento}</span>}{ex.acessorio&&<span>{ex.acessorio}</span>}</div></div>
+    </article>
   );
+}
+
+const AB_GRUPOS_PROGRESSO = ["Peito","Costas","Ombros","Braços","Pernas e glúteos","Core","Outros"];
+function grupoMuscularPrincipal(exercicio) {
+  const pose = String(exercicio?.pose||"").toLowerCase();
+  const nome = String(exercicio?.name||"").toLocaleLowerCase("pt-BR");
+  if (/press_chest|fly/.test(pose) || /supino|peito|crucifixo|peck|cross/.test(nome)) return "Peito";
+  if (/pulldown|row|face_pull/.test(pose) || /costas|puxad|remad|barra fixa/.test(nome)) return "Costas";
+  if (/press_overhead|lateral_raise/.test(pose) || /ombro|desenvolvimento|elevação lateral|elevacao lateral/.test(nome)) return "Ombros";
+  if (/triceps|curl/.test(pose) || /bíceps|biceps|tríceps|triceps|rosca/.test(nome)) return "Braços";
+  if (/squat|leg_press|leg_extension|lunge|hinge|hip_thrust|leg_curl|calf/.test(pose) || /agach|perna|quadríceps|quadriceps|glúte|glute|panturr|stiff|terra|afundo|flexora|extensora/.test(nome)) return "Pernas e glúteos";
+  if (/plank|leg_raise/.test(pose) || /abd|core|prancha/.test(nome)) return "Core";
+  return "Outros";
 }
 
 function EvolucaoScreen({ history, onBack }) {
   // séries temporais por exercício (apenas sessões reais)
   const porExercicio = {};
+  const grupoExercicio = {};
   history.filter(s=>!s.manual).forEach(s => {
     (s.completed||[]).forEach(e => {
       if (e.iso || !Array.isArray(e.weights) || !e.weights.length) return;
       const w = e.weights.filter(v=>v!=null&&!isNaN(v));
       if (!w.length) return;
       const r = (e.reps||[]).filter(v=>v!=null&&!isNaN(v));
+      grupoExercicio[e.name] = grupoMuscularPrincipal(e);
       (porExercicio[e.name] = porExercicio[e.name]||[]).push({
         date: s.date, max: Math.max(...w),
         vol: w.reduce((a,b,i)=>a+b*(r[i]||0),0) || null,
@@ -4490,13 +4745,15 @@ function EvolucaoScreen({ history, onBack }) {
       });
     });
   });
-  const nomes = Object.keys(porExercicio).sort((a,b)=>porExercicio[b].length-porExercicio[a].length);
-  const [sel, setSel] = useState(nomes[0]||null);
+  const nomes = Object.keys(porExercicio).sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  const grupos = AB_GRUPOS_PROGRESSO.filter(g=>nomes.some(n=>grupoExercicio[n]===g));
+  const [grupo, setGrupo] = useState(grupos[0]||null);
+  const nomesDoGrupo = nomes.filter(n=>grupoExercicio[n]===grupo);
+  const [sel, setSel] = useState(nomesDoGrupo[0]||nomes[0]||null);
   if (!nomes.length) return (
-    <div style={S.box}>
-      <button onClick={onBack} style={S.back}>← Voltar</button>
-      <h1 style={S.h1}>Evolução</h1>
-      <p style={S.sub}>Complete seu primeiro treino registrando pesos e repetições — os gráficos de progressão aparecem aqui.</p>
+    <div className="ab-data-page">
+      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="chart" size={28}/></div><h1>Sua evolução começa no primeiro treino.</h1><p>Registre pesos e repetições durante uma sessão. Seus gráficos, recordes e tendências aparecerão automaticamente aqui.</p></div></div>
     </div>
   );
   const dados = (porExercicio[sel]||[]).slice(-12); // últimas 12 sessões
@@ -4511,20 +4768,26 @@ function EvolucaoScreen({ history, onBack }) {
   const delta = primeiro && ultimo && primeiro.max>0 ? ((ultimo.max-primeiro.max)/primeiro.max*100) : 0;
   const fmtData = (iso)=> new Date(iso).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
   return (
-    <div style={S.box}>
-      <button onClick={onBack} style={S.back}>← Voltar</button>
-      <h1 style={S.h1}>Evolução</h1>
-      <p style={S.sub}>Maior carga por sessão — últimas {dados.length} execuções.</p>
-      <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:10,marginBottom:8}}>
-        {nomes.map(n=>(
-          <button key={n} onClick={()=>setSel(n)}
-            style={{flexShrink:0,padding:"7px 13px",borderRadius:18,fontSize:12,fontWeight:700,cursor:"pointer",
-              border:`1.5px solid ${n===sel?C.acc:C.border}`,background:n===sel?C.acc:"transparent",color:n===sel?"#06140e":C.muted}}>
-            {n}
-          </button>
-        ))}
-      </div>
-      <div style={{...S.card,marginBottom:12}}>
+    <div className="ab-data-page">
+      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <header className="ab-page-head"><div><div className="ab-kicker">PROGRESSO</div><h1>Evolução de carga</h1><p className="ab-copy">Escolha o grupo muscular e o exercício para consultar sua evolução.</p></div></header>
+      <section className="ab-progress-browser" aria-label="Selecionar exercício">
+        <div className="ab-progress-browser__step"><span>1</span><div><strong>Grupo muscular</strong><small>{grupos.length} grupo{grupos.length!==1?"s":""} com histórico</small></div></div>
+        <div className="ab-muscle-groups" role="list" aria-label="Grupos musculares">
+          {grupos.map(g=>{
+            const qtd = nomes.filter(n=>grupoExercicio[n]===g).length;
+            return <button key={g} type="button" onClick={()=>{setGrupo(g);setSel(nomes.find(n=>grupoExercicio[n]===g)||null);}} className="ab-muscle-group" data-active={g===grupo} aria-pressed={g===grupo}><span>{g}</span><small>{qtd} exercício{qtd!==1?"s":""}</small></button>;
+          })}
+        </div>
+        <div className="ab-progress-browser__step"><span>2</span><div><strong>Exercício</strong><small>Em ordem alfabética</small></div></div>
+        <div className="ab-exercise-index" role="list" aria-label={`Exercícios de ${grupo}`}>
+          {nomesDoGrupo.map(n=>(
+            <button key={n} type="button" onClick={()=>setSel(n)} className="ab-exercise-index__item" data-active={n===sel} aria-pressed={n===sel}><span>{n}</span><small>{porExercicio[n].length} sess{porExercicio[n].length!==1?"ões":"ão"}</small></button>
+          ))}
+        </div>
+      </section>
+      <div className="ab-progress-result-head"><div><span>RESULTADO SELECIONADO</span><h2>{sel}</h2></div><small>Últimas {dados.length} execuções</small></div>
+      <div className="ab-chart-card">
         <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
           {[0.25,0.5,0.75].map(f=>(
             <line key={f} x1={PX} x2={W-PX} y1={PY+f*(H-2*PY)} y2={PY+f*(H-2*PY)} stroke={C.border} strokeWidth="1" strokeDasharray="3 4"/>
@@ -4539,18 +4802,17 @@ function EvolucaoScreen({ history, onBack }) {
           <text x={PX} y={H-2} fontSize="8.5" fill={C.muted}>{fmtData(primeiro.date)}</text>
           <text x={W-PX} y={H-2} textAnchor="end" fontSize="8.5" fill={C.muted}>{fmtData(ultimo.date)}</text>
         </svg>
-      </div>
-      <div style={{...S.card,flexDirection:"row",gap:0,padding:"12px 6px"}}>
+      <div className="ab-stat-grid">
         {[["início",`${primeiro.max}kg`],["atual",`${ultimo.max}kg`],["progresso",`${delta>=0?"+":""}${delta.toFixed(0)}%`],["sessões",`${(porExercicio[sel]||[]).length}`]].map(([l,v],i)=>(
-          <div key={i} style={{flex:1,textAlign:"center",borderLeft:i?`1px solid ${C.border}`:"none"}}>
-            <div style={{fontSize:15,fontWeight:800,color:i===2&&delta>0?C.acc:C.text}}>{v}</div>
-            <div style={{fontSize:10,color:C.muted,marginTop:2}}>{l}</div>
+          <div key={i} className="ab-stat-tile">
+            <strong style={{color:i===2&&delta>0?C.acc:C.text}}>{v}</strong><span>{l}</span>
           </div>
         ))}
       </div>
       {ultimo.repsMin != null && <p style={{fontSize:12,color:C.muted,marginTop:10}}>
         Última sessão: mínimo de {ultimo.repsMin} reps por série{ultimo.vol ? ` · volume total ${Math.round(ultimo.vol)}kg` : ""}.
       </p>}
+      </div>
     </div>
   );
 }
@@ -4559,6 +4821,7 @@ function LibraryScreen({ onBack }) {
   const [exs, setExs] = useState(null);
   const [err, setErr] = useState(null);
   const [grupo, setGrupo] = useState("Todos");
+  const [busca, setBusca] = useState("");
   useEffect(()=>{
     (async()=>{
       try{
@@ -4567,24 +4830,22 @@ function LibraryScreen({ onBack }) {
     })();
   },[]);
   const grupos = exs ? ["Todos", ...Array.from(new Set(exs.map(e=>e.grupo_muscular)))] : [];
-  const lista = exs ? (grupo==="Todos" ? exs : exs.filter(e=>e.grupo_muscular===grupo)) : [];
+  const termo = busca.trim().toLocaleLowerCase("pt-BR");
+  const lista = exs ? exs.filter(e=>(grupo==="Todos"||e.grupo_muscular===grupo)&&(!termo||`${e.nome} ${e.grupo_muscular} ${e.equipamento||""}`.toLocaleLowerCase("pt-BR").includes(termo))) : [];
   return (
-    <div style={S.box}>
-      <button onClick={onBack} style={S.back}>← Voltar</button>
-      <h1 style={S.h1}>Biblioteca</h1>
-      <p style={S.sub}>{exs ? `${lista.length} exercício${lista.length!==1?"s":""}` : "Carregando exercícios…"}</p>
+    <div className="ab-data-page">
+      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <header className="ab-page-head"><div><div className="ab-kicker">MOVIMENTOS</div><h1>Biblioteca de exercícios</h1><p className="ab-copy">Explore execuções, grupos musculares e equipamentos disponíveis.</p></div><div className="ab-stat-tile"><strong>{exs?lista.length:"—"}</strong><span>Resultados</span></div></header>
       {err && <p style={{color:"#ff8a8a",fontSize:13}}>Não foi possível carregar a biblioteca ({err}). Verifique sua conexão e tente novamente.</p>}
-      {exs && <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:10,marginBottom:12}}>
+      <div className="ab-library-toolbar"><div className="ab-search"><Icon name="search" size={18}/><input aria-label="Buscar exercícios" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por exercício, grupo ou equipamento"/></div></div>
+      {exs && <div className="ab-filter-row">
         {grupos.map(g=>(
-          <button key={g} onClick={()=>setGrupo(g)}
-            style={{flexShrink:0,padding:"7px 13px",borderRadius:20,fontSize:12.5,fontWeight:700,cursor:"pointer",
-              border:`1.5px solid ${g===grupo?C.acc:C.border}`,
-              background:g===grupo?C.acc:"transparent",color:g===grupo?"#0b1f17":C.muted}}>{g}</button>
+          <button key={g} onClick={()=>setGrupo(g)} className="ab-filter-chip" data-active={g===grupo}>{g}</button>
         ))}
       </div>}
-      <div style={{display:"flex",flexDirection:"column",gap:14,paddingBottom:30}}>
-        {lista.map(ex=><ABodyCard key={ex.id} ex={ex}/>)}
-      </div>
+      {!exs&&!err&&<div className="ab-library-grid">{[1,2,3,4,5,6].map(i=><div className="ab-skeleton" key={i}/>)}</div>}
+      {exs&&lista.length>0&&<div className="ab-library-grid">{lista.map(ex=><ABodyCard key={ex.id} ex={ex}/>)}</div>}
+      {exs&&lista.length===0&&<div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="search" size={28}/></div><h1>Nenhum exercício encontrado.</h1><p>Tente outro nome, equipamento ou grupo muscular.</p></div></div>}
     </div>
   );
 }

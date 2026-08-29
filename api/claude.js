@@ -1,5 +1,6 @@
 // Compatibilidade para clientes antigos. A implementação usa OpenAI Responses API.
 // A rota principal está em /api/openai.
+import { SCIENCE_VERSIONS, scientificContext, validateScientificMetadata } from "./science.js";
 
 const SUPA_URL = process.env.VITE_SUPABASE_URL || "https://zvmriqxigpwuggyhpoun.supabase.co";
 const SUPA_ANON = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXAiLCJyZWYiOiJ6dm1yaXF4aWdwd3VnZ3locG91biIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgzNTQzMTAwLCJleHAiOjIwOTkxMTkxMDB9.HrnVWaVSaWkGUXRc8MXKjM2Vj2N0xN6wwp95y7zmjbQ";
@@ -11,6 +12,8 @@ const QUOTA_PRO = 60;
 const MARCADORES = ["A-BODY:ANALISE_CORPORAL", "A-BODY:PLANO_TREINO", "personal trainer", "ANÁLISE CORPORAL", "Analise as fotos", "analise corporal"];
 
 const REGRAS_CIENTIFICAS = `
+
+A versão e as metas definidas no PROTOCOLO CIENTÍFICO VERSIONADO ao final da solicitação prevalecem sobre qualquer exemplo JSON anterior.
 
 PADRÃO CIENTÍFICO A-BODY — REGRAS OBRIGATÓRIAS:
 1. Não programe dois dias consecutivos com predominância de membros inferiores.
@@ -42,15 +45,27 @@ function eGeracaoDeTreino(texto) {
 
 const ESQUEMA_TREINO = {
   type: "object", additionalProperties: false,
-  required: ["planName", "planDescription", "weekDays"],
+  required: ["planName", "planDescription", "evidenceVersion", "progressionStrategy", "safetyNotes", "requiresMedicalClearance", "weeklyPrescription", "weekDays"],
   properties: {
     planName: { type: "string" }, planDescription: { type: "string" },
+    evidenceVersion: { type:"string", enum:Object.values(SCIENCE_VERSIONS) },
+    progressionStrategy: { type:"string" },
+    safetyNotes: { type:"array", items:{type:"string"} },
+    requiresMedicalClearance: { type:"boolean" },
+    weeklyPrescription: { type:"object", additionalProperties:false,
+      required:["aerobicMinutesTarget","aerobicMinutesUpper","strengthDaysTarget","flexibilityDaysTarget","intensityMethod","sedentaryGuidance","notes"],
+      properties:{
+        aerobicMinutesTarget:{type:"integer",minimum:0,maximum:600}, aerobicMinutesUpper:{type:"integer",minimum:0,maximum:600},
+        strengthDaysTarget:{type:"integer",minimum:0,maximum:7}, flexibilityDaysTarget:{type:"integer",minimum:0,maximum:7},
+        intensityMethod:{type:"string"}, sedentaryGuidance:{type:"string"}, notes:{type:"array",items:{type:"string"}}
+      }
+    },
     weekDays: { type: "array", minItems: 1, maxItems: 7, items: {
       type: "object", additionalProperties: false,
       required: ["id", "label", "sub", "exercises", "mobility", "postCardio"],
       properties: {
         id:{type:"string"}, label:{type:"string"}, sub:{type:"string"},
-        exercises:{type:"array",minItems:1,maxItems:8,items:{type:"object",additionalProperties:false,required:["id","name","sets","reps","rest","isometric","isoSeconds"],properties:{id:{type:"string"},name:{type:"string"},sets:{type:"integer",minimum:1,maximum:10},reps:{type:"string"},rest:{type:"integer",minimum:0,maximum:600},isometric:{type:"boolean"},isoSeconds:{type:["integer","null"],minimum:1,maximum:3600}}}},
+        exercises:{type:"array",minItems:1,maxItems:8,items:{type:"object",additionalProperties:false,required:["id","name","sets","reps","rest","rir","progressionRule","isometric","isoSeconds"],properties:{id:{type:"string"},name:{type:"string"},sets:{type:"integer",minimum:1,maximum:10},reps:{type:"string"},rest:{type:"integer",minimum:0,maximum:600},rir:{type:"integer",minimum:0,maximum:5},progressionRule:{type:"string"},isometric:{type:"boolean"},isoSeconds:{type:["integer","null"],minimum:1,maximum:3600}}}},
         mobility:{type:"array",maxItems:2,items:{type:"object",additionalProperties:false,required:["name","duration"],properties:{name:{type:"string"},duration:{type:"string"}}}},
         postCardio:{type:"object",additionalProperties:false,required:["text","minMinutes","maxMinutes","intensity"],properties:{text:{type:"string"},minMinutes:{type:"integer",minimum:0,maximum:120},maxMinutes:{type:"integer",minimum:0,maximum:120},intensity:{type:"string"}}}
       }
@@ -93,8 +108,9 @@ function prepararMensagens(messages, treino) {
     }
   }
   const ultima = copia[copia.length - 1];
-  if (typeof ultima.content === "string") ultima.content += REGRAS_CIENTIFICAS;
-  else if (Array.isArray(ultima.content)) ultima.content.push({ type: "text", text: REGRAS_CIENTIFICAS });
+  const contexto = REGRAS_CIENTIFICAS + scientificContext(corpoTexto(copia));
+  if (typeof ultima.content === "string") ultima.content += contexto;
+  else if (Array.isArray(ultima.content)) ultima.content.push({ type: "text", text: contexto });
   return copia;
 }
 
@@ -159,7 +175,7 @@ function eCore(ex) {
 function validarPlano(textoRespostaIA, textoPedido) {
   const plano = extrairJSON(textoRespostaIA);
   if (!plano || !Array.isArray(plano.weekDays) || !plano.weekDays.length) return ["JSON ou estrutura weekDays inválida"];
-  const erros = [];
+  const erros = validateScientificMetadata(plano, textoPedido);
   const alvo = minutosSolicitados(textoPedido);
   const maxEx = limiteExercicios(alvo);
 
@@ -226,6 +242,27 @@ function respostaCompativelOpenAI(data) {
   return { id: data?.id, model: data?.model, content: [{ type: "text", text: texto }], usage: data?.usage };
 }
 
+function errosCriticosPlano(erros) {
+  return (erros || []).filter(erro => !/curto|longo|consecutiv|predominância|core|volume excessivo|concentra volume|séries/i.test(erro));
+}
+
+function categoriasValidacao(erros) {
+  return [...new Set((erros || []).map(erro => {
+    if (/curto|longo|minutos/i.test(erro)) return "duration";
+    if (/consecutiv|predominância/i.test(erro)) return "recovery";
+    if (/core/i.test(erro)) return "core";
+    if (/volume|séries/i.test(erro)) return "volume";
+    if (/requiresMedicalClearance/i.test(erro)) return "medical_clearance";
+    if (/RIR/i.test(erro)) return "rir";
+    if (/evidenceVersion|weeklyPrescription/i.test(erro)) return "scientific_metadata";
+    return "structure";
+  }))];
+}
+
+export function conteudoAssistantOpenAI(texto) {
+  return [{ type: "output_text", text: String(texto || "") }];
+}
+
 async function chamarOpenAI(apiKey, body) {
   const r = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -236,9 +273,32 @@ async function chamarOpenAI(apiKey, body) {
   return { status: r.status, data: r.ok ? respostaCompativelOpenAI(data) : data };
 }
 
+function erroPublicoOpenAI(status) {
+  if (status === 429) return { status: 503, code: "AI_CAPACITY", message: "A geração está temporariamente indisponível. Tente novamente em alguns minutos." };
+  if (status === 401 || status === 403) return { status: 503, code: "AI_CONFIGURATION", message: "O serviço de geração está temporariamente indisponível." };
+  if (status >= 500) return { status: 503, code: "AI_UNAVAILABLE", message: "A geração está temporariamente indisponível. Tente novamente." };
+  return { status: 422, code: "AI_REQUEST_REJECTED", message: "Não foi possível processar os dados enviados. Revise os anexos e tente novamente." };
+}
+
+function registrarEvento(requestId, stage, fields = {}) {
+  console.log(JSON.stringify({ service:"abody-ai", requestId, stage, ...fields }));
+}
+
+async function quotaRpc(jwt, nome, body) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/rpc/${nome}`, {
+    method: "POST",
+    headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { ok:r.ok, data:await r.json().catch(()=>null) };
+}
+
 export default async function handler(req, res) {
+  const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const inicio = Date.now();
+  res.setHeader("X-Request-Id", requestId);
   const origem = req.headers.origin || "";
-  res.setHeader("Access-Control-Allow-Origin", ORIGENS.includes(origem) ? origem : ORIGENS[0]);
+  if (ORIGENS.includes(origem)) res.setHeader("Access-Control-Allow-Origin", origem);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -246,7 +306,7 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: { message: "Method not allowed" } });
 
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: { message: "OPENAI_API_KEY não configurada no servidor." } });
+  if (!apiKey) return res.status(503).json({ error: { code:"AI_CONFIGURATION", message: "O serviço de geração está temporariamente indisponível.", requestId } });
   const jwt = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return res.status(401).json({ error: { message: "Faça login para usar a geração por IA." } });
 
@@ -277,46 +337,88 @@ export default async function handler(req, res) {
     const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
     if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
   } catch {}
-  const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
-    method: "POST", headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" }, body: JSON.stringify({ limite: quota }),
-  });
-  if (!(q.ok && await q.json() === true)) return res.status(429).json({ error: { message: `Limite diário de ${quota} usos de IA atingido. Tente amanhã.` } });
-
+  let reserva;
+  try { reserva = await quotaRpc(jwt, "reserve_ia_quota", { limite:quota }); }
+  catch { reserva = { ok:false, data:null }; }
+  if (!reserva.ok || !reserva.data) {
+    registrarEvento(requestId, "quota_rejected", { durationMs:Date.now()-inicio });
+    return res.status(reserva.ok ? 429 : 503).json({ error: {
+      code:reserva.ok ? "DAILY_QUOTA_REACHED" : "AI_CONFIGURATION",
+      message:reserva.ok ? `Limite diário de ${quota} usos de IA atingido. Tente novamente amanhã.` : "O serviço de geração está temporariamente indisponível.",
+      requestId,
+    } });
+  }
+  const reservaId = reserva.data;
+  const cancelarReserva = async () => {
+    try { await quotaRpc(jwt, "cancel_ia_quota", { reserva_id:reservaId }); } catch {}
+  };
   const mensagens = prepararMensagens(body.messages, treino);
   const formato = formatoEstruturado(treino, texto);
   const safeBody = {
     model: process.env.OPENAI_MODEL || "gpt-5.6",
     max_output_tokens: Math.min(Number(body.max_tokens) || 2000, 8192),
-    reasoning: { effort: treino ? "medium" : "low" },
+    // Structured Outputs e o validador local já fazem a fiscalização pesada.
+    // Esforço baixo reduz drasticamente o tempo de espera no telefone.
+    reasoning: { effort: "low" },
     text: { verbosity: "low", ...(formato ? { format: formato } : {}) },
     input: mensagens.map(m => ({ role: m.role, content: conteudoOpenAI(m.content) })),
   };
 
   try {
+    registrarEvento(requestId, "openai_started", { treino, anexos });
     let result = await chamarOpenAI(apiKey, safeBody);
-    if (result.status >= 400) return res.status(result.status).json(result.data);
+    if (result.status >= 400) {
+      await cancelarReserva();
+      const publico = erroPublicoOpenAI(result.status);
+      registrarEvento(requestId, "openai_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
+      return res.status(publico.status).json({ error:{ ...publico, requestId } });
+    }
     if (treino) {
       let erros = validarPlano(textoResposta(result.data), texto);
-      if (erros.length) {
+      let criticos = errosCriticosPlano(erros);
+      if (erros.length && !criticos.length) {
+        // Duração estimada, distribuição de core e recuperação são alertas de
+        // qualidade baseados em heurísticas. Não devem descartar um JSON
+        // estruturalmente válido nem disparar uma segunda geração de minutos.
+        registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
+      } else if (criticos.length) {
         const correcao = `A resposta falhou na validação automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido, corrigindo tudo. A duração informada inclui 5 min de aquecimento e 10–15 min de aeróbico; ajuste a musculação para completar o restante. Use de 4 a 8 exercícios conforme necessário. Não explique.`;
         result = await chamarOpenAI(apiKey, {
           ...safeBody,
           input: [
             ...safeBody.input,
-            { role: "assistant", content: [{ type: "input_text", text: textoResposta(result.data) }] },
+            // No Responses API, conteúdo histórico do assistant precisa usar
+            // output_text; input_text é aceito apenas em mensagens de entrada.
+            { role: "assistant", content: conteudoAssistantOpenAI(textoResposta(result.data)) },
             { role: "user", content: [{ type: "input_text", text: correcao }] },
           ],
         });
-        if (result.status >= 400) return res.status(result.status).json(result.data);
+        if (result.status >= 400) {
+          await cancelarReserva();
+          const publico = erroPublicoOpenAI(result.status);
+          registrarEvento(requestId, "openai_retry_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
+          return res.status(publico.status).json({ error:{ ...publico, requestId } });
+        }
         erros = validarPlano(textoResposta(result.data), texto);
-        if (erros.length) return res.status(422).json({ error: { message: "O treino não passou na validação de duração e segurança. Gere novamente.", validation: erros } });
+        criticos = errosCriticosPlano(erros);
+        if (criticos.length) {
+          await cancelarReserva();
+          registrarEvento(requestId, "validation_failed", { categories:categoriasValidacao(criticos), errorCount:criticos.length, durationMs:Date.now()-inicio });
+          return res.status(422).json({ error: { code:"PLAN_VALIDATION_FAILED", message: "O treino não passou na validação de duração e segurança. Tente gerar novamente; esta tentativa não consumiu sua cota.", requestId } });
+        }
+        if (erros.length) registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
       }
     }
+    const confirmacao = await quotaRpc(jwt, "confirm_ia_quota", { reserva_id:reservaId });
+    if (!confirmacao.ok || confirmacao.data !== true) throw new Error("quota confirmation failed");
     res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-duration-v2");
+    registrarEvento(requestId, "completed", { treino, durationMs:Date.now()-inicio });
     return res.status(result.status).json(result.data);
   } catch (e) {
-    return res.status(502).json({ error: { message: "Falha ao contatar a IA: " + e.message } });
+    await cancelarReserva();
+    registrarEvento(requestId, "unexpected_failure", { errorName:e?.name || "Error", durationMs:Date.now()-inicio });
+    return res.status(502).json({ error: { code:"AI_NETWORK_ERROR", message: "Não foi possível concluir a geração. Verifique sua conexão e tente novamente.", requestId } });
   }
 }
 
-export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, conteudoOpenAI, formatoEstruturado };
+export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, errosCriticosPlano, conteudoOpenAI, formatoEstruturado, erroPublicoOpenAI };

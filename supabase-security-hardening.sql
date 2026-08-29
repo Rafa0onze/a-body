@@ -1,6 +1,32 @@
 -- A-BODY: endurecimento idempotente de RLS e exclusão LGPD.
 begin;
 
+-- Registro auditável do consentimento para documentos sensíveis de saúde.
+alter table public.documentos_saude
+  add column if not exists consentimento jsonb;
+alter table public.documentos_saude
+  drop constraint if exists documentos_saude_consentimento_valido;
+alter table public.documentos_saude
+  add constraint documentos_saude_consentimento_valido check (
+    aluno_id is null or (
+      consentimento->>'confirmado'='true'
+      and consentimento ? 'confirmadoEm'
+      and consentimento ? 'finalidade'
+      and consentimento ? 'versao'
+    )
+  ) not valid;
+
+-- Corrige eventual legado duplicado e garante um único plano ativo por aluno,
+-- inclusive sob duas publicações concorrentes.
+with ranked as (
+  select id, row_number() over(partition by aluno_id order by atualizado_em desc nulls last, id desc) pos
+  from public.treinos_alunos where ativo=true
+)
+update public.treinos_alunos set ativo=false
+where id in (select id from ranked where pos>1);
+create unique index if not exists treinos_alunos_um_ativo_por_aluno
+  on public.treinos_alunos(aluno_id) where ativo=true;
+
 -- Todas as tabelas de negócio continuam protegidas mesmo quando consultadas
 -- por papéis que não são proprietários da tabela.
 do $$
@@ -46,6 +72,7 @@ create policy profiles_sel on public.profiles for select to authenticated
 
 -- Restringe políticas públicas de escrita a payloads mínimos e coerentes.
 drop policy if exists "Inserção pública de eventos" on public.eventos;
+drop policy if exists eventos_insert_limitado on public.eventos;
 create policy eventos_insert_limitado on public.eventos for insert to anon,authenticated
   with check (
     length(anon_id) between 8 and 128
@@ -55,16 +82,74 @@ create policy eventos_insert_limitado on public.eventos for insert to anon,authe
   );
 
 drop policy if exists "Inserção pública de sugestões" on public.sugestoes_exercicios;
+drop policy if exists sugestoes_insert_limitado on public.sugestoes_exercicios;
 create policy sugestoes_insert_limitado on public.sugestoes_exercicios for insert to anon,authenticated
   with check (length(btrim(nome)) between 2 and 120);
 
 drop policy if exists "usuarios acessam apenas seus dados" on public.user_data;
+drop policy if exists user_data_proprio on public.user_data;
 create policy user_data_proprio on public.user_data for all to authenticated
   using (user_id=auth.uid()) with check (user_id=auth.uid());
 
 -- Nenhum cliente altera diretamente a contagem. A função de quota existente
 -- continua sendo o único caminho de escrita autorizado.
 revoke all on public.ia_usage from anon,authenticated;
+
+-- Reservas impedem que chamadas paralelas gerem custo antes da cota. Reservas
+-- abandonadas expiram; só confirmações contam como uso diário.
+create table if not exists public.ia_quota_reservations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  usage_day date not null default current_date,
+  status text not null default 'reserved' check (status in ('reserved','consumed')),
+  created_at timestamptz not null default now()
+);
+create index if not exists ia_quota_reservations_user_day_idx
+  on public.ia_quota_reservations(user_id,usage_day,status);
+alter table public.ia_quota_reservations enable row level security;
+alter table public.ia_quota_reservations force row level security;
+revoke all on public.ia_quota_reservations from anon,authenticated;
+
+create or replace function public.reserve_ia_quota(limite integer)
+returns uuid language plpgsql security definer
+set search_path=public,auth,pg_temp as $$
+declare uid uuid := auth.uid(); rid uuid;
+begin
+  if uid is null then raise exception 'authentication required'; end if;
+  if limite < 1 or limite > 1000 then raise exception 'invalid limit'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(uid::text || current_date::text, 0));
+  delete from public.ia_quota_reservations
+   where user_id=uid and status='reserved' and created_at < now() - interval '10 minutes';
+  if (select count(*) from public.ia_quota_reservations where user_id=uid and usage_day=current_date) >= limite then
+    return null;
+  end if;
+  insert into public.ia_quota_reservations(user_id) values(uid) returning id into rid;
+  return rid;
+end;
+$$;
+
+create or replace function public.confirm_ia_quota(reserva_id uuid)
+returns boolean language sql security definer
+set search_path=public,auth,pg_temp as $$
+  update public.ia_quota_reservations set status='consumed'
+   where id=reserva_id and user_id=auth.uid() and status='reserved'
+  returning true;
+$$;
+
+create or replace function public.cancel_ia_quota(reserva_id uuid)
+returns boolean language sql security definer
+set search_path=public,auth,pg_temp as $$
+  delete from public.ia_quota_reservations
+   where id=reserva_id and user_id=auth.uid() and status='reserved'
+  returning true;
+$$;
+
+revoke all on function public.reserve_ia_quota(integer) from public;
+revoke all on function public.confirm_ia_quota(uuid) from public;
+revoke all on function public.cancel_ia_quota(uuid) from public;
+grant execute on function public.reserve_ia_quota(integer) to authenticated;
+grant execute on function public.confirm_ia_quota(uuid) to authenticated;
+grant execute on function public.cancel_ia_quota(uuid) to authenticated;
 
 -- Exclusão integral iniciada pelo próprio titular. Remove objetos privados,
 -- dados B2C/B2B e por último a identidade Auth. As deleções relacionadas a
@@ -100,5 +185,28 @@ end;
 $$;
 revoke all on function public.delete_my_account() from public;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- Publicação atômica e versionada: mantém versões anteriores inativas e
+-- impede que um profissional publique para aluno de outra carteira.
+create or replace function public.publicar_treino_aluno(
+  p_aluno_id uuid, p_plano jsonb, p_treino_origem uuid default null
+) returns public.treinos_alunos
+language plpgsql security definer
+set search_path=public,pg_temp
+as $$
+declare uid uuid:=auth.uid(); novo public.treinos_alunos;
+begin
+  if uid is null or not exists(select 1 from public.alunos where id=p_aluno_id and personal_id=uid)
+    then raise exception 'student access denied'; end if;
+  if jsonb_typeof(p_plano) <> 'object' or jsonb_array_length(coalesce(p_plano->'weekDays','[]'::jsonb))=0
+    then raise exception 'invalid workout plan'; end if;
+  update public.treinos_alunos set ativo=false where aluno_id=p_aluno_id and personal_id=uid and ativo=true;
+  insert into public.treinos_alunos(aluno_id,personal_id,plano,ativo,atualizado_em)
+    values(p_aluno_id,uid,p_plano,true,now()) returning * into novo;
+  return novo;
+end;
+$$;
+revoke all on function public.publicar_treino_aluno(uuid,jsonb,uuid) from public;
+grant execute on function public.publicar_treino_aluno(uuid,jsonb,uuid) to authenticated;
 
 commit;

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conteudoOpenAI, eGeracaoDeTreino, formatoEstruturado, validarPlano } from "../api/claude.js";
+import { conteudoAssistantOpenAI, conteudoOpenAI, eGeracaoDeTreino, erroPublicoOpenAI, errosCriticosPlano, formatoEstruturado, validarPlano } from "../api/claude.js";
+import { SCIENCE_VERSION, SCIENCE_VERSIONS, scientificContext, scientificProfile, validateScientificMetadata } from "../api/science.js";
+import { adaptiveInsight } from "../src/adaptation.js";
 
 test("detecta somente geração de treino", () => {
   assert.equal(eGeracaoDeTreino("Crie plano de treino"), true);
@@ -32,11 +34,83 @@ test("usa Structured Outputs estrito na análise corporal", () => {
 });
 
 test("validador rejeita pernas consecutivas e falta de core", () => {
-  const plano = { weekDays:[
-    {label:"Pernas",exercises:[{name:"Agachamento",sets:3,rest:60}],postCardio:{minMinutes:10,maxMinutes:15}},
-    {label:"Glúteos",exercises:[{name:"Hip thrust",sets:3,rest:60}],postCardio:{minMinutes:10,maxMinutes:15}}
+  const plano = { evidenceVersion:SCIENCE_VERSION, progressionStrategy:"Dupla progressão por desempenho", safetyNotes:[], requiresMedicalClearance:false, weekDays:[
+    {label:"Pernas",exercises:[{name:"Agachamento",sets:3,rest:60,rir:3,progressionRule:"Aumentar após atingir topo da faixa"}],postCardio:{minMinutes:10,maxMinutes:15}},
+    {label:"Glúteos",exercises:[{name:"Hip thrust",sets:3,rest:60,rir:3,progressionRule:"Aumentar após atingir topo da faixa"}],postCardio:{minMinutes:10,maxMinutes:15}}
   ]};
   const erros = validarPlano(JSON.stringify(plano), "Duração: 45 min");
   assert.ok(erros.some(e => e.includes("inferiores consecutivos")));
   assert.ok(erros.some(e => e.includes("core")));
+});
+
+test("usa output_text ao reenviar a resposta do assistant para correção", () => {
+  assert.deepEqual(conteudoAssistantOpenAI("plano"), [{ type:"output_text", text:"plano" }]);
+});
+
+test("não expõe mensagens internas do fornecedor de IA", () => {
+  assert.deepEqual(erroPublicoOpenAI(429), {
+    status:503,
+    code:"AI_CAPACITY",
+    message:"A geração está temporariamente indisponível. Tente novamente em alguns minutos.",
+  });
+  assert.equal(erroPublicoOpenAI(400).code, "AI_REQUEST_REJECTED");
+  assert.doesNotMatch(erroPublicoOpenAI(400).message, /openai|input_text|quota/i);
+});
+
+test("não bloqueia entrega por alertas heurísticos de qualidade", () => {
+  assert.deepEqual(errosCriticosPlano([
+    "dia 1 está curto: estimado 48 min para meta de 75 min",
+    "core precisa estar distribuído em 2 dias diferentes",
+  ]), []);
+  assert.deepEqual(errosCriticosPlano([
+    "requiresMedicalClearance incompatível com a triagem",
+    "dia 1 está curto",
+  ]), ["requiresMedicalClearance incompatível com a triagem"]);
+  assert.deepEqual(errosCriticosPlano([
+    "progressionStrategy ausente ou genérica",
+    "safetyNotes deve ser uma lista",
+    "meta aeróbica incompatível com o protocolo",
+    "frequência de força abaixo do protocolo",
+    "método de intensidade aeróbica ausente",
+    "dia 1, exercício 1: progressão ausente",
+  ]).length, 6);
+});
+
+test("protocolo científico diferencia objetivo, nível e triagem", () => {
+  const perfil = scientificProfile("Idade: 42a\nObjetivos: Ganho de massa\nNível: Intermediário\nCondições médicas: Nenhuma\nLesões/Limitações: Nenhuma");
+  assert.equal(perfil.objective, "hipertrofia");
+  assert.equal(perfil.level, "intermediario");
+  assert.deepEqual(perfil.rir, [1,3]);
+  assert.equal(perfil.requiresMedicalClearance, false);
+  assert.match(scientificContext("Objetivos: Ganho de massa"), new RegExp(SCIENCE_VERSION));
+});
+
+test("triagem bloqueia plano com sinal médico relevante", () => {
+  const pedido = "Condições médicas: arritmia\nLesões/Limitações: Nenhuma";
+  const plano = { evidenceVersion:SCIENCE_VERSION, progressionStrategy:"Dupla progressão por desempenho", safetyNotes:["Buscar avaliação"], requiresMedicalClearance:false, weekDays:[] };
+  const erros = validateScientificMetadata(plano, pedido);
+  assert.ok(erros.some(e => e.includes("requiresMedicalClearance")));
+});
+
+test("adaptação interrompe progressão quando há dor", () => {
+  const insight = adaptiveInsight([{date:"2026-08-14",feedback:{pain:true,recovery:"okay"},completed:[{name:"Supino",rirs:[2,2,1]}]}]);
+  assert.equal(insight.action,"review");
+});
+
+test("adaptação usa RIR para sugerir progressão ou redução", () => {
+  const leve = adaptiveInsight([{date:"2026-08-14",completed:[{name:"Remada",rirs:[5,5,5]}]}]);
+  const pesado = adaptiveInsight([{date:"2026-08-14",completed:[{name:"Remada",rirs:[0,0,1]}]}]);
+  assert.equal(leve.action,"progress");
+  assert.equal(pesado.action,"reduce_load");
+});
+
+test("seleciona protocolos específicos por objetivo", () => {
+  const emagrecimento = scientificProfile("Objetivos: Emagrecimento");
+  const qualidade = scientificProfile("Objetivos: Qualidade de vida");
+  const cardio = scientificProfile("Objetivos: Condicionamento físico");
+  assert.equal(emagrecimento.version, SCIENCE_VERSIONS.weight);
+  assert.equal(qualidade.version, SCIENCE_VERSIONS.health);
+  assert.equal(cardio.version, SCIENCE_VERSIONS.cardio);
+  assert.deepEqual(emagrecimento.aerobic, [150,300]);
+  assert.match(scientificContext("Objetivos: Emagrecimento"), /não prometa perda de peso/i);
 });
