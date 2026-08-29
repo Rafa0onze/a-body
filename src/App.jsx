@@ -863,7 +863,7 @@ async function blocosDeDocumentos(docs) {
 }
 
 // ─── HIGIENE DE CACHE LOCAL POR CONTA ────────────────────────────────────────
-const CHAVES_DE_CONTA = ["abody:plan","abody:history","abody:bodyhistory"];
+const CHAVES_DE_CONTA = ["abody:plan","abody:history","abody:bodyhistory","abody:workout-draft"];
 function limparCacheLocalDeConta() {
   CHAVES_DE_CONTA.forEach(k => { try { localStorage.removeItem(k); } catch {} });
 }
@@ -1133,6 +1133,24 @@ function Figure({ pose, phase }) {
 
 const ANAMNESIS_INIT = { name:"",age:"",height:"",weight:"",goals:[],level:"",daysPerWeek:"",duration:"",equipment:"",injuries:"",conditions:"" };
 const PHOTOS_INIT = { front:null, back:null, side:null };
+const WORKOUT_DRAFT_KEY = "abody:workout-draft";
+const WORKOUT_DRAFT_MAX_AGE = 18 * 60 * 60 * 1000;
+const ACTIVE_WORKOUT_SCREENS = new Set(["workoutOverview","warmup","workout","rest"]);
+
+function readWorkoutDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY));
+    if (!draft || draft.version!==1 || !draft.currentDay || !Array.isArray(draft.queue) || !draft.queue.length || Date.now()-draft.updatedAt>WORKOUT_DRAFT_MAX_AGE) {
+      localStorage.removeItem(WORKOUT_DRAFT_KEY);
+      return null;
+    }
+    return draft;
+  } catch { return null; }
+}
+
+function clearWorkoutDraft() {
+  try { localStorage.removeItem(WORKOUT_DRAFT_KEY); } catch {}
+}
 
 export default function App() {
   const [screen, setScreen]   = useState("boot");
@@ -1197,6 +1215,39 @@ export default function App() {
   const [treinoNovo, setTreinoNovo] = useState(null); // timestamp do treino atualizado ainda não visto   // {aluno, treino} do aluno gerido por personal
   const [docsIA, setDocsIA] = useState([]);       // documentos de saúde marcados p/ geração IA
 
+  const restoreWorkoutDraft = () => {
+    const draft = readWorkoutDraft();
+    if (!draft) return false;
+    setCurrentDay(draft.currentDay);
+    setQueue(draft.queue);
+    setCompleted(draft.completed||[]);
+    setSetIdx(draft.setIdx||0);
+    setCurrentWeights(draft.currentWeights||{});
+    setCurrentReps(draft.currentReps||{});
+    setCurrentRirs(draft.currentRirs||{});
+    setCurrentSideDurations(draft.currentSideDurations||{});
+    setWeightInput(draft.weightInput||"");
+    setRepsInput(draft.repsInput||"");
+    setRirInput(draft.rirInput||"");
+    setCardioChoice(draft.cardioChoice||null);
+    setSeriesElapsed(draft.seriesElapsed||0);
+    setSeriesRunning(false);
+    setIsoSec(draft.isoSec||0);
+    setIsoTotal(draft.isoTotal||0);
+    setIsoDone(!!draft.isoDone);
+    setIsoRunning(false);
+    setUnilateralSide(draft.unilateralSide||0);
+    setFirstSideElapsed(draft.firstSideElapsed||0);
+    setRestTotal(draft.restTotal||0);
+    const restoredRest = draft.restEndsAt ? Math.max(0,Math.ceil((draft.restEndsAt-Date.now())/1000)) : (draft.restSec||0);
+    setRestSec(draft.screen==="rest"?Math.max(1,restoredRest):restoredRest);
+    workoutStartedAt.current = draft.workoutStartedAt||null;
+    const restoredScreen = draft.screen;
+    setScreen(ACTIVE_WORKOUT_SCREENS.has(restoredScreen)?restoredScreen:"workoutOverview");
+    track("treino_em_andamento_restaurado",{tela:restoredScreen,concluidos:(draft.completed||[]).length});
+    return true;
+  };
+
   // Cada tela é uma nova etapa da jornada: começa no topo e sem convocar o teclado.
   useEffect(()=>{
     const active = document.activeElement;
@@ -1211,6 +1262,20 @@ export default function App() {
     const frame = requestAnimationFrame(resetScroll);
     return ()=>cancelAnimationFrame(frame);
   },[screen]);
+
+  useEffect(()=>{
+    if (!ACTIVE_WORKOUT_SCREENS.has(screen) || !currentDay || !queue.length) return;
+    const timer = setTimeout(()=>{
+      try {
+        localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({
+          version:1,updatedAt:Date.now(),screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,
+          weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,
+          restSec,restTotal,restEndsAt:screen==="rest"?Date.now()+restSec*1000:null,workoutStartedAt:workoutStartedAt.current
+        }));
+      } catch {}
+    },180);
+    return ()=>clearTimeout(timer);
+  },[screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,restSec,restTotal]);
 
   useEffect(()=>{
     (async () => {
@@ -1237,8 +1302,8 @@ export default function App() {
       track("app_aberto"); const [p, h, bh] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history"), loadStorage("abody:bodyhistory")]);
       if (h) setHistory(h);
       if (bh) setBodyHistory(bh);
-      if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
-      else if (p) { setPlan(p); setScreen("home"); }
+      if (planoDoPersonal) { setPlan(planoDoPersonal); if(!restoreWorkoutDraft())setScreen("home"); }
+      else if (p) { setPlan(p); if(!restoreWorkoutDraft())setScreen("home"); }
       else if (vinculoLocal) setScreen("aguardandoTreino");
       else setScreen("onboarding");
     })();
@@ -1257,8 +1322,8 @@ export default function App() {
     fetchMeuPersonal().then(p => { if (p) setPersonal(p); });
     const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
     if (h) setHistory(h);
-    if (planoDoPersonal) { setPlan(planoDoPersonal); setScreen("home"); }
-    else if (p) { setPlan(p); setScreen("home"); }
+    if (planoDoPersonal) { setPlan(planoDoPersonal); if(!restoreWorkoutDraft())setScreen("home"); }
+    else if (p) { setPlan(p); if(!restoreWorkoutDraft())setScreen("home"); }
     else if (v) setScreen("aguardandoTreino");
     else setScreen("onboarding");
   };
@@ -1267,7 +1332,7 @@ export default function App() {
     localStorage.setItem("abody:skipauth", "1");
     const [p, h] = await Promise.all([loadStorage("abody:plan"), loadStorage("abody:history")]);
     if (h) setHistory(h);
-    if (p) { setPlan(p); setScreen("home"); } else setScreen("onboarding");
+    if (p) { setPlan(p); if(!restoreWorkoutDraft())setScreen("home"); } else setScreen("onboarding");
   };
 
   const doLogout = () => {
@@ -1499,7 +1564,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     });
   }, [screen, queue[0]?._key, setIdx]);
 
-  const startDay=(dayObj)=>{ const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setCurrentSideDurations({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("workoutOverview"); };
+  const startDay=(dayObj)=>{ clearWorkoutDraft(); const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setCurrentSideDurations({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("workoutOverview"); };
   const beginWorkout=()=>{ workoutStartedAt.current=Date.now(); track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
   const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));setRirInput("");initTimer(next); };
   const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));setRirInput("");initTimer(newEx);setShowSubs(false); };
@@ -1536,7 +1601,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
-  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),durationMinutes:workoutStartedAt.current?Math.max(1,Math.round((Date.now()-workoutStartedAt.current)/60000)):null,completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
+  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),durationMinutes:workoutStartedAt.current?Math.max(1,Math.round((Date.now()-workoutStartedAt.current)/60000)):null,completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);clearWorkoutDraft();buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
 
   const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId && !s.manual); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
   const saveLatestFeedback = async (feedback) => {
@@ -1578,7 +1643,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     setReBusy(false);
   };
 
-  const goHome=()=>{ setScreen("home");setCurrentDay(null);setReport(null);setSeriesRunning(false);setIsoRunning(false); };
+  const goHome=()=>{ clearWorkoutDraft();setScreen("home");setCurrentDay(null);setReport(null);setSeriesRunning(false);setIsoRunning(false); };
   const current=queue[0]||null;
 
   if(screen==="boot") return <div style={S.page}><p style={{color:C.acc,marginTop:80,fontFamily:"sans-serif"}}>Carregando…</p></div>;

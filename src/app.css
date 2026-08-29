@@ -20,6 +20,7 @@
 }
 
 html { background: var(--ab-bg); }
+html,body,#root { overscroll-behavior-y:none; }
 body { min-width: 320px; background: var(--ab-bg); }
 button, input, textarea, select { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
