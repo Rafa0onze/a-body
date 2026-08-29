@@ -243,7 +243,7 @@ function respostaCompativelOpenAI(data) {
 }
 
 function errosCriticosPlano(erros) {
-  return (erros || []).filter(erro => /JSON ou estrutura|evidenceVersion|requiresMedicalClearance|RIR inválido|weeklyPrescription ausente/i.test(erro));
+  return (erros || []).filter(erro => !/curto|longo|consecutiv|predominância|core|volume excessivo|concentra volume|séries/i.test(erro));
 }
 
 function categoriasValidacao(erros) {
@@ -282,6 +282,15 @@ function erroPublicoOpenAI(status) {
 
 function registrarEvento(requestId, stage, fields = {}) {
   console.log(JSON.stringify({ service:"abody-ai", requestId, stage, ...fields }));
+}
+
+async function quotaRpc(jwt, nome, body) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/rpc/${nome}`, {
+    method: "POST",
+    headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return { ok:r.ok, data:await r.json().catch(()=>null) };
 }
 
 export default async function handler(req, res) {
@@ -328,6 +337,21 @@ export default async function handler(req, res) {
     const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
     if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
   } catch {}
+  let reserva;
+  try { reserva = await quotaRpc(jwt, "reserve_ia_quota", { limite:quota }); }
+  catch { reserva = { ok:false, data:null }; }
+  if (!reserva.ok || !reserva.data) {
+    registrarEvento(requestId, "quota_rejected", { durationMs:Date.now()-inicio });
+    return res.status(reserva.ok ? 429 : 503).json({ error: {
+      code:reserva.ok ? "DAILY_QUOTA_REACHED" : "AI_CONFIGURATION",
+      message:reserva.ok ? `Limite diário de ${quota} usos de IA atingido. Tente novamente amanhã.` : "O serviço de geração está temporariamente indisponível.",
+      requestId,
+    } });
+  }
+  const reservaId = reserva.data;
+  const cancelarReserva = async () => {
+    try { await quotaRpc(jwt, "cancel_ia_quota", { reserva_id:reservaId }); } catch {}
+  };
   const mensagens = prepararMensagens(body.messages, treino);
   const formato = formatoEstruturado(treino, texto);
   const safeBody = {
@@ -344,6 +368,7 @@ export default async function handler(req, res) {
     registrarEvento(requestId, "openai_started", { treino, anexos });
     let result = await chamarOpenAI(apiKey, safeBody);
     if (result.status >= 400) {
+      await cancelarReserva();
       const publico = erroPublicoOpenAI(result.status);
       registrarEvento(requestId, "openai_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
       return res.status(publico.status).json({ error:{ ...publico, requestId } });
@@ -369,6 +394,7 @@ export default async function handler(req, res) {
           ],
         });
         if (result.status >= 400) {
+          await cancelarReserva();
           const publico = erroPublicoOpenAI(result.status);
           registrarEvento(requestId, "openai_retry_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
           return res.status(publico.status).json({ error:{ ...publico, requestId } });
@@ -376,25 +402,20 @@ export default async function handler(req, res) {
         erros = validarPlano(textoResposta(result.data), texto);
         criticos = errosCriticosPlano(erros);
         if (criticos.length) {
+          await cancelarReserva();
           registrarEvento(requestId, "validation_failed", { categories:categoriasValidacao(criticos), errorCount:criticos.length, durationMs:Date.now()-inicio });
           return res.status(422).json({ error: { code:"PLAN_VALIDATION_FAILED", message: "O treino não passou na validação de duração e segurança. Tente gerar novamente; esta tentativa não consumiu sua cota.", requestId } });
         }
         if (erros.length) registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
       }
     }
-    // A cota só é confirmada quando há uma entrega válida. Falhas da OpenAI e
-    // da validação científica não reduzem o saldo diário do usuário.
-    const q = await fetch(`${SUPA_URL}/rest/v1/rpc/consume_ia_quota`, {
-      method: "POST", headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" }, body: JSON.stringify({ limite: quota }),
-    });
-    if (!(q.ok && await q.json() === true)) {
-      registrarEvento(requestId, "quota_rejected", { durationMs:Date.now()-inicio });
-      return res.status(429).json({ error: { code:"DAILY_QUOTA_REACHED", message: `Limite diário de ${quota} usos de IA atingido. Tente novamente amanhã.`, requestId } });
-    }
+    const confirmacao = await quotaRpc(jwt, "confirm_ia_quota", { reserva_id:reservaId });
+    if (!confirmacao.ok || confirmacao.data !== true) throw new Error("quota confirmation failed");
     res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-duration-v2");
     registrarEvento(requestId, "completed", { treino, durationMs:Date.now()-inicio });
     return res.status(result.status).json(result.data);
   } catch (e) {
+    await cancelarReserva();
     registrarEvento(requestId, "unexpected_failure", { errorName:e?.name || "Error", durationMs:Date.now()-inicio });
     return res.status(502).json({ error: { code:"AI_NETWORK_ERROR", message: "Não foi possível concluir a geração. Verifique sua conexão e tente novamente.", requestId } });
   }

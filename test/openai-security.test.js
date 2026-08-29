@@ -66,6 +66,14 @@ test("não bloqueia entrega por alertas heurísticos de qualidade", () => {
     "requiresMedicalClearance incompatível com a triagem",
     "dia 1 está curto",
   ]), ["requiresMedicalClearance incompatível com a triagem"]);
+  assert.deepEqual(errosCriticosPlano([
+    "progressionStrategy ausente ou genérica",
+    "safetyNotes deve ser uma lista",
+    "meta aeróbica incompatível com o protocolo",
+    "frequência de força abaixo do protocolo",
+    "método de intensidade aeróbica ausente",
+    "dia 1, exercício 1: progressão ausente",
+  ]).length, 6);
 });
 
 test("protocolo científico diferencia objetivo, nível e triagem", () => {

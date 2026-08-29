@@ -104,7 +104,13 @@
     statItems.forEach(([value, label]) => {
       const item = document.createElement("div");
       item.style.cssText = "background:#0d2a1d;border:1px solid #214a35;border-radius:13px;padding:12px 8px;text-align:center";
-      item.innerHTML = `<div style="font-size:16px;font-weight:850;color:#ecf5ef">${value}</div><div style="font-size:10px;color:#8fb09d;margin-top:3px;text-transform:uppercase;letter-spacing:.06em">${label}</div>`;
+      const number = document.createElement("div");
+      number.textContent = value;
+      number.style.cssText = "font-size:16px;font-weight:850;color:#ecf5ef";
+      const caption = document.createElement("div");
+      caption.textContent = label;
+      caption.style.cssText = "font-size:10px;color:#8fb09d;margin-top:3px;text-transform:uppercase;letter-spacing:.06em";
+      item.append(number, caption);
       stats.appendChild(item);
     });
 

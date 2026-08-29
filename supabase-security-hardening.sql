@@ -95,6 +95,62 @@ create policy user_data_proprio on public.user_data for all to authenticated
 -- continua sendo o único caminho de escrita autorizado.
 revoke all on public.ia_usage from anon,authenticated;
 
+-- Reservas impedem que chamadas paralelas gerem custo antes da cota. Reservas
+-- abandonadas expiram; só confirmações contam como uso diário.
+create table if not exists public.ia_quota_reservations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  usage_day date not null default current_date,
+  status text not null default 'reserved' check (status in ('reserved','consumed')),
+  created_at timestamptz not null default now()
+);
+create index if not exists ia_quota_reservations_user_day_idx
+  on public.ia_quota_reservations(user_id,usage_day,status);
+alter table public.ia_quota_reservations enable row level security;
+alter table public.ia_quota_reservations force row level security;
+revoke all on public.ia_quota_reservations from anon,authenticated;
+
+create or replace function public.reserve_ia_quota(limite integer)
+returns uuid language plpgsql security definer
+set search_path=public,auth,pg_temp as $$
+declare uid uuid := auth.uid(); rid uuid;
+begin
+  if uid is null then raise exception 'authentication required'; end if;
+  if limite < 1 or limite > 1000 then raise exception 'invalid limit'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(uid::text || current_date::text, 0));
+  delete from public.ia_quota_reservations
+   where user_id=uid and status='reserved' and created_at < now() - interval '10 minutes';
+  if (select count(*) from public.ia_quota_reservations where user_id=uid and usage_day=current_date) >= limite then
+    return null;
+  end if;
+  insert into public.ia_quota_reservations(user_id) values(uid) returning id into rid;
+  return rid;
+end;
+$$;
+
+create or replace function public.confirm_ia_quota(reserva_id uuid)
+returns boolean language sql security definer
+set search_path=public,auth,pg_temp as $$
+  update public.ia_quota_reservations set status='consumed'
+   where id=reserva_id and user_id=auth.uid() and status='reserved'
+  returning true;
+$$;
+
+create or replace function public.cancel_ia_quota(reserva_id uuid)
+returns boolean language sql security definer
+set search_path=public,auth,pg_temp as $$
+  delete from public.ia_quota_reservations
+   where id=reserva_id and user_id=auth.uid() and status='reserved'
+  returning true;
+$$;
+
+revoke all on function public.reserve_ia_quota(integer) from public;
+revoke all on function public.confirm_ia_quota(uuid) from public;
+revoke all on function public.cancel_ia_quota(uuid) from public;
+grant execute on function public.reserve_ia_quota(integer) to authenticated;
+grant execute on function public.confirm_ia_quota(uuid) to authenticated;
+grant execute on function public.cancel_ia_quota(uuid) to authenticated;
+
 -- Exclusão integral iniciada pelo próprio titular. Remove objetos privados,
 -- dados B2C/B2B e por último a identidade Auth. As deleções relacionadas a
 -- alunos também acionam os cascades existentes.
