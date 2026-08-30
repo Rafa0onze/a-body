@@ -4582,6 +4582,14 @@ async function fetchBiblioteca() {
 
 const _SIN = { pulley:"polia", cabo:"polia", halteres:"halter", haltere:"halter",
   barras:"barra", maquinas:"maquina", livre:"livre" };
+const _ALIASES_EXERCICIOS = new Map([
+  ["abducao quadril maquina", "cadeira abdutora"],
+  ["roda abdominal", "abdominal rolinho"],
+  ["supino reto barra", "supino banco reto"],
+  ["panturrilha pe maquina", "panturrilhas pe"],
+  ["remada apoiada halter", "remada banco inclinado"],
+  ["puxada neutra polia", "puxada polia triangulo"],
+]);
 const _norm = (s, semParenteses) => {
   let t = s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   t = semParenteses ? t.replace(/\(.*?\)/g," ") : t.replace(/[()]/g," ");
@@ -4608,7 +4616,9 @@ function _melhorMatch(alvo, lista) {
 
 function matchExercicio(nome, lista) {
   if (!nome || !lista) return null;
-  const r1 = _melhorMatch(_norm(nome, false), lista);
+  const normalizado = _norm(nome, false);
+  const alias = _ALIASES_EXERCICIOS.get(normalizado.join(" "));
+  const r1 = _melhorMatch(alias ? alias.split(" ") : normalizado, lista);
   if (r1) return r1.ex;
   const r2 = _melhorMatch(_norm(nome, true), lista);
   return r2 ? r2.ex : null;
@@ -4621,12 +4631,11 @@ async function catalogarIlustracoesPendentes(plano, contexto) {
     track("catalogo_ilustracoes_indisponivel",{contexto});
     return {...plano,missingIllustrations:[],illustrationAuditStatus:"unavailable"};
   }
-  const porNome = new Map(biblioteca.map(ex => [_norm(ex.nome, false).join(" "), ex]));
   const pendentes = new Map();
   const weekDays = (plano.weekDays||[]).map(dia => ({
     ...dia,
     exercises:(dia.exercises||[]).map(ex => {
-      const catalogado = porNome.get(_norm(ex.name||"", false).join(" "));
+      const catalogado = matchExercicio(ex.name, biblioteca);
       const possuiIlustracao = !!catalogado?.imagem_url;
       if (!possuiIlustracao && ex.name?.trim()) pendentes.set(_norm(ex.name,false).join(" "), ex.name.trim());
       return {...ex, mediaStatus:possuiIlustracao?"available":"missing", libraryExerciseId:catalogado?.id||null};

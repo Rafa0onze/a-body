@@ -23,3 +23,13 @@ test("exercício sem mídia usa aviso padrão, não uma pose genérica",()=>{
   assert.match(source,/Em desenvolvimento/);
   assert.doesNotMatch(source,/Figure pose=\{exercise\.pose\} phase="start"/);
 });
+
+test("nomes equivalentes reutilizam ilustrações existentes",()=>{
+  assert.match(source,/\["abducao quadril maquina", "cadeira abdutora"\]/);
+  assert.match(source,/\["roda abdominal", "abdominal rolinho"\]/);
+  assert.match(source,/\["supino reto barra", "supino banco reto"\]/);
+  assert.match(source,/\["panturrilha pe maquina", "panturrilhas pe"\]/);
+  assert.match(source,/\["remada apoiada halter", "remada banco inclinado"\]/);
+  assert.match(source,/\["puxada neutra polia", "puxada polia triangulo"\]/);
+  assert.match(source,/const catalogado = matchExercicio\(ex\.name, biblioteca\)/);
+});
