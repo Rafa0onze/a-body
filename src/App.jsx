@@ -2466,6 +2466,8 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
   const [err, setErr]     = useState(null);
   const [picker, setPicker] = useState(null);   // índice do dia recebendo exercício
   const [subsDe, setSubsDe] = useState(null);   // {di, ei} com painel de subs aberto
+  const [importando, setImportando] = useState(false);
+  const [jsonPlano, setJsonPlano] = useState("");
 
   const upDia = (di, campos) => setPlano(p => ({ ...p, weekDays: p.weekDays.map((d,i)=> i===di ? {...d,...campos} : d) }));
   const upEx = (di, ei, campos) => upDia(di, { exercises: plano.weekDays[di].exercises.map((e,j)=> j===ei ? {...e,...campos} : e) });
@@ -2473,6 +2475,22 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
   const addDia = () => setPlano(p => ({ ...p, weekDays: [...p.weekDays, { id:`d${p.weekDays.length+1}`, label:String.fromCharCode(65+p.weekDays.length), sub:"", exercises:[] }] }));
   const removerDia = (di) => { if (window.confirm("Remover este dia e todos os seus exercícios?")) setPlano(p => ({ ...p, weekDays: p.weekDays.filter((_,i)=>i!==di) })); };
   const addEx = (di, ex) => { upDia(di, { exercises: [...plano.weekDays[di].exercises, { ...ex, id:`e_${uid()}`, subs: ex.subs || sugerirSubs(ex) }] }); setPicker(null); };
+
+  const importarPlano = () => {
+    try {
+      const bruto = JSON.parse(jsonPlano);
+      const candidato = normalizar(bruto);
+      const erros = validateProfessionalPlan(candidato);
+      if (erros.length) { setErr(`Plano inválido: ${erros[0]}`); return; }
+      setPlano(candidato);
+      setErr(null);
+      setImportando(false);
+      setJsonPlano("");
+      track("treino_json_importado");
+    } catch {
+      setErr("JSON inválido. Confira o conteúdo e tente novamente.");
+    }
+  };
 
   const salvar = async () => {
     const erros = validateProfessionalPlan(plano);
@@ -2488,6 +2506,17 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
     <div style={S.box}>
       <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}>← Cancelar</button>
       <div style={S.eyebrow}>TREINO DE {aluno.nome.toUpperCase()}</div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+        <button style={{...S.btnOutline,fontSize:12,padding:"8px 10px"}} onClick={()=>{setImportando(v=>!v);setErr(null);}}>
+          {importando ? "Fechar importação" : "Importar plano JSON"}
+        </button>
+      </div>
+      {importando && <section style={{...S.card,padding:"12px",marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:800,color:C.acc,letterSpacing:"0.06em",marginBottom:6}}>IMPORTAR PLANO PERSONALIZADO</div>
+        <p style={{fontSize:11,color:C.muted,lineHeight:1.45,margin:"0 0 8px"}}>Cole um plano A-Body em JSON. O conteúdo é validado antes de substituir o rascunho atual e só é publicado quando você tocar em “Salvar treino do aluno”.</p>
+        <textarea aria-label="JSON do plano" style={{...S.field,minHeight:150,fontFamily:"monospace",fontSize:11,resize:"vertical"}} value={jsonPlano} onChange={e=>setJsonPlano(e.target.value)} placeholder='{"planName":"Plano personalizado","weekDays":[...]}'/>
+        <button className="ab-primary ab-compact-button" disabled={!jsonPlano.trim()} onClick={importarPlano}>Validar e carregar</button>
+      </section>}
       <input style={{...S.field,fontSize:17,fontWeight:800}} value={plano.planName} onChange={e=>setPlano(p=>({...p,planName:e.target.value}))} placeholder="nome do plano"/>
       {(plano.missingIllustrations||[]).length>0 && <section role="status" style={{background:"#fff8e8",border:"1px solid #e2bd69",borderRadius:14,padding:"12px 14px",margin:"10px 0 14px",color:"#4b3510"}}>
         <strong style={{display:"block",fontSize:13,marginBottom:5}}>Ilustrações a providenciar · {plano.missingIllustrations.length}</strong>
