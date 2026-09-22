@@ -662,14 +662,41 @@ async function atualizarAluno(id, campos) {
 }
 async function salvarTreinoAluno(alunoId, plano, treinoId) {
   const uid = await uidAtual(); if (!uid) return null;
+
+  // Rota preferencial: Edge Function autenticada. Mantém a regra de autorização
+  // no servidor e evita depender de escrita direta pelo cliente/MCP.
+  try {
+    const s = await refreshIfNeeded();
+    if (s?.access_token) {
+      const resp = await fetch(`${SUPA_URL}/functions/v1/publish-personal-plan`, {
+        method:"POST",
+        headers:{
+          apikey:SUPA_KEY,
+          Authorization:`Bearer ${s.access_token}`,
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({ aluno_id:alunoId, plano, treino_origem:treinoId||null })
+      });
+      if (resp.ok) {
+        const publicado = await resp.json().catch(()=>null);
+        track("treino_publicado",{modo:treinoId?"nova_versao":"novo",via:"edge_function"});
+        return publicado;
+      }
+      const erro = await resp.json().catch(()=>null);
+      console.warn("publish-personal-plan falhou; usando fallback", erro?.error || resp.status);
+    }
+  } catch (e) {
+    console.warn("publish-personal-plan indisponível; usando fallback", e?.message);
+  }
+
   const publicado = await proFetch(`/rest/v1/rpc/publicar_treino_aluno`, { method:"POST", headers:{ Prefer:"return=representation" }, body:JSON.stringify({ p_aluno_id:alunoId, p_plano:plano, p_treino_origem:treinoId||null }) });
-  if (publicado) { track("treino_publicado",{modo:treinoId?"nova_versao":"novo"}); return Array.isArray(publicado)?publicado[0]:publicado; }
+  if (publicado) { track("treino_publicado",{modo:treinoId?"nova_versao":"novo",via:"rpc"}); return Array.isArray(publicado)?publicado[0]:publicado; }
   if (treinoId) {
-    track("treino_publicado",{modo:"atualizado"});
+    track("treino_publicado",{modo:"atualizado",via:"rest"});
     return proFetch(`/rest/v1/treinos_alunos?id=eq.${treinoId}`, { method: "PATCH",
       body: JSON.stringify({ plano, atualizado_em: new Date().toISOString() }) });
   }
-  track("treino_publicado",{modo:"novo"});
+  track("treino_publicado",{modo:"novo",via:"rest"});
   await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&ativo=eq.true`, { method: "PATCH", body: JSON.stringify({ ativo: false }) });
   const rows = await proFetch(`/rest/v1/treinos_alunos`, { method: "POST", headers: { Prefer: "return=representation" },
     body: JSON.stringify({ aluno_id: alunoId, personal_id: uid, plano, ativo: true }) });
