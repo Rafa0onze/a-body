@@ -3,6 +3,7 @@ import "./app.css";
 import { adaptiveInsight } from "./adaptation.js";
 import { isUnilateralExercise, shouldAutoStartSeries } from "./workout-timing.js";
 import { schedulesOverlap, validateProfessionalPlan } from "./personal-rules.js";
+import { PRESETS } from "./presets.js";
 
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
 
@@ -702,6 +703,27 @@ async function salvarTreinoAluno(alunoId, plano, treinoId) {
     body: JSON.stringify({ aluno_id: alunoId, personal_id: uid, plano, ativo: true }) });
   return rows?.[0] || null;
 }
+async function aplicarPresetDaURL(userId) {
+  const presetId = new URLSearchParams(window.location.search).get("applyPreset");
+  if (!presetId) return null;
+  const plano = PRESETS[presetId];
+  if (!plano) return null;
+
+  const alunos = await fetchAlunosPro();
+  const alvo = (alunos || []).find(a => a.user_id === userId);
+  if (!alvo) return { ok:false, error:"self_student_not_found" };
+
+  const atual = await fetchTreinoAtivoCompleto(alvo.id);
+  const publicado = await salvarTreinoAluno(alvo.id, plano, atual?.id || null);
+  if (!publicado) return { ok:false, error:"publish_failed" };
+
+  const limpa = new URL(window.location.href);
+  limpa.searchParams.delete("applyPreset");
+  history.replaceState(null, "", limpa.pathname + limpa.search + limpa.hash);
+  localStorage.setItem("abody:last-preset-applied", JSON.stringify({ id:presetId, at:Date.now(), planName:plano.planName }));
+  return { ok:true, plano, aluno:alvo };
+}
+
 async function fetchTreinoAtivoCompleto(alunoId) {
   const rows = await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${alunoId}&ativo=eq.true&select=id,plano,atualizado_em&order=atualizado_em.desc&limit=1`);
   return rows?.[0] || null;
@@ -1317,7 +1339,13 @@ export default function App() {
           await garantirDonoDoCache();
           await resgatarConvitePendente();
           const perfilPro = await resolvePerfilPro();
-          if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
+          if (perfilPro) {
+            setPro(perfilPro);
+            const aplicado = await aplicarPresetDaURL(u.id);
+            if (aplicado?.ok) track("preset_aplicado",{preset:"upper-focus-5x"});
+            setScreen("proHome");
+            return;
+          }
           const v = await fetchVinculoAluno();
           if (v) { vinculoLocal = v; setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true };
             const ts = v.treino?.atualizado_em; const visto = localStorage.getItem("abody:treino_visto");
@@ -1342,7 +1370,13 @@ export default function App() {
     await garantirDonoDoCache();
     await resgatarConvitePendente();
     const perfilPro = await resolvePerfilPro();
-    if (perfilPro) { setPro(perfilPro); setScreen("proHome"); return; }
+    if (perfilPro) {
+      setPro(perfilPro);
+      const aplicado = await aplicarPresetDaURL(u?.id);
+      if (aplicado?.ok) track("preset_aplicado",{preset:"upper-focus-5x"});
+      setScreen("proHome");
+      return;
+    }
     let planoDoPersonal = null;
     const v = await fetchVinculoAluno();
     if (v) { setVinculo(v); if (v.treino?.plano) planoDoPersonal = { ...v.treino.plano, locked: true }; }
