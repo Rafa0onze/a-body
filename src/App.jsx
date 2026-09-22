@@ -1342,7 +1342,12 @@ export default function App() {
           if (perfilPro) {
             setPro(perfilPro);
             const aplicado = await aplicarPresetDaURL(u.id);
-            if (aplicado?.ok) track("preset_aplicado",{preset:"upper-focus-5x"});
+            if (aplicado?.ok) {
+              track("preset_aplicado",{preset:"upper-focus-5x"});
+              setPlan({ ...aplicado.plano, locked:true });
+              setScreen("home");
+              return;
+            }
             setScreen("proHome");
             return;
           }
@@ -1364,6 +1369,18 @@ export default function App() {
     })();
   },[]);
 
+  const abrirMeuTreinoPro = async () => {
+    const uid = user?.id || await uidAtual();
+    if (!uid) return;
+    const alunos = await fetchAlunosPro();
+    const self = (alunos || []).find(a => a.user_id === uid);
+    if (!self) return;
+    const treino = await fetchTreinoAtivoCompleto(self.id);
+    if (!treino?.plano) return;
+    setPlan({ ...treino.plano, locked:true });
+    setScreen("home");
+  };
+
   const afterAuth = async () => {
     const u = await authGetUser();
     setUser(u);
@@ -1373,7 +1390,12 @@ export default function App() {
     if (perfilPro) {
       setPro(perfilPro);
       const aplicado = await aplicarPresetDaURL(u?.id);
-      if (aplicado?.ok) track("preset_aplicado",{preset:"upper-focus-5x"});
+      if (aplicado?.ok) {
+        track("preset_aplicado",{preset:"upper-focus-5x"});
+        setPlan({ ...aplicado.plano, locked:true });
+        setScreen("home");
+        return;
+      }
       setScreen("proHome");
       return;
     }
@@ -1718,7 +1740,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         </button>
       )}<style>{CSS}</style>
       {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
-      {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onAgenda={()=>setScreen("proAgenda")} onAlunos={()=>setScreen("proAlunos")} onLogout={doLogout}/>}
+      {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onAgenda={()=>setScreen("proAgenda")} onAlunos={()=>setScreen("proAlunos")} onMeuTreino={abrirMeuTreinoPro} onLogout={doLogout}/>}
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
       {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
       {screen==="proAlunos"    && pro && <ProAlunosScreen onBack={()=>setScreen("proHome")}/>}
@@ -1740,6 +1762,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
+      {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>setScreen("proHome")}>← Painel PRO</button>}
       {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
@@ -1895,7 +1918,7 @@ function AvatarFoto({ url, nome, size = 44 }) {
   );
 }
 
-function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
+function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onMeuTreino, onLogout }) {
   const [naoLidas, setNaoLidas] = useState(0);
   const [resumo, setResumo] = useState(null); // {alunos, ativos, comTreino, treinosSemana}
   useEffect(()=>{
@@ -1971,6 +1994,7 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onLogout }) {
       <div className="ab-pro-actions">
         <button className="ab-pro-action" onClick={onAgenda}><div className="ab-pro-action-top"><Icon name="calendar"/><Icon name="arrow" size={18}/></div><strong>Agenda semanal</strong><p>Horários, alunos e locais das aulas.</p></button>
         <button className="ab-pro-action" onClick={onAlunos}><div className="ab-pro-action-top"><Icon name="users"/>{naoLidas>0?<span className="ab-badge">{naoLidas} nova{naoLidas>1?"s":""}</span>:<Icon name="arrow" size={18}/>}</div><strong>Meus alunos</strong><p>{naoLidas>0?"Mensagens aguardando resposta.":"Cadastro, evolução e montagem de treinos."}</p></button>
+        {onMeuTreino && <button className="ab-pro-action" onClick={onMeuTreino}><div className="ab-pro-action-top"><Icon name="dumbbell"/><Icon name="arrow" size={18}/></div><strong>Meu treino</strong><p>Abrir meu plano ativo como aluno.</p></button>}
       </div>
 
       <button style={{...S.btnOutline,width:"100%",marginTop:8}} onClick={onLogout}>Sair da conta</button>
