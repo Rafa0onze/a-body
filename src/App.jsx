@@ -295,6 +295,7 @@ async function saveStorage(key,v) {
 const SUPA_URL  = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPA_KEY  = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const AUTH_ENABLED = !!(SUPA_URL && SUPA_KEY);
+const wantsAthleteView = () => new URLSearchParams(window.location.search).get("view") === "workout";
 
 const getSession  = () => { try { return JSON.parse(localStorage.getItem("abody:session")) || null; } catch { return null; } };
 const saveSession = (s) => localStorage.setItem("abody:session", JSON.stringify(s));
@@ -1338,6 +1339,17 @@ export default function App() {
           setUser(u);
           await garantirDonoDoCache();
           await resgatarConvitePendente();
+
+          if (wantsAthleteView()) {
+            const atleta = await fetchVinculoAluno();
+            if (atleta?.treino?.plano) {
+              setVinculo(atleta);
+              setPlan({ ...atleta.treino.plano, locked:true });
+              setScreen("home");
+              return;
+            }
+          }
+
           const perfilPro = await resolvePerfilPro();
           if (perfilPro) {
             setPro(perfilPro);
@@ -1370,14 +1382,10 @@ export default function App() {
   },[]);
 
   const abrirMeuTreinoPro = async () => {
-    const uid = user?.id || await uidAtual();
-    if (!uid) return;
-    const alunos = await fetchAlunosPro();
-    const self = (alunos || []).find(a => a.user_id === uid);
-    if (!self) return;
-    const treino = await fetchTreinoAtivoCompleto(self.id);
-    if (!treino?.plano) return;
-    setPlan({ ...treino.plano, locked:true });
+    const v = await fetchVinculoAluno();
+    if (!v?.treino?.plano) return;
+    setVinculo(v);
+    setPlan({ ...v.treino.plano, locked:true });
     setScreen("home");
   };
 
@@ -1386,6 +1394,17 @@ export default function App() {
     setUser(u);
     await garantirDonoDoCache();
     await resgatarConvitePendente();
+
+    if (wantsAthleteView()) {
+      const atleta = await fetchVinculoAluno();
+      if (atleta?.treino?.plano) {
+        setVinculo(atleta);
+        setPlan({ ...atleta.treino.plano, locked:true });
+        setScreen("home");
+        return;
+      }
+    }
+
     const perfilPro = await resolvePerfilPro();
     if (perfilPro) {
       setPro(perfilPro);
@@ -1762,7 +1781,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         />
       )}
       {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>setScreen("proHome")}>← Painel PRO</button>}
+      {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>{ const u=new URL(window.location.href); u.searchParams.delete("view"); history.replaceState(null,"",u.pathname+u.search); setScreen("proHome"); }}>← Painel PRO</button>}
       {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
@@ -1994,7 +2013,7 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onMeuTreino, onLogou
       <div className="ab-pro-actions">
         <button className="ab-pro-action" onClick={onAgenda}><div className="ab-pro-action-top"><Icon name="calendar"/><Icon name="arrow" size={18}/></div><strong>Agenda semanal</strong><p>Horários, alunos e locais das aulas.</p></button>
         <button className="ab-pro-action" onClick={onAlunos}><div className="ab-pro-action-top"><Icon name="users"/>{naoLidas>0?<span className="ab-badge">{naoLidas} nova{naoLidas>1?"s":""}</span>:<Icon name="arrow" size={18}/>}</div><strong>Meus alunos</strong><p>{naoLidas>0?"Mensagens aguardando resposta.":"Cadastro, evolução e montagem de treinos."}</p></button>
-        {onMeuTreino && <button className="ab-pro-action" onClick={onMeuTreino}><div className="ab-pro-action-top"><Icon name="dumbbell"/><Icon name="arrow" size={18}/></div><strong>Meu treino</strong><p>Abrir meu plano ativo como aluno.</p></button>}
+        {onMeuTreino && <button className="ab-pro-action" onClick={()=>{ const u=new URL(window.location.href); u.searchParams.set("view","workout"); history.replaceState(null,"",u.pathname+u.search); onMeuTreino(); }}><div className="ab-pro-action-top"><Icon name="dumbbell"/><Icon name="arrow" size={18}/></div><strong>Meu treino</strong><p>Abrir meu plano ativo como aluno.</p></button>}
       </div>
 
       <button style={{...S.btnOutline,width:"100%",marginTop:8}} onClick={onLogout}>Sair da conta</button>
