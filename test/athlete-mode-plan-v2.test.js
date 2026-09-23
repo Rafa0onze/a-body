@@ -7,7 +7,7 @@ const presets=readFileSync(new URL("../src/presets.js",import.meta.url),"utf8");
 
 test("modo atleta explícito contorna o painel PRO",()=>{
   assert.match(app,/wantsAthleteView/);
-  assert.match(app,/searchParams\.get\("view"\) === "workout"/);
+  assert.match(app,/new URLSearchParams\(window\.location\.search\)\.get\("view"\) === "workout"/);
   assert.match(app,/const atleta = await fetchVinculoAluno\(\)/);
   assert.match(app,/setPlan\(\{ \.\.\.atleta\.treino\.plano, locked:true \}\)/);
 });
