@@ -367,6 +367,26 @@ async function authGetUser() {
 
 function authSignOut() { clearSession(); }
 
+async function fetchMeuTreinoSeguro() {
+  const s = await refreshIfNeeded();
+  if (!s?.access_token) return null;
+  try {
+    const resp = await fetch(`${SUPA_URL}/functions/v1/sync-self-plan`, {
+      method:"POST",
+      headers:{
+        apikey:SUPA_KEY,
+        Authorization:`Bearer ${s.access_token}`,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({ upgrade_plan: PRESETS["upper-focus-5x"] })
+    });
+    if (!resp.ok) return null;
+    return await resp.json().catch(()=>null);
+  } catch {
+    return null;
+  }
+}
+
 async function authDeleteAccount() {
   const s = await refreshIfNeeded();
   if (!s?.access_token) throw new Error("Sessão expirada. Entre novamente.");
@@ -1340,6 +1360,19 @@ export default function App() {
           await garantirDonoDoCache();
           await resgatarConvitePendente();
 
+          const [selfSync, perfilPro] = await Promise.all([
+            fetchMeuTreinoSeguro(),
+            resolvePerfilPro()
+          ]);
+          if (perfilPro) setPro(perfilPro);
+
+          if (selfSync?.treino?.plano) {
+            setVinculo({ aluno:{ id:selfSync.aluno_id }, treino:selfSync.treino });
+            setPlan({ ...selfSync.treino.plano, locked:true });
+            setScreen("home");
+            return;
+          }
+
           if (wantsAthleteView()) {
             const atleta = await fetchVinculoAluno();
             if (atleta?.treino?.plano) {
@@ -1350,7 +1383,7 @@ export default function App() {
             }
           }
 
-          const perfilPro = await resolvePerfilPro();
+
           if (perfilPro) {
             setPro(perfilPro);
 
@@ -1426,6 +1459,19 @@ export default function App() {
     await garantirDonoDoCache();
     await resgatarConvitePendente();
 
+    const [selfSync, perfilPro] = await Promise.all([
+      fetchMeuTreinoSeguro(),
+      resolvePerfilPro()
+    ]);
+    if (perfilPro) setPro(perfilPro);
+
+    if (selfSync?.treino?.plano) {
+      setVinculo({ aluno:{ id:selfSync.aluno_id }, treino:selfSync.treino });
+      setPlan({ ...selfSync.treino.plano, locked:true });
+      setScreen("home");
+      return;
+    }
+
     if (wantsAthleteView()) {
       const atleta = await fetchVinculoAluno();
       if (atleta?.treino?.plano) {
@@ -1436,7 +1482,7 @@ export default function App() {
       }
     }
 
-    const perfilPro = await resolvePerfilPro();
+
     if (perfilPro) {
       setPro(perfilPro);
 
