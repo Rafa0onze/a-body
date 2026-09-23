@@ -8,8 +8,8 @@ test("personal pode abrir o próprio treino",()=>{
   assert.match(app,/function ProHomeScreen\(\{ pro, onPerfil, onAgenda, onAlunos, onMeuTreino, onLogout \}\)/);
   assert.match(app,/Meu treino/);
   assert.match(app,/abrirMeuTreinoPro/);
-  assert.match(app,/find\(a => a\.user_id === uid\)/);
-  assert.match(app,/setPlan\(\{ \.\.\.treino\.plano, locked:true \}\)/);
+  assert.match(app,/const v = await fetchVinculoAluno\(\)/);
+  assert.match(app,/setPlan\(\{ \.\.\.v\.treino\.plano, locked:true \}\)/);
 });
 
 test("preset aplicado abre diretamente a home de treino",()=>{
