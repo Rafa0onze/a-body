@@ -17,6 +17,7 @@ const day=(id,label,sub,exercises)=>({
 
 export const UPPER_FOCUS_5X={
   mode:"pro",
+  presetVersion:"2026-09-23-v2",
   planName:"Hipertrofia 5x — Tronco + Core",
   planDescription:"Cinco dias de musculação com prioridade para peito, costas, ombros e braços, incluindo trabalho direto de core, trapézio e antebraços. Membros inferiores ficam fora desta divisão.",
   progressionStrategy:"Dupla progressão orientada por RIR.",

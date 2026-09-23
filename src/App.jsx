@@ -1353,6 +1353,16 @@ export default function App() {
           const perfilPro = await resolvePerfilPro();
           if (perfilPro) {
             setPro(perfilPro);
+
+            const sincronizado = await sincronizarTreinoProprioLegado();
+            if (sincronizado?.treino?.plano) {
+              setVinculo(sincronizado);
+              setPlan({ ...sincronizado.treino.plano, locked:true });
+              track("preset_auto_sincronizado",{preset:"upper-focus-5x"});
+              setScreen("home");
+              return;
+            }
+
             const aplicado = await aplicarPresetDaURL(u.id);
             if (aplicado?.ok) {
               track("preset_aplicado",{preset:"upper-focus-5x"});
@@ -1381,6 +1391,27 @@ export default function App() {
     })();
   },[]);
 
+  const sincronizarTreinoProprioLegado = async () => {
+    const v = await fetchVinculoAluno();
+    const atual = v?.treino?.plano;
+    const proximo = PRESETS["upper-focus-5x"];
+    if (!v?.aluno || !atual || !proximo) return null;
+    if (atual.presetVersion === proximo.presetVersion) return null;
+
+    const legados = new Set([
+      "Hipertrofia & Definição 5x",
+      "Hipertrofia 5x — foco tronco"
+    ]);
+    if (!legados.has(atual.planName)) return null;
+
+    const publicado = await salvarTreinoAluno(v.aluno.id, proximo, v.treino?.id || null);
+    if (!publicado) return null;
+
+    const fresco = await fetchVinculoAluno();
+    if (!fresco?.treino?.plano) return null;
+    return fresco;
+  };
+
   const abrirMeuTreinoPro = async () => {
     const v = await fetchVinculoAluno();
     if (!v?.treino?.plano) return;
@@ -1408,6 +1439,16 @@ export default function App() {
     const perfilPro = await resolvePerfilPro();
     if (perfilPro) {
       setPro(perfilPro);
+
+      const sincronizado = await sincronizarTreinoProprioLegado();
+      if (sincronizado?.treino?.plano) {
+        setVinculo(sincronizado);
+        setPlan({ ...sincronizado.treino.plano, locked:true });
+        track("preset_auto_sincronizado",{preset:"upper-focus-5x"});
+        setScreen("home");
+        return;
+      }
+
       const aplicado = await aplicarPresetDaURL(u?.id);
       if (aplicado?.ok) {
         track("preset_aplicado",{preset:"upper-focus-5x"});
