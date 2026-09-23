@@ -1,13 +1,20 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+const cors = {
+  "Access-Control-Allow-Origin": "https://a-body.vercel.app",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8" },
+    headers: { ...cors, "content-type": "application/json; charset=utf-8" },
   });
 }
 
 Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { status:200, headers:cors });
   if (req.method !== "POST") return json({ ok:false, error:"method_not_allowed" }, 405);
 
   const authorization = req.headers.get("authorization") || "";
@@ -33,7 +40,7 @@ Deno.serve(async (req: Request) => {
   const user = userData?.user;
   if (userError || !user) return json({ ok:false, error:"invalid_session" }, 401);
 
-  let body: { upgrade_plan?: any };
+  let body: { upgrade_plan?: any; claim_single_student?: boolean };
   try { body = await req.json(); } catch { body = {}; }
 
   const secretRaw = Deno.env.get("SUPABASE_SECRET_KEYS");
@@ -45,13 +52,37 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession:false, autoRefreshToken:false },
   });
 
-  const { data: aluno, error: alunoError } = await admin
+  let { data: aluno, error: alunoError } = await admin
     .from("alunos")
-    .select("id,personal_id,status")
+    .select("id,personal_id,status,user_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (alunoError) return json({ ok:false, error:"student_lookup_failed" }, 500);
+
+  if (!aluno && body?.claim_single_student === true) {
+    const { data: candidates, error: candidatesError } = await admin
+      .from("alunos")
+      .select("id,personal_id,status,user_id")
+      .eq("status","ativo")
+      .limit(2);
+
+    if (candidatesError) return json({ ok:false, error:"student_claim_lookup_failed" }, 500);
+
+    if ((candidates || []).length === 1) {
+      const candidate = candidates![0];
+      const upd = await admin
+        .from("alunos")
+        .update({ user_id:user.id })
+        .eq("id", candidate.id)
+        .select("id,personal_id,status,user_id")
+        .single();
+
+      if (upd.error) return json({ ok:false, error:"student_claim_failed" }, 500);
+      aluno = upd.data;
+    }
+  }
+
   if (!aluno || aluno.status === "inativo") return json({ ok:true, linked:false, plan:null });
 
   const { data: ativos, error: activeError } = await admin
