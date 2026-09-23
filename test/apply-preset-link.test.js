@@ -15,7 +15,7 @@ test("link autenticado aplica preset e remove parâmetro da URL",()=>{
 
 test("preset 5x contém cinco dias",()=>{
   assert.match(presets,/"upper-focus-5x"/);
-  assert.match(presets,/planName:"Hipertrofia 5x — foco tronco"/);
+  assert.match(presets,/planName:"Hipertrofia 5x — Tronco \+ Core"/);
   const dias=(presets.match(/day\("d[1-5]"/g)||[]).length;
   assert.equal(dias,5);
 });
