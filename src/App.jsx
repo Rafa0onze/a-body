@@ -378,7 +378,7 @@ async function fetchMeuTreinoSeguro() {
         Authorization:`Bearer ${s.access_token}`,
         "Content-Type":"application/json"
       },
-      body:JSON.stringify({ upgrade_plan: PRESETS["upper-focus-5x"] })
+      body:JSON.stringify({ upgrade_plan: PRESETS["upper-focus-5x"], claim_single_student:true })
     });
     if (!resp.ok) return null;
     return await resp.json().catch(()=>null);
