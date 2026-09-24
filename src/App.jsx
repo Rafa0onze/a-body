@@ -328,7 +328,16 @@ const extractJSON = (text) => {
 };
 async function saveStorage(key,v) {
   try { localStorage.setItem(key,JSON.stringify(v)); } catch{}
-  if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) cloudSave(key, v);
+  if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
+    if (key === "abody:history" || key === "abody:bodyhistory") {
+      const cloud = await cloudLoad(key);
+      if (storageRichness(key, cloud) > storageRichness(key, v)) {
+        try { localStorage.setItem(key,JSON.stringify(cloud)); } catch{}
+        return;
+      }
+    }
+    await cloudSave(key, v);
+  }
 }
 
 // ─── SUPABASE AUTH (REST puro, sem SDK) ──────────────────────────────────────
