@@ -4099,7 +4099,7 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
       <button className="ab-primary ab-hero-action" onClick={()=>onStart(nextDay)}><span className="ab-play-dot"><Icon name="play" size={16}/></span>Começar treino</button>
       <div className="ab-week-progress">
         <div className="ab-week-progress-label"><span>PROGRESSO SEMANAL</span><span>{weekCount} TREINO{weekCount!==1?"S":""}</span></div>
-        <div className="ab-progress-track"><span style={{width:`${Math.min(100,weekCount*25)}%`}}/></div>
+        <div className="ab-progress-track"><span style={{width:`${Math.min(100, plan.weekDays.length ? (weekCount / plan.weekDays.length) * 100 : 0)}%`}}/></div>
       </div>
       </section>
 
