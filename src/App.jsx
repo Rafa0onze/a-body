@@ -229,13 +229,53 @@ function BrandMark({ className = "" }) {
     </span>
   );
 }
+function storageRichness(key, value) {
+  if (!Array.isArray(value)) return value == null ? 0 : 1;
+  if (key === "abody:bodyhistory") return value.length * 1000;
+  if (key === "abody:history") {
+    return value.reduce((score, session) => {
+      const completed = Array.isArray(session?.completed) ? session.completed : [];
+      const completedSets = completed.reduce((n, ex) => {
+        const weights = Array.isArray(ex?.weights) ? ex.weights.filter(v => Number(v) > 0).length : 0;
+        const reps = Array.isArray(ex?.reps) ? ex.reps.filter(v => Number(v) > 0).length : 0;
+        return n + Math.max(weights, reps, 1);
+      }, 0);
+      return score + 10 + completed.length * 100 + completedSets * 20;
+    }, 0);
+  }
+  return value.length;
+}
+
 async function loadStorage(key) {
-  // Nuvem primeiro (se logado), fallback local
+  let local = null;
+  try {
+    const raw = localStorage.getItem(key);
+    local = raw ? JSON.parse(raw) : null;
+  } catch {}
+
   if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
     const cloud = await cloudLoad(key);
-    if (cloud !== null) { localStorage.setItem(key, JSON.stringify(cloud)); return cloud; }
+
+    // Histórico e avaliações são dados cumulativos: nunca deixe uma cópia vazia ou
+    // menos rica apagar uma cópia local com registros anteriores.
+    if (key === "abody:history" || key === "abody:bodyhistory") {
+      const localScore = storageRichness(key, local);
+      const cloudScore = storageRichness(key, cloud);
+      const chosen = localScore > cloudScore ? local : cloud;
+      if (chosen !== null) {
+        localStorage.setItem(key, JSON.stringify(chosen));
+        if (localScore > cloudScore) await cloudSave(key, chosen);
+        return chosen;
+      }
+      return null;
+    }
+
+    if (cloud !== null) {
+      localStorage.setItem(key, JSON.stringify(cloud));
+      return cloud;
+    }
   }
-  try { const v=localStorage.getItem(key); return v?JSON.parse(v):null; } catch{return null;}
+  return local;
 }
 
 const repairJSON = (str) => {
@@ -1358,6 +1398,12 @@ export default function App() {
         if (u) {
           setUser(u);
           await garantirDonoDoCache();
+          const [histRecuperado, corpoRecuperado] = await Promise.all([
+            loadStorage("abody:history"),
+            loadStorage("abody:bodyhistory")
+          ]);
+          if (histRecuperado) setHistory(histRecuperado);
+          if (corpoRecuperado) setBodyHistory(corpoRecuperado);
           await resgatarConvitePendente();
 
           const [selfSync, perfilPro] = await Promise.all([
@@ -1457,6 +1503,12 @@ export default function App() {
     const u = await authGetUser();
     setUser(u);
     await garantirDonoDoCache();
+    const [histRecuperado, corpoRecuperado] = await Promise.all([
+      loadStorage("abody:history"),
+      loadStorage("abody:bodyhistory")
+    ]);
+    if (histRecuperado) setHistory(histRecuperado);
+    if (corpoRecuperado) setBodyHistory(corpoRecuperado);
     await resgatarConvitePendente();
 
     const [selfSync, perfilPro] = await Promise.all([
