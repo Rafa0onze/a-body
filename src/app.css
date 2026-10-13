@@ -1,4 +1,5 @@
 :root {
+  --ab-deep:#123c2f;
   color-scheme: dark;
   --ab-bg: #07110d;
   --ab-bg-soft: #0a1812;
@@ -25,7 +26,7 @@ body { min-width: 320px; background: var(--ab-bg); }
 button, input, textarea, select { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
-  outline: 3px solid rgba(71, 232, 140, .32);
+  outline: 3px solid #116b45;
   outline-offset: 2px;
 }
 
@@ -908,3 +909,46 @@ button:disabled { cursor:not-allowed; filter:none; opacity:.7; }
 .ab-rest-hero .ab-kicker,.ab-rest-hero .ab-rest-time { text-shadow:0 1px 1px rgba(0,0,0,.18); }
 .ab-form-error,[role="alert"] { font-weight:650; }
 input,textarea,select { border-color:#b8cac0; }
+
+/* Operational fixes: keep decoration outside the interaction layer. */
+.ab-app-shell { flex-direction:column;align-items:center;justify-content:flex-start !important; }
+.ab-hero-card::before,.ab-hero-card::after,.ab-app-shell::before,.ab-app-shell::after { pointer-events:none; }
+.ab-hero-card > * { position:relative;z-index:1; }
+.ab-hero-card button:focus-visible { outline-color:#b7f34a; }
+.ab-workout-exit,.ab-back-link,.ab-icon-button { min-height:44px;min-width:44px; }
+.ab-measurement-entry { width:100%;display:flex;align-items:center;gap:14px;padding:18px 20px;border:1px solid var(--ab-border);border-radius:var(--ab-radius);background:var(--ab-surface);color:var(--ab-text);margin:16px 0;min-height:76px;text-align:left; }
+.ab-measurement-entry > span { flex:1;min-width:0; }
+.ab-measurement-entry strong,.ab-measurement-entry small { display:block; }
+.ab-measurement-entry strong { font-size:14px; }
+.ab-measurement-entry small { font-size:12px;color:var(--ab-muted);margin-top:5px; }
+.ab-onboarding-copy>.ab-secondary-action { margin-top:12px;margin-right:10px; }
+.ab-form-actions { flex-wrap:wrap; }
+.ab-form-shell input,.ab-form-shell textarea,.ab-auth-panel input,.ab-rfm .rfm-field input,.ab-rfm .rfm-field select { font-size:16px !important; }
+.ab-rfm .rfm-note,.ab-rfm .rfm-eyebrow,.ab-rfm .rfm-method,.ab-rfm .rfm-topbar b { font-size:12px !important;letter-spacing:.05em; }
+.ab-rfm .rfm-card p,.ab-rfm .rfm-field { font-size:14px; }
+.ab-rfm .rfm-guide li { font-size:14px; }
+.ab-muscle-group[data-active="true"] { background:#123c2f;color:#fff;border-color:#123c2f; }
+.ab-muscle-group[data-active="true"] small { color:#d8eee3; }
+.ab-progress-browser__step>span { background:#123c2f; }
+.ab-progress-stats,.ab-progress-stats>div { background:#edf5f0;color:var(--ab-text); }
+.ab-sync-warning { width:min(1040px,100%);padding:16px 20px;background:#fff4dc;border:1px solid #ddc788;border-radius:14px;color:#584211;margin:0 0 16px;font-size:14px; }
+.ab-sync-warning p { margin:0 0 10px; }
+.ab-filter-chip,.ab-secondary-action,.ab-link,.ab-guest { min-height:44px; }
+.ab-filter-chip[data-active="true"] { color:#fff; }
+.ab-stat-tile { background:var(--ab-surface); }
+.ab-stat-tile span { color:var(--ab-muted);font-size:12px; }
+.ab-day-number { color:var(--ab-accent); }
+.ab-calendar-editor fieldset { padding:0;margin:0;border:0;min-width:0; }
+.ab-calendar-editor .ab-calendar-plan { display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left; }
+.ab-calendar-plan strong { color:var(--ab-text); }
+.ab-calendar-plan span { font-size:12px;color:var(--ab-muted); }
+.ab-calendar-editor .ab-filter-row { flex-wrap:wrap;overflow:visible; }
+.ab-calendar-editor .ab-danger-action { color:#a12b2b;border-color:#d4aaa8; }
+.ab-calendar-editor p { color:var(--ab-muted);font-size:14px;line-height:1.6; }
+.ab-calendar-editor button { touch-action:manipulation; }
+.ab-calendar-editor .ab-form-error { color:#a12b2b; }
+.ab-modal-sheet:focus { outline:none; }
+.ab-modal-sheet:focus-visible { outline:3px solid var(--ab-accent);outline-offset:3px; }
+.ab-modal-close { width:44px;height:44px; }
+.ab-calendar-nav { min-width:44px;min-height:44px; }
+.ab-step[data-state="done"] i { color:#fff; }

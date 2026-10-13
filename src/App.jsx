@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef, useId } from "react";
 import "./app.css";
+import PasswordRecovery from './PasswordRecovery.jsx';
+import {parseRecoveryLink} from './password-recovery.js';
+import Measurements from "./Measurements.jsx";
+import { RFM_KEY, RFM_PREFIX, mergeMeasurements } from "./rfm.js";
+import { PLAN_DRAFT_KEY, readPlanDraft, writePlanDraft, isCompletePlan, validProfile } from "./plan-draft.js";
+import {mergeCumulativeHistory,saveCumulativeHistory} from './history-sync.js';
+import {attachDialogFocus} from './dialog-focus.js';
+import { useAppScreen } from "./use-app-screen.js";
 import { adaptiveInsight } from "./adaptation.js";
 import { isUnilateralExercise, shouldAutoStartSeries } from "./workout-timing.js";
 import { schedulesOverlap, validateProfessionalPlan } from "./personal-rules.js";
@@ -168,7 +176,7 @@ const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
 
 const C={bg:"#f7f9f7",card:"#ffffff",border:"#cbd9d1",acc:"#116b45",text:"#102219",muted:"#4b5f54",fig:"#168557"};
-const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#8fb8a2;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
+const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#52675b;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
 const S={
   page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
   box:{width:"100%",maxWidth:480,color:C.text},
@@ -179,7 +187,7 @@ const S={
   h1:{fontSize:26,fontWeight:800,margin:"0 0 6px 0",letterSpacing:"-0.01em"},
   sub:{fontSize:13,color:C.muted,margin:"0 0 16px 0",lineHeight:1.5},
   topRow:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14},
-  back:{background:"none",border:"none",color:C.muted,fontSize:13,padding:0},
+  back:{background:"none",border:"none",color:C.muted,fontSize:13,padding:0,minHeight:44},
   sectionLabel:{fontSize:11,color:C.muted,letterSpacing:"0.1em",marginBottom:8,display:"block"},
   fieldLabel:{fontSize:11,color:C.muted,letterSpacing:"0.08em",display:"block",marginBottom:6,marginTop:14},
   field:{width:"100%",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 14px",color:C.text,fontSize:15,outline:"none"},
@@ -191,8 +199,6 @@ const S={
   input:{width:"100%",fontSize:30,fontWeight:700,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",color:C.text,marginTop:8,marginBottom:16,outline:"none"},
   btn:{width:"100%",background:C.acc,border:"none",borderRadius:14,padding:"16px",fontSize:15,fontWeight:700,color:"#06140e"},
   btnOutline:{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:14,padding:"14px",fontSize:14,color:C.muted},
-  modalOverlay:{position:"fixed",inset:0,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:100},
-  modal:{background:"#0f2419",borderRadius:"20px 20px 0 0",padding:"24px 20px 36px",width:"100%",maxWidth:480},
 };
 
 const ICON_PATHS = {
@@ -229,24 +235,8 @@ function BrandMark({ className = "" }) {
     </span>
   );
 }
-function storageRichness(key, value) {
-  if (!Array.isArray(value)) return value == null ? 0 : 1;
-  if (key === "abody:bodyhistory") return value.length * 1000;
-  if (key === "abody:history") {
-    return value.reduce((score, session) => {
-      const completed = Array.isArray(session?.completed) ? session.completed : [];
-      const completedSets = completed.reduce((n, ex) => {
-        const weights = Array.isArray(ex?.weights) ? ex.weights.filter(v => Number(v) > 0).length : 0;
-        const reps = Array.isArray(ex?.reps) ? ex.reps.filter(v => Number(v) > 0).length : 0;
-        return n + Math.max(weights, reps, 1);
-      }, 0);
-      return score + 10 + completed.length * 100 + completedSets * 20;
-    }, 0);
-  }
-  return value.length;
-}
-
 async function loadStorage(key) {
+  const epoch=accountEpoch,owner=localStorage.getItem('abody:owner');
   let local = null;
   try {
     const raw = localStorage.getItem(key);
@@ -255,16 +245,16 @@ async function loadStorage(key) {
 
   if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
     const cloud = await cloudLoad(key);
+    if(epoch!==accountEpoch||owner!==localStorage.getItem('abody:owner')||!getSession())return null;
+    try{local=JSON.parse(localStorage.getItem(key)||'null');}catch{}
 
     // Histórico e avaliações são dados cumulativos: nunca deixe uma cópia vazia ou
     // menos rica apagar uma cópia local com registros anteriores.
     if (key === "abody:history" || key === "abody:bodyhistory") {
-      const localScore = storageRichness(key, local);
-      const cloudScore = storageRichness(key, cloud);
-      const chosen = localScore > cloudScore ? local : cloud;
+      const chosen = (local!==null||cloud!==null)?mergeCumulativeHistory(key,local||[],cloud||[]):null;
       if (chosen !== null) {
         localStorage.setItem(key, JSON.stringify(chosen));
-        if (localScore > cloudScore) await cloudSave(key, chosen);
+        if (JSON.stringify(chosen)!==JSON.stringify(cloud)) {const saved=await cloudSave(key,chosen);return epoch===accountEpoch&&owner===localStorage.getItem('abody:owner')?saved||chosen:null;}
         return chosen;
       }
       return null;
@@ -326,18 +316,13 @@ const extractJSON = (text) => {
   }
   throw new Error("Could not parse JSON from response");
 };
-async function saveStorage(key,v) {
-  try { localStorage.setItem(key,JSON.stringify(v)); } catch{}
-  if (typeof AUTH_ENABLED !== "undefined" && AUTH_ENABLED && localStorage.getItem("abody:session")) {
-    if (key === "abody:history" || key === "abody:bodyhistory") {
-      const cloud = await cloudLoad(key);
-      if (storageRichness(key, cloud) > storageRichness(key, v)) {
-        try { localStorage.setItem(key,JSON.stringify(cloud)); } catch{}
-        return;
-      }
-    }
-    await cloudSave(key, v);
-  }
+async function saveStorage(key,v,options={}) {
+  const cumulative=key==='abody:history'||key==='abody:bodyhistory';
+  let value=v;
+  if(cumulative&&!options.baseline){value=mergeCumulativeHistory(key,v,JSON.parse(localStorage.getItem(key)||'[]'));}
+  localStorage.setItem(key,JSON.stringify(value));
+  if(AUTH_ENABLED&&getSession())return await cloudSave(key,value,options)||value;
+  return value;
 }
 
 // ─── SUPABASE AUTH (REST puro, sem SDK) ──────────────────────────────────────
@@ -348,7 +333,8 @@ const wantsAthleteView = () => new URLSearchParams(window.location.search).get("
 
 const getSession  = () => { try { return JSON.parse(localStorage.getItem("abody:session")) || null; } catch { return null; } };
 const saveSession = (s) => localStorage.setItem("abody:session", JSON.stringify(s));
-const clearSession= () => localStorage.removeItem("abody:session");
+let accountEpoch=0;
+const clearSession= () => {accountEpoch++;localStorage.removeItem("abody:session");};
 
 async function supaFetch(path, opts={}) {
   const res = await fetch(`${SUPA_URL}${path}`, {
@@ -356,7 +342,7 @@ async function supaFetch(path, opts={}) {
     headers: { "apikey": SUPA_KEY, "Content-Type": "application/json", ...(opts.headers||{}) },
   });
   const data = await res.json().catch(()=>({}));
-  if (!res.ok) throw new Error(data.error_description || data.msg || data.message || "Erro de autenticação");
+  if(!res.ok){const error=new Error(data.error_description||data.msg||data.message||'Erro de autenticação');error.status=res.status;error.code=data.error_code||data.code;throw error;}
   return data;
 }
 
@@ -400,6 +386,7 @@ async function refreshIfNeeded() {
     const d = await supaFetch("/auth/v1/token?grant_type=refresh_token", {
       method:"POST", body: JSON.stringify({ refresh_token: s.refresh_token }),
     });
+    if(getSession()?.refresh_token!==s.refresh_token)return null;
     d.expires_at = Math.floor(Date.now()/1000) + (d.expires_in||3600);
     saveSession(d);
     return d;
@@ -446,16 +433,28 @@ async function authDeleteAccount() {
 }
 
 // ─── SYNC DE DADOS (tabela user_data: user_id, key, value) ──────────────────
-async function cloudSave(key, value) {
-  const s = await refreshIfNeeded();
-  if (!s) return;
-  try {
-    await supaFetch("/rest/v1/user_data", {
-      method:"POST",
-      headers:{ Authorization:`Bearer ${s.access_token}`, "Prefer":"resolution=merge-duplicates" },
-      body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }),
-    });
-  } catch(e) { console.warn("cloudSave:", e.message); }
+const pendingSync=new Map();
+const syncOperations=new Map();
+async function cloudSave(key,value,options={}) {
+  const epoch=accountEpoch,operation=(syncOperations.get(key)||0)+1;syncOperations.set(key,operation);
+  const session=await refreshIfNeeded();if(!session)return null;
+  const owner=localStorage.getItem('abody:owner');
+  const stillCurrent=()=>epoch===accountEpoch&&getSession()&&localStorage.getItem('abody:owner')===owner;
+  try{
+    if(key==='abody:history'||key==='abody:bodyhistory'){
+      const merged=await saveCumulativeHistory({request:supaFetch,session,key,value,...options});
+      if(!stillCurrent())return null;
+      if(syncOperations.get(key)!==operation)return JSON.parse(localStorage.getItem(key)||'[]');
+      const latest=options.baseline?merged:mergeCumulativeHistory(key,JSON.parse(localStorage.getItem(key)||'[]'),merged);
+      localStorage.setItem(key,JSON.stringify(latest));
+      pendingSync.delete(key);window.dispatchEvent(new Event('abody:sync-restored'));return latest;
+    }
+    await supaFetch('/rest/v1/user_data',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,Prefer:'resolution=merge-duplicates'},body:JSON.stringify({key,value,updated_at:new Date().toISOString()})});return value;
+  }catch(error){
+    if(!stillCurrent()||syncOperations.get(key)!==operation)return null;
+    pendingSync.set(key,{value,options});
+    window.dispatchEvent(new CustomEvent('abody:sync-error',{detail:error.code==='HISTORY_CONFLICT'?'Há uma edição mais recente na nuvem. Sua mudança ficou neste aparelho; revise o registro antes de tentar novamente.':'Os registros ficaram salvos neste aparelho. A sincronização está pendente; confira a conexão e tente novamente.'}));return null;
+  }
 }
 
 async function cloudLoad(key) {
@@ -470,6 +469,39 @@ async function cloudLoad(key) {
 }
 
 
+async function loadMeasurements() {
+  if (!AUTH_ENABLED) {
+    const legacy = JSON.parse(localStorage.getItem(RFM_KEY) || "[]");
+    const records = Object.keys(localStorage).filter(k=>k.startsWith(RFM_PREFIX)).map(k=>JSON.parse(localStorage.getItem(k)));
+    return mergeMeasurements(legacy, records);
+  }
+  const session = await refreshIfNeeded();
+  if (!session) throw new Error("Faça login para acessar as medidas.");
+  const headers = {Authorization:`Bearer ${session.access_token}`};
+  const legacyRows = await supaFetch(`/rest/v1/user_data?key=eq.${encodeURIComponent(RFM_KEY)}&select=value`, {headers});
+  const records = [];
+  for (let offset=0; ; offset+=500) {
+    const rows = await supaFetch(`/rest/v1/user_data?key=like.${encodeURIComponent(RFM_PREFIX)}*&select=value&order=key.asc&limit=500&offset=${offset}`, {headers});
+    if (!Array.isArray(rows)) throw new Error("Resposta de histórico inválida.");
+    records.push(...rows.map(r=>r.value));
+    if (rows.length<500) break;
+  }
+  return mergeMeasurements(legacyRows?.[0]?.value ?? [], records);
+}
+async function saveMeasurements(entry) {
+  if (!entry || !/^[0-9a-f-]{36}$/i.test(entry.id)) throw new Error("Registro inválido.");
+  const key = RFM_PREFIX + entry.id;
+  if (AUTH_ENABLED) {
+    const session = await refreshIfNeeded();
+    if (!session) throw new Error("Faça login para salvar as medidas.");
+    await supaFetch("/rest/v1/user_data", {
+      method:"POST", headers:{Authorization:`Bearer ${session.access_token}`,Prefer:"resolution=ignore-duplicates"},
+      body:JSON.stringify({user_id:session.user?.id||await uidAtual(),key,value:entry,updated_at:new Date().toISOString()}),
+    });
+    return;
+  }
+  if (localStorage.getItem(key) === null) localStorage.setItem(key, JSON.stringify(entry));
+}
 async function callOpenAI(body) {
   const s = await refreshIfNeeded();
   if (!s?.access_token) throw new Error("Faça login para usar a geração por IA.");
@@ -982,7 +1014,7 @@ async function blocosDeDocumentos(docs) {
 }
 
 // ─── HIGIENE DE CACHE LOCAL POR CONTA ────────────────────────────────────────
-const CHAVES_DE_CONTA = ["abody:plan","abody:history","abody:bodyhistory","abody:workout-draft"];
+const CHAVES_DE_CONTA = ["abody:plan","abody:history","abody:bodyhistory","abody:workout-draft",RFM_KEY,PLAN_DRAFT_KEY];
 function limparCacheLocalDeConta() {
   CHAVES_DE_CONTA.forEach(k => { try { localStorage.removeItem(k); } catch {} });
 }
@@ -1272,9 +1304,16 @@ function clearWorkoutDraft() {
 }
 
 export default function App() {
-  const [screen, setScreen]   = useState("boot");
+  const [screen, setScreen]   = useAppScreen();
   const [showSettings, setShowSettings] = useState(false);
+  const [syncWarning,setSyncWarning]=useState(''),[syncBusy,setSyncBusy]=useState(false);
+  useEffect(()=>{const warn=e=>setSyncWarning(e.detail),restored=()=>{if(!pendingSync.size)setSyncWarning('');};window.addEventListener('abody:sync-error',warn);window.addEventListener('abody:sync-restored',restored);return()=>{window.removeEventListener('abody:sync-error',warn);window.removeEventListener('abody:sync-restored',restored);};},[]);
+  const retrySync=async()=>{setSyncBusy(true);try{for(const [key,entry] of pendingSync)await cloudSave(key,entry.value,entry.options);const h=await loadStorage('abody:history'),bh=await loadStorage('abody:bodyhistory');if(h)setHistory(h);if(bh)setBodyHistory(bh);}finally{setSyncBusy(false);}};
+  const [recoveryLink,setRecoveryLink]=useState(()=>parseRecoveryLink(window.location.href)),[recoveryEmail,setRecoveryEmail]=useState('');
+  const closeRecovery=()=>{setRecoveryLink(null);const url=new URL(window.location.href);url.hash='';url.searchParams.delete('recovery');window.history.replaceState(window.history.state,'',url.pathname+url.search);setScreen('auth');};
   const [plan,   setPlan]     = useState(null);
+  const [candidatePlan,setCandidatePlan]=useState(null),[confirmingPlan,setConfirmingPlan]=useState(false),[planError,setPlanError]=useState(null),[hasPlanDraft,setHasPlanDraft]=useState(false);
+  const generationRun=useRef(0),confirmingRef=useRef(false);
   const [history, setHistory] = useState([]);
 
   // anamnese / IA
@@ -1295,6 +1334,39 @@ export default function App() {
   const [dayExercises, setDayExercises]     = useState({});    // {dayId: [exercise...]}
   const [editingDayId, setEditingDayId]     = useState(null);
   const [manualUserName, setManualUserName] = useState("");
+  useEffect(()=>{
+    if(['modeSelect','anamnesis','splitSelect','dayBuilder','generating','planPreview'].includes(screen)){
+      try{writePlanDraft(localStorage,{form,step,selectedSplit,dayExercises,manualUserName,candidatePlan});setHasPlanDraft(true);}catch{setPlanError('Não foi possível guardar o rascunho neste aparelho. O plano atual permanece salvo.');}
+    }else if(['home','onboarding'].includes(screen))setHasPlanDraft(!!readPlanDraft(localStorage));
+  },[screen,form,step,selectedSplit,dayExercises,manualUserName,candidatePlan]);
+  useEffect(()=>{
+    if(screen==='planPreview'&&!candidatePlan)setScreen(plan?'home':'onboarding');
+    if(screen==='generating'&&!generating)setScreen(candidatePlan?'planPreview':'anamnesis');
+    if(screen==='home'&&!plan)setScreen(AUTH_ENABLED&&!user?'auth':'onboarding');
+    if(screen==='dayBuilder'&&!SPLITS[selectedSplit])setScreen('splitSelect');
+    if(screen!=='generating'&&generating){generationRun.current++;setGen(false);setPhotoAnalyzing(false);}
+  },[screen]);
+  const cancelPlanEdit=()=>{generationRun.current++;setGen(false);setPhotoAnalyzing(false);setPlanError(null);setScreen(plan?'home':'onboarding');};
+  const resumePlanDraft=()=>{
+    const draft=readPlanDraft(localStorage);if(!draft)return;
+    setForm({...ANAMNESIS_INIT,...draft.form,photoConsent:false,photoStoreConsent:false});setStep(Math.min(5,Math.max(1,Number(draft.step)||1)));setSelectedSplit(SPLITS[draft.selectedSplit]?draft.selectedSplit:null);setDayExercises(draft.dayExercises||{});setManualUserName(draft.manualUserName||'');setCandidatePlan(isCompletePlan(draft.candidatePlan)?draft.candidatePlan:null);setPhotos(PHOTOS_INIT);setPlanError(null);
+    setScreen(isCompletePlan(draft.candidatePlan)?'planPreview':SPLITS[draft.selectedSplit]?'dayBuilder':'modeSelect');
+  };
+  const confirmCandidatePlan=async()=>{
+    if(confirmingRef.current)return;
+    if(!isCompletePlan(candidatePlan)||candidatePlan.requiresMedicalClearance){setPlanError('O plano ainda não pode ser confirmado. Seu treino atual foi mantido.');return;}
+    if(readWorkoutDraft()){setPlanError('Há um treino em andamento. Retome e conclua essa sessão antes de confirmar outro plano.');return;}
+    confirmingRef.current=true;setConfirmingPlan(true);setPlanError(null);
+    const epoch=accountEpoch,owner=localStorage.getItem('abody:owner');
+    const currentAccount=()=>epoch===accountEpoch&&owner===localStorage.getItem('abody:owner')&&(!AUTH_ENABLED||!!getSession());
+    try{
+      if(AUTH_ENABLED){const session=await refreshIfNeeded(),ownerId=await uidAtual();if(!session?.access_token||!ownerId||!currentAccount())return;await supaFetch('/rest/v1/user_data',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,Prefer:'resolution=merge-duplicates'},body:JSON.stringify({user_id:ownerId,key:'abody:plan',value:candidatePlan,updated_at:new Date().toISOString()})});}
+      if(!currentAccount())return;
+      try{localStorage.setItem('abody:plan',JSON.stringify(candidatePlan));localStorage.removeItem(PLAN_DRAFT_KEY);}catch{if(!AUTH_ENABLED)throw Error('storage');setSyncWarning('Plano confirmado na conta. O armazenamento deste aparelho está indisponível.');}
+      setPlan(candidatePlan);setHasPlanDraft(false);setCandidatePlan(null);setScreen('home');
+    }catch{if(currentAccount())setPlanError('Não foi possível confirmar o plano. Verifique a conexão e tente novamente. O plano anterior e o rascunho foram mantidos.');}
+    finally{confirmingRef.current=false;setConfirmingPlan(false);}
+  };
 
   // treino
   const [cardioChoice, setCardioChoice] = useState(null);
@@ -1326,6 +1398,12 @@ export default function App() {
   const workoutStartedAt = useRef(null);
 
   const seriesRef=useRef(null), isoRef=useRef(null), restRef=useRef(null);
+  const finishingWorkout=useRef(false);
+  useEffect(()=>{
+    if(screen!=='workout'){setSeriesRunning(false);setIsoRunning(false);}
+    if(['workoutOverview','warmup','workout','rest'].includes(screen)&&(!currentDay||!queue.length||finishingWorkout.current))setScreen(plan?'home':'onboarding');
+    if(['postcardio','report'].includes(screen)&&!report)setScreen(plan?'home':'onboarding');
+  },[screen]);
 
   const [user, setUser] = useState(null);
   const [pro, setPro] = useState(null);           // perfil do profissional logado
@@ -1378,6 +1456,7 @@ export default function App() {
       document.body.scrollTop = 0;
     };
     resetScroll();
+    const heading=document.querySelector('.ab-app-shell h1');if(heading){heading.setAttribute('tabindex','-1');heading.focus({preventScroll:true});}
     const frame = requestAnimationFrame(resetScroll);
     return ()=>cancelAnimationFrame(frame);
   },[screen]);
@@ -1401,6 +1480,7 @@ export default function App() {
       let planoDoPersonal = null;
       let vinculoLocal = null;
       if (AUTH_ENABLED) {
+        if(recoveryLink){const url=new URL(window.location.href);url.hash='';url.searchParams.set('recovery','1');window.history.replaceState(window.history.state,'',url.pathname+url.search);setScreen('passwordRecovery');return;}
         capturarConviteDaURL();
         handleOAuthCallback(); // captura tokens do Google se vier de redirect
         const u = await authGetUser();
@@ -1586,19 +1666,21 @@ export default function App() {
   };
 
   const doLogout = () => {
-    authSignOut();
+    authSignOut();pendingSync.clear();setSyncWarning("");
     limparCacheLocalDeConta();
     try { localStorage.removeItem("abody:owner"); } catch {}
     setPro(null); setPersonal(null); setVinculo(null);
     setPlan(null); setHistory([]); setBodyHistory([]); setDocsIA([]);
+    generationRun.current++;setGen(false);setCandidatePlan(null);setHasPlanDraft(false);setPlanError(null);
+    setDayExercises({});setSelectedSplit(null);setManualUserName('');setCurrentDay(null);setQueue([]);setCompleted([]);setReport(null);setSeriesRunning(false);setIsoRunning(false);
     setForm(ANAMNESIS_INIT); setPhotos(PHOTOS_INIT); setStep(1);
     localStorage.removeItem("abody:skipauth");
     setUser(null);
     setScreen("auth");
   };
 
-  useEffect(()=>{ if(seriesRunning){seriesRef.current=setInterval(()=>setSeriesElapsed(s=>s+1),1000);}else clearInterval(seriesRef.current); return()=>clearInterval(seriesRef.current); },[seriesRunning]);
-  useEffect(()=>{ if(isoRunning&&isoSec>0){isoRef.current=setInterval(()=>{setIsoSec(s=>{if(s<=1){clearInterval(isoRef.current);setIsoRunning(false);setIsoDone(true);return 0;}return s-1;});},1000);}else clearInterval(isoRef.current); return()=>clearInterval(isoRef.current); },[isoRunning]);
+  useEffect(()=>{ if(seriesRunning&&screen==='workout'){seriesRef.current=setInterval(()=>setSeriesElapsed(s=>s+1),1000);}else clearInterval(seriesRef.current); return()=>clearInterval(seriesRef.current); },[seriesRunning,screen]);
+  useEffect(()=>{ if(isoRunning&&isoSec>0&&screen==="workout"){isoRef.current=setInterval(()=>{setIsoSec(s=>{if(s<=1){clearInterval(isoRef.current);setIsoRunning(false);setIsoDone(true);return 0;}return s-1;});},1000);}else clearInterval(isoRef.current); return()=>clearInterval(isoRef.current); },[isoRunning,screen]);
   useEffect(()=>{
     if(screen==="rest"&&restSec>0){
       const fim = Date.now() + restSec*1000; // timestamp absoluto: exato mesmo se o navegador suspender
@@ -1637,6 +1719,9 @@ export default function App() {
 
 
   const generatePlan = async () => {
+    if(generating)return;
+    if(!validProfile(form)){setGenError('Confira nome, idade (18–120), altura (100–250 cm) e peso (20–400 kg).');setStep(1);setScreen('anamnesis');return;}
+    const run=++generationRun.current;
     setGen(true); setGenError(null); setScreen("generating");
     const goalsText = form.goals.map(g=>GOALS.find(x=>x.id===g)?.label||g).join(", ");
 
@@ -1650,6 +1735,7 @@ export default function App() {
       try {
         setPhotoAnalyzing(true);
         const analysis = await analyzeBodyPhotos(photos, docsIA);
+        if(run!==generationRun.current)return;
         setBodyAnalysis(analysis);
         // Persistir no histórico de avaliações
         let photoPaths = null;
@@ -1691,14 +1777,16 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         max_tokens:8192,
         messages:[{role:"user",content:conteudo}]
       });
+      if(run!==generationRun.current)return;
       const rawPlan=data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
       const aiPlan=extractJSON(rawPlan);
       const converted=convertAIPlan(aiPlan,form.name);
       converted.duracao = form.duration;
+      converted.perfil={idade:form.age,altura:form.height,peso:form.weight,objetivos:goalsText,nivel:form.level,dias:form.daysPerWeek,duracao:form.duration,lesoes:form.injuries,condicoes:form.conditions};
       const planoCatalogado = await catalogarIlustracoesPendentes(converted, "geracao_aluno");
-      track("plano_ia_gerado",{dias:planoCatalogado?.weekDays?.length,ilustracoes_pendentes:planoCatalogado.missingIllustrations?.length||0}); setPlan(planoCatalogado); await saveStorage("abody:plan",planoCatalogado); setScreen("planPreview");
-    } catch(err){ setGenError(err.message||"Erro ao gerar plano."); setScreen("anamnesis"); }
-    setGen(false);
+      track("plano_ia_gerado",{dias:planoCatalogado?.weekDays?.length,ilustracoes_pendentes:planoCatalogado.missingIllustrations?.length||0}); if(run!==generationRun.current)return;if(!isCompletePlan(planoCatalogado))throw Error('O plano retornado está incompleto. Tente novamente; o treino atual foi mantido.');setCandidatePlan(planoCatalogado);setScreen("planPreview");
+    } catch(err){ if(run!==generationRun.current)return;setGenError(err.message||"Erro ao gerar plano."); setScreen("anamnesis"); }
+    if(run===generationRun.current)setGen(false);
   };
 
   // ── PLANO MANUAL ──────────────────────────────────────────────────────────
@@ -1706,7 +1794,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
   const saveManualPlan = async () => { track("plano_manual_salvo");
     const split = SPLITS[selectedSplit];
     const p = buildManualPlan(manualUserName, split.days, dayExercises);
-    setPlan(p); await saveStorage("abody:plan",p); setScreen("planPreview");
+    if(plan?.perfil)p.perfil=plan.perfil;if(!isCompletePlan(p)){setPlanError('Complete os exercícios de cada dia antes de revisar o plano.');return;}setPlanError(null);setCandidatePlan(p);setScreen("planPreview");
   };
 
   const addExerciseToDay = (dayId, ex) => {
@@ -1725,7 +1813,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     setDayExercises(prev=>({...prev,[dayId]:(prev[dayId]||[]).map(e=>e.id===exId?{...e,[field]:value}:e)}));
   };
 
-  const resetPlan = async () => { await saveStorage("abody:plan",null); setPlan(null); setForm(ANAMNESIS_INIT); setPhotos(PHOTOS_INIT); setBodyAnalysis(null); setStep(1); setSelectedSplit(null); setDayExercises({}); setScreen("onboarding"); };
+  const resetPlan = () => {if(readPlanDraft(localStorage)){resumePlanDraft();return;}const perfil=plan?.perfil||{};setForm({...ANAMNESIS_INIT,name:plan?.userName||'',age:perfil.idade||'',height:perfil.altura||'',weight:perfil.peso||'',injuries:perfil.lesoes||'',conditions:perfil.condicoes||''});setCandidatePlan(null);setPhotos(PHOTOS_INIT);setBodyAnalysis(null);setStep(1);setSelectedSplit(null);setDayExercises({});setScreen('modeSelect');};
 
   // Peso da última execução do exercício, para pré-preencher e guiar a progressão
   const pesoAnterior = (ex, sIdx) => {
@@ -1814,7 +1902,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     });
   }, [screen, queue[0]?._key, setIdx]);
 
-  const startDay=(dayObj)=>{ clearWorkoutDraft(); const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setCurrentSideDurations({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("workoutOverview"); };
+  const startDay=(dayObj)=>{ finishingWorkout.current=false; const draft=readWorkoutDraft();if(draft){restoreWorkoutDraft();return;} clearWorkoutDraft(); const exercises=dayObj.exercises.map(ex=>({...ex,_key:uid(),_skipped:false})); setCurrentDay(dayObj);setQueue(exercises);setCompleted([]);setSetIdx(0);setCurrentWeights({});setCurrentReps({});setCurrentRirs({});setCurrentSideDurations({});setWeightInput(pesoAnterior(exercises[0],0));setRepsInput(repsAnterior(exercises[0],0));setRirInput("");setCardioChoice(null);setScreen("workoutOverview"); };
   const beginWorkout=()=>{ workoutStartedAt.current=Date.now(); track("treino_iniciado"); primeAudio(); pedirPermissaoNotif(); manterTelaAcesa(true); initTimer(queue[0]); setScreen("workout"); };
   const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));setRirInput("");initTimer(next); };
   const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));setRirInput("");initTimer(newEx);setShowSubs(false); };
@@ -1851,7 +1939,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
-  const finishWorkout=async(wData,compData)=>{ const session={dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),durationMinutes:workoutStartedAt.current?Math.max(1,Math.round((Date.now()-workoutStartedAt.current)/60000)):null,completed:compData||completed}; const newH=[...history,session]; setHistory(newH);await saveStorage("abody:history",newH);clearWorkoutDraft();buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
+  const finishWorkout=async(wData,compData)=>{ if(finishingWorkout.current)return;finishingWorkout.current=true; const epoch=accountEpoch; const session={id:crypto.randomUUID(),dayId:currentDay.id,dayLabel:currentDay.label,date:todayISO(),durationMinutes:workoutStartedAt.current?Math.max(1,Math.round((Date.now()-workoutStartedAt.current)/60000)):null,completed:compData||completed}; const newH=[...history,session]; try{const saved=await saveStorage("abody:history",newH);if(epoch!==accountEpoch)return;setHistory(saved||newH);}catch{finishingWorkout.current=false;setSyncWarning("Não foi possível salvar o treino neste aparelho. Libere espaço e tente concluir novamente.");return;}clearWorkoutDraft();buildReport(newH);track("treino_concluido");if(vinculo?.aluno?.id)registrarCheckin(vinculo.aluno.id,currentDay.label).catch(()=>{});setScreen("postcardio"); };
 
   const buildReport=(fullH)=>{ const dId=currentDay.id; const sessions=fullH.filter(s=>s.dayId===dId && !s.manual); const cur=sessions[sessions.length-1],prev=sessions[sessions.length-2]||null; const rows=(cur.completed||[]).map(ex=>{ const cv=ex.weights.reduce((a,b)=>a+b,0),cm=ex.weights.length?Math.max(...ex.weights):0; let diffPct=null; if(prev){const pEx=prev.completed?.find(e=>e.id===ex.id||e.name===ex.name);if(pEx){const pv=pEx.weights.reduce((a,b)=>a+b,0);if(pv>0)diffPct=((cv-pv)/pv)*100;}} return{name:ex.name,curVolume:cv,curMax:cm,diffPct,iso:ex.iso}; }); const wd=rows.filter(r=>r.diffPct!=null); setReport({dayLabel:currentDay.label,rows,hasPrev:!!prev,strongest:wd.length?wd.reduce((a,b)=>b.diffPct>a.diffPct?b:a):null,weakest:wd.length?wd.reduce((a,b)=>b.diffPct<a.diffPct?b:a):null}); };
   const saveLatestFeedback = async (feedback) => {
@@ -1893,20 +1981,22 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     setReBusy(false);
   };
 
-  const goHome=()=>{ clearWorkoutDraft();setScreen("home");setCurrentDay(null);setReport(null);setSeriesRunning(false);setIsoRunning(false); };
+  const goHome=()=>{if(ACTIVE_WORKOUT_SCREENS.has(screen)&&currentDay&&queue.length){try{localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({version:1,updatedAt:Date.now(),screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,restSec,restTotal,restEndsAt:screen==='rest'?Date.now()+restSec*1000:null,workoutStartedAt:workoutStartedAt.current}));}catch{}}setScreen('home');setReport(null);setSeriesRunning(false);setIsoRunning(false);};
   const current=queue[0]||null;
 
   if(screen==="boot") return <div style={S.page}><p style={{color:C.acc,marginTop:80,fontFamily:"sans-serif"}}>Carregando…</p></div>;
 
   return (
     <div style={S.page} className="ab-app-shell">
+      {syncWarning&&<div className="ab-sync-warning" role="status"><p>{syncWarning}</p><button className="ab-secondary-action" disabled={syncBusy} onClick={retrySync}>{syncBusy?"Sincronizando…":"Tentar sincronizar"}</button></div>}
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
           style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
           💪 Seu personal atualizou seu treino — toque para dispensar
         </button>
       )}<style>{CSS}</style>
-      {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth}/>}
+      {screen==='passwordRecovery'&&<PasswordRecovery key={recoveryLink?'recovery-update':'recovery-request'} request={supaFetch} recoveryLink={recoveryLink} initialEmail={recoveryEmail} redirectTo={window.location.origin+window.location.pathname+'?recovery=1'} onCancel={closeRecovery} onRequestNewLink={()=>setRecoveryLink(null)}/>}
+      {screen==="auth"         && <AuthScreen onDone={afterAuth} onSkip={skipAuth} onForgot={email=>{setRecoveryEmail(email);setRecoveryLink(null);setScreen("passwordRecovery");}}/>}
       {screen==="proHome"      && pro && <ProHomeScreen pro={pro} onPerfil={()=>setScreen("proPerfil")} onAgenda={()=>setScreen("proAgenda")} onAlunos={()=>setScreen("proAlunos")} onMeuTreino={abrirMeuTreinoPro} onLogout={doLogout}/>}
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
       {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
@@ -1914,23 +2004,24 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {AUTH_ENABLED && user && <ContaGlobal user={user} onLogout={doLogout}/>}
       {screen==="aguardandoTreino" && vinculo && <AguardandoTreinoScreen vinculo={vinculo} personal={personal}
         onAtualizar={async()=>{ const v = await fetchVinculoAluno(); if (v?.treino?.plano) { setVinculo(v); setPlan({ ...v.treino.plano, locked: true }); setScreen("home"); } }}/>}
-      {screen==="onboarding"   && <OnboardingScreen onStart={()=>setScreen("modeSelect")}/>}
-      {screen==="modeSelect"   && <ModeSelectScreen onAI={()=>{ if(AUTH_ENABLED && !getSession()){ localStorage.removeItem("abody:skipauth"); setScreen("auth"); return; } track("ia_flow_iniciado"); setForm({...ANAMNESIS_INIT,name:""});setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
-      {screen==="anamnesis"    && <AnamnesisScreen step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError} docsIA={docsIA} setDocsIA={setDocsIA} logado={!!user}/>}
-      {screen==="generating"   && <GeneratingScreen name={form.name} photoAnalyzing={photoAnalyzing}/>}
-      {screen==="splitSelect"  && <SplitSelectScreen onSelect={(k)=>{setSelectedSplit(k);setDayExercises({});setScreen("dayBuilder");}} onBack={()=>setScreen("modeSelect")}/>}
+      {screen==="measurements" && <Measurements load={loadMeasurements} save={saveMeasurements} onBack={()=>setScreen(plan?"home":"onboarding")}/>}
+      {screen==="onboarding"   && <OnboardingScreen onStart={resetPlan} onMeasurements={(!AUTH_ENABLED||user)?()=>setScreen("measurements"):null} onResume={hasPlanDraft?resumePlanDraft:null}/>}
+      {screen==="modeSelect"   && <ModeSelectScreen onBack={cancelPlanEdit} onAI={()=>{ if(AUTH_ENABLED && !getSession()){ localStorage.removeItem("abody:skipauth"); setScreen("auth"); return; } track("ia_flow_iniciado");setStep(1);setScreen("anamnesis");}} onManual={()=>setScreen("splitSelect")}/>}
+      {screen==="anamnesis"    && <AnamnesisScreen onCancel={cancelPlanEdit} step={step} form={form} setForm={setForm} setStep={setStep} photos={photos} setPhotos={setPhotos} onSubmit={generatePlan} error={genError} setError={setGenError} docsIA={docsIA} setDocsIA={setDocsIA} logado={!!user}/>}
+      {screen==="generating"   && <GeneratingScreen onCancel={cancelPlanEdit} name={form.name} photoAnalyzing={photoAnalyzing}/>}
+      {screen==="splitSelect"  && <SplitSelectScreen onSelect={(k)=>{setSelectedSplit(k);setScreen("dayBuilder");}} onBack={()=>setScreen("modeSelect")}/>}
       {screen==="dayBuilder"   && selectedSplit && (
         <DayBuilderScreen
           split={SPLITS[selectedSplit]} dayExercises={dayExercises}
           userName={manualUserName} setUserName={setManualUserName}
           onAdd={addExerciseToDay} onRemove={removeExerciseFromDay} onUpdate={updateExerciseInDay}
           editingDayId={editingDayId} setEditingDayId={setEditingDayId}
-          onSave={saveManualPlan} onBack={()=>setScreen("splitSelect")}
+          error={planError} onCancel={cancelPlanEdit} onSave={saveManualPlan} onBack={()=>setScreen("splitSelect")}
         />
       )}
-      {screen==="planPreview"  && plan && <PlanPreviewScreen plan={plan} bodyAnalysis={bodyAnalysis} onStart={()=>setScreen("home")}/>}
-      {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>{ const u=new URL(window.location.href); u.searchParams.delete("view"); history.replaceState(null,"",u.pathname+u.search); setScreen("proHome"); }}>← Painel PRO</button>}
-      {screen==="home"         && plan && <HomeScreen plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
+      {screen==="planPreview" && candidatePlan && <PlanPreviewScreen plan={candidatePlan} bodyAnalysis={bodyAnalysis} onStart={confirmCandidatePlan} onCancel={cancelPlanEdit} saving={confirmingPlan} error={planError}/>}
+      {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>{ const u=new URL(window.location.href); u.searchParams.delete("view"); window.history.replaceState(null,"",u.pathname+u.search); setScreen("proHome"); }}>← Painel PRO</button>}
+      {screen==="home"         && plan && <HomeScreen onResumeWorkout={readWorkoutDraft()?()=>restoreWorkoutDraft():null} onMeasurements={()=>setScreen("measurements")} onResume={hasPlanDraft?resumePlanDraft:null} plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
       {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={()=>setScreen("workoutOverview")}/>}
@@ -1939,7 +2030,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
-      {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>resto); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
+      {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>({...resto,photoPaths:null})); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
         const iso = dia.toISOString();
@@ -1947,7 +2038,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         let novo = history.filter(s => !(s.manual && sd(s.date, dia)));
         if (registro?.day) novo = [...novo, { dayId:registro.day.id, dayLabel:`Treino ${registro.day.label}`, date: iso, manual:true, completed:[] }];
         else if (registro?.grupos?.length) novo = [...novo, { dayId:"manual", dayLabel:registro.grupos.join(" + "), date: iso, manual:true, grupos:registro.grupos, completed:[] }];
-        setHistory(novo); await saveStorage("abody:history", novo);
+        const epoch=accountEpoch;const saved=await saveStorage("abody:history",novo,{baseline:history});if(epoch===accountEpoch)setHistory(saved||novo);
       }}/>}
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="evolucao"     && <EvolucaoScreen history={history} onBack={goHome}/>}
@@ -1962,7 +2053,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
 
 // ─── AUTH SCREEN ─────────────────────────────────────────────────────────────
 
-function AuthScreen({ onDone, onSkip }) {
+function AuthScreen({ onDone, onSkip, onForgot }) {
   const convitePendente = typeof localStorage !== "undefined" && !!localStorage.getItem("abody:convite");
   const [mode, setMode]   = useState(convitePendente ? "signup" : "login"); // login | signup
   const [tipo, setTipo]   = useState("aluno"); // aluno | pro
@@ -2046,13 +2137,14 @@ function AuthScreen({ onDone, onSkip }) {
 
       <div className="ab-divider">OU COM E-MAIL</div>
 
-      <label className="ab-label">E-MAIL</label>
-      <input className="ab-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
-      <label className="ab-label">SENHA</label>
-      <input className="ab-input" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
+      <label className="ab-label" htmlFor="auth-email">E-MAIL</label>
+      <input id="auth-email" aria-label="Email da conta" className="ab-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email"/>
+      <label className="ab-label" htmlFor="auth-password">SENHA</label>
+      <input id="auth-password" aria-label="Senha da conta" className="ab-input" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
 
-      {err  && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-      {info && <div style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
+      {mode==="login"&&<button type="button" className="ab-link" onClick={()=>onForgot(email)}>Esqueci minha senha</button>}
+      {err  && <div role="alert" style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {info && <div role="status" style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
 
       <button className="ab-primary" style={{marginTop:18}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
         {busy ? "Aguarde…" : (mode==="login" ? "Entrar" : "Criar conta")}
@@ -2499,25 +2591,18 @@ function TreinoDoDiaModal({ aula, onClose }) {
 
 const STATUS_ALUNO = { convidado:{rotulo:"Convidado",cor:"#d9a441"}, ativo:{rotulo:"Ativo",cor:C.acc}, inativo:{rotulo:"Inativo",cor:C.muted} };
 
-function ModalShell({ title, eyebrow, onClose, children, layer=70, wide=false, bodyClass="" }) {
+function ModalShell({ title, eyebrow, onClose, children, layer=70, wide=false, bodyClass="", closeDisabled=false }) {
   const panelRef = useRef(null);
   const titleId = useId();
+  const closeRef=useRef(onClose);closeRef.current=onClose;
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const closeOnEscape = (event) => {
-      const openPanels = document.querySelectorAll(".ab-modal-sheet");
-      if (event.key === "Escape" && openPanels[openPanels.length-1] === panelRef.current) onClose();
-    };
-    document.body.style.overflow = "hidden";
-    document.addEventListener("keydown", closeOnEscape);
-    panelRef.current?.focus();
-    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener("keydown", closeOnEscape); };
-  }, [onClose]);
+    return attachDialogFocus(panelRef.current,()=>closeRef.current());
+  }, []);
 
   return (
     <div className="ab-modal-overlay" style={{zIndex:layer}} onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}>
       <section ref={panelRef} className={`ab-modal-sheet${wide?" ab-modal-wide":""}${bodyClass?` ${bodyClass}`:""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-        <header className="ab-modal-header"><div>{eyebrow && <span>{eyebrow}</span>}<h2 id={titleId}>{title}</h2></div><button className="ab-modal-close" aria-label="Fechar" onClick={onClose}>×</button></header>
+        <header className="ab-modal-header"><div>{eyebrow && <span>{eyebrow}</span>}<h2 id={titleId}>{title}</h2></div><button className="ab-modal-close" aria-label="Fechar" disabled={closeDisabled} onClick={onClose}>×</button></header>
         {children}
       </section>
     </div>
@@ -3460,7 +3545,7 @@ function AguardandoTreinoScreen({ vinculo, personal, onAtualizar }) {
   );
 }
 
-function OnboardingScreen({ onStart }) {
+function OnboardingScreen({ onStart, onMeasurements, onResume }) {
   return (
     <div className="ab-onboarding">
       <section className="ab-onboarding-copy">
@@ -3468,6 +3553,8 @@ function OnboardingScreen({ onStart }) {
         <h1>Treino criado para o seu <span>próximo nível.</span></h1>
         <p>Combine inteligência artificial, acompanhamento profissional e dados de evolução em um plano que se adapta à sua realidade.</p>
         <div className="ab-onboarding-actions"><button className="ab-primary" onClick={onStart}>Criar meu plano <Icon name="arrow" size={18}/></button><small>Leva poucos minutos.<br/>Você mantém o controle.</small></div>
+        {onResume&&<button className="ab-secondary-action" onClick={onResume}>Continuar rascunho do plano</button>}
+        {onMeasurements&&<button className="ab-secondary-action" onClick={onMeasurements}>Avaliação por medidas (RFM)</button>}
       </section>
       <aside className="ab-onboarding-visual" aria-label="Exemplo de plano semanal personalizado">
         <div className="ab-static-plan">
@@ -3488,9 +3575,10 @@ function OnboardingScreen({ onStart }) {
 
 // ─── SELEÇÃO DE MODO ─────────────────────────────────────────────────────────
 
-function ModeSelectScreen({ onAI, onManual }) {
+function ModeSelectScreen({ onAI, onManual, onBack }) {
   return (
     <div className="ab-choice-page">
+      <button className="ab-back-link" onClick={onBack}>Voltar</button>
       <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>CRIAR PLANO</span></div></div>
       <header className="ab-page-head"><div><div className="ab-kicker">ESCOLHA SEU CAMINHO</div><h1>Como quer começar?</h1><p className="ab-copy">Você poderá ajustar o plano depois, independentemente da escolha.</p></div></header>
       <div className="ab-choice-grid">
@@ -3503,10 +3591,10 @@ function ModeSelectScreen({ onAI, onManual }) {
 
 // ─── ANAMNESE ─────────────────────────────────────────────────────────────────
 
-function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSubmit, error, setError, docsIA, setDocsIA, logado }) {
+function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSubmit, error, setError, docsIA, setDocsIA, logado, onCancel }) {
   const set=(k,v)=>{ setForm(f=>({...f,[k]:v})); if(error)setError(null); };
   const toggleGoal=(gid)=>{ const cur=form.goals||[]; set("goals",cur.includes(gid)?cur.filter(x=>x!==gid):[...cur,gid]); };
-  const s1ok=form.name&&form.age&&form.height&&form.weight;
+  const s1ok=validProfile(form);
   const s2ok=(form.goals||[]).length>0&&form.level;
   const s3ok=form.daysPerWeek&&form.duration&&form.equipment;
   const s5ok = true; // fotos são opcionais
@@ -3522,15 +3610,15 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
       <section className="ab-form-card">
 
       {step===1&&(<>
-        <h2 style={S.h1}>Dados pessoais</h2>
-        <label style={S.fieldLabel}>Nome</label>
-        <input style={S.field} value={form.name} onChange={e=>set("name",e.target.value)} placeholder="Seu nome"/>
+        <h2 style={S.h1}>Dados pessoais</h2><p id="profile-input-help" className="ab-copy">Informe nome, idade de 18 a 120 anos, altura de 100 a 250 cm e peso de 20 a 400 kg. Confira as unidades antes de continuar.</p>
+        <label style={S.fieldLabel} htmlFor="anamnesis-name">Nome</label>
+        <input id="anamnesis-name" style={S.field} value={form.name} onChange={e=>set("name",e.target.value)} placeholder="Seu nome"/>
         <div className="ab-field-grid">
-          <div><label style={S.fieldLabel}>Idade</label><input style={S.field} type="number" inputMode="numeric" value={form.age} onChange={e=>set("age",e.target.value)} placeholder="40"/></div>
-          <div><label style={S.fieldLabel}>Peso (kg)</label><input style={S.field} type="number" inputMode="decimal" value={form.weight} onChange={e=>set("weight",e.target.value)} placeholder="80"/></div>
+          <div><label style={S.fieldLabel} htmlFor="anamnesis-age">Idade</label><input id="anamnesis-age" min="18" max="120" step="1" aria-describedby="profile-input-help" style={S.field} type="number" inputMode="numeric" value={form.age} onChange={e=>set("age",e.target.value)} placeholder="40"/></div>
+          <div><label style={S.fieldLabel} htmlFor="anamnesis-weight">Peso (kg)</label><input id="anamnesis-weight" min="20" max="400" step="any" aria-describedby="profile-input-help" style={S.field} type="number" inputMode="decimal" value={form.weight} onChange={e=>set("weight",e.target.value)} placeholder="80"/></div>
         </div>
-        <label style={S.fieldLabel}>Altura (cm)</label>
-        <input style={S.field} type="number" inputMode="numeric" value={form.height} onChange={e=>set("height",e.target.value)} placeholder="170"/>
+        <label style={S.fieldLabel} htmlFor="anamnesis-height">Altura (cm)</label>
+        <input id="anamnesis-height" min="100" max="250" step="any" aria-describedby="profile-input-help" style={S.field} type="number" inputMode="numeric" value={form.height} onChange={e=>set("height",e.target.value)} placeholder="170"/>
       </>)}
 
       {step===2&&(<>
@@ -3569,10 +3657,10 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
       {step===4&&(<>
         <h2 style={S.h1}>Saúde</h2>
         <p style={S.sub}>Informe limitações para personalizar seu plano com segurança. Campos opcionais.</p>
-        <label style={S.fieldLabel}>LESÕES OU LIMITAÇÕES FÍSICAS</label>
-        <textarea style={{...S.field,height:90,resize:"none"}} value={form.injuries} onChange={e=>set("injuries",e.target.value)} placeholder="Ex: dor no joelho, hérnia lombar… (ou deixe em branco)"/>
-        <label style={S.fieldLabel}>CONDIÇÕES MÉDICAS RELEVANTES</label>
-        <textarea style={{...S.field,height:80,resize:"none"}} value={form.conditions} onChange={e=>set("conditions",e.target.value)} placeholder="Ex: hipertensão, diabetes… (ou deixe em branco)"/>
+        <label style={S.fieldLabel} htmlFor="anamnesis-injuries">LESÕES OU LIMITAÇÕES FÍSICAS</label>
+        <textarea id="anamnesis-injuries" style={{...S.field,height:90,resize:"none"}} value={form.injuries} onChange={e=>set("injuries",e.target.value)} placeholder="Ex: dor no joelho, hérnia lombar… (ou deixe em branco)"/>
+        <label style={S.fieldLabel} htmlFor="anamnesis-conditions">CONDIÇÕES MÉDICAS RELEVANTES</label>
+        <textarea id="anamnesis-conditions" style={{...S.field,height:80,resize:"none"}} value={form.conditions} onChange={e=>set("conditions",e.target.value)} placeholder="Ex: hipertensão, diabetes… (ou deixe em branco)"/>
         {error&&<div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"12px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{error}</div>}
       </>)}
 
@@ -3601,7 +3689,7 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
 
       </section>
       <div className="ab-form-actions">
-        {step>1&&<button className="ab-secondary-action" onClick={()=>setStep(s=>s-1)}>← Voltar</button>}
+        <button className="ab-secondary-action" onClick={()=>step>1?setStep(s=>s-1):onCancel()}>Voltar</button><button className="ab-secondary-action" onClick={onCancel}>Cancelar criação</button>
         {step<5?<button className="ab-primary" disabled={!canNext} onClick={()=>setStep(s=>s+1)}>Continuar <Icon name="arrow" size={18}/></button>
                :<button className="ab-primary" onClick={onSubmit}>Gerar meu plano <Icon name="sparkles" size={18}/></button>}
       </div>
@@ -3611,11 +3699,11 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
 
 // ─── GENERATING ───────────────────────────────────────────────────────────────
 
-function GeneratingScreen({ name, photoAnalyzing }) {
+function GeneratingScreen({ name, photoAnalyzing, onCancel }) {
   const msgs=["Analisando seu perfil","Definindo grupos musculares","Calculando volume ideal","Montando periodização","Ajustando intensidade","Finalizando plano"];
   const [mi,setMi]=useState(0); useEffect(()=>{const t=setInterval(()=>setMi(i=>(i+1)%msgs.length),1800);return()=>clearInterval(t);},[]);
   return (
-    <div className="ab-generating"><div><div className="ab-generating-core"><Icon name="sparkles" size={46}/></div><div className="ab-kicker">A-BODY INTELLIGENCE</div><h1>Criando seu plano</h1><p className="ab-copy">{name?`${name}, estamos combinando suas respostas`:"Estamos combinando suas respostas"} para construir uma rotina coerente e personalizada.</p>{photoAnalyzing&&<p style={{color:"#f0b45a",fontSize:11}}>Análise corporal incluída no processamento.</p>}<div className="ab-generating-status" aria-live="polite">{msgs[mi]}</div></div></div>
+    <div className="ab-generating"><div><button className="ab-secondary-action" onClick={onCancel}>Voltar sem substituir meu plano</button><div className="ab-generating-core"><Icon name="sparkles" size={46}/></div><div className="ab-kicker">A-BODY INTELLIGENCE</div><h1>Criando seu plano</h1><p className="ab-copy">{name?`${name}, estamos combinando suas respostas`:"Estamos combinando suas respostas"} para construir uma rotina coerente e personalizada.</p>{photoAnalyzing&&<p style={{color:"#f0b45a",fontSize:11}}>Análise corporal incluída no processamento.</p>}<div className="ab-generating-status" aria-live="polite">{msgs[mi]}</div></div></div>
   );
 }
 
@@ -3814,7 +3902,7 @@ function SplitSelectScreen({ onSelect, onBack }) {
 
 // ─── CONSTRUTOR DE DIAS ───────────────────────────────────────────────────────
 
-function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, onRemove, onUpdate, editingDayId, setEditingDayId, onSave, onBack }) {
+function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setUserName, onAdd, onRemove, onUpdate, editingDayId, setEditingDayId, onSave, onBack }) {
   const [pickerDayId, setPickerDayId] = useState(null);
   const allDaysHaveExercises = split.days.every(d=>(dayExercises[d.id]||[]).length>=3);
 
@@ -3881,7 +3969,8 @@ function DayBuilderScreen({ split, dayExercises, userName, setUserName, onAdd, o
         );
       })}
 
-      <button style={{...S.btn,opacity:allDaysHaveExercises&&userName?1:0.35,marginTop:8}} disabled={!allDaysHaveExercises||!userName} onClick={onSave}>
+      {error&&<p className="ab-form-error" role="alert">{error}</p>}<button className="ab-secondary-action" onClick={onCancel}>Cancelar criação</button>
+        <button style={{...S.btn,opacity:allDaysHaveExercises&&userName?1:0.35,marginTop:8}} disabled={!allDaysHaveExercises||!userName} onClick={onSave}>
         Salvar meu plano →
       </button>
       {(!allDaysHaveExercises||!userName)&&<p style={{fontSize:12,color:C.muted,textAlign:"center",marginTop:8}}>{!userName?"Informe seu nome para continuar.":"Adicione pelo menos 3 exercícios em cada dia."}</p>}
@@ -3910,6 +3999,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
     let vivo = true;
     fetchBiblioteca().then(l=>{
       if(!vivo) return;
+      if(!l.length){setLib(null);setActiveGroup(Object.keys(EXERCISE_LIBRARY)[0]);return;}
       const grupos = {};
       const ICONES = { "Peito":"🫁","Costas":"🔙","Ombros":"🙆","Bíceps":"💪","Tríceps":"🦾","Antebraço":"🤜",
         "Quadríceps":"🦵","Posteriores de Coxa":"🦵","Glúteos":"🍑","Adutores":"🦵","Panturrilhas":"🐐","Abdômen":"🎯" };
@@ -3925,14 +4015,14 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
 
   const fonte = lib || EXERCISE_LIBRARY;
   if (!activeGroup) return (
-    <div style={S.modalOverlay}><div style={S.modal}><p style={{color:C.muted,fontSize:13}}>Carregando exercícios…</p></div></div>
+    <ModalShell title="Adicionar exercício" eyebrow="BIBLIOTECA" onClose={onClose}>
+      <p role="status">Carregando exercícios…</p>
+    </ModalShell>
   );
   const group = fonte[activeGroup];
-
   const enviarSugestao = async () => {
     const nome = sugestao.trim();
     if (nome.length < 2) return;
-    // registra a sugestão (fire-and-forget) e adiciona ao treino como exercício personalizado
     fetch(`${SUPA_URL}/rest/v1/sugestoes_exercicios`, {
       method:"POST",
       headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}`, "Content-Type":"application/json", Prefer:"return=minimal" },
@@ -3942,17 +4032,11 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
     setSugestao(""); setSugestaoOk(true);
     setTimeout(()=>setSugestaoOk(false), 2500);
   };
-
   return (
-    <div style={S.modalOverlay}>
-      <div style={{...S.modal,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={S.eyebrow}>ADICIONAR EXERCÍCIO</div>
-          <button style={{background:"none",border:"none",color:C.muted,fontSize:18}} onClick={onClose}>✕</button>
-        </div>
+    <ModalShell title="Adicionar exercício" eyebrow="BIBLIOTECA" onClose={onClose}>
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:12,flexShrink:0}}>
           {Object.entries(fonte).map(([key,g])=>(
-            <button key={key} style={{flexShrink:0,background:activeGroup===key?C.acc:"#0d2218",border:"none",borderRadius:20,padding:"6px 14px",fontSize:12,fontWeight:600,color:activeGroup===key?"#06140e":C.muted}} onClick={()=>setActiveGroup(key)}>
+            <button key={key} className="ab-filter-chip" data-active={activeGroup===key} aria-pressed={activeGroup===key} style={{flexShrink:0}} onClick={()=>setActiveGroup(key)}>
               {g.icon} {g.label}
             </button>
           ))}
@@ -3979,13 +4063,13 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
           {/* Caixa de sugestões */}
           <div style={{border:`1.5px dashed ${C.border}`,borderRadius:12,padding:"12px 14px",marginTop:4,marginBottom:10}}>
             {!sugerindo ? (
-              <button style={{background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:700,width:"100%",textAlign:"center",cursor:"pointer"}} onClick={()=>setSugerindo(true)}>
+              <button style={{minHeight:44,background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:700,width:"100%",textAlign:"center",cursor:"pointer"}} onClick={()=>setSugerindo(true)}>
                 Não encontrou? Sugerir e adicionar exercício +
               </button>
             ) : (
               <>
                 <div style={{fontSize:12,color:C.muted,marginBottom:8}}>Ele entra no seu treino agora e a sugestão vai para nossa equipe adicionar o card visual.</div>
-                <input style={{...S.field,marginBottom:8}} value={sugestao} onChange={e=>setSugestao(e.target.value)} placeholder="Nome do exercício" maxLength={120}/>
+                <input aria-label="Nome do exercício sugerido" style={{...S.field,marginBottom:8}} value={sugestao} onChange={e=>setSugestao(e.target.value)} placeholder="Nome do exercício" maxLength={120}/>
                 <button style={{...S.btn,padding:"10px",fontSize:13,opacity:sugestao.trim().length>=2?1:0.4}} disabled={sugestao.trim().length<2} onClick={enviarSugestao}>
                   Adicionar ao treino e sugerir
                 </button>
@@ -3994,11 +4078,10 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
             {sugestaoOk && <div style={{fontSize:12,color:C.acc,marginTop:8,textAlign:"center"}}>✓ Adicionado ao treino e sugestão enviada!</div>}
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
-function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
+function PlanPreviewScreen({ plan, bodyAnalysis, onStart, onCancel, saving, error }) {
   return (
     <div className="ab-data-page">
       <div className="ab-plan-layout"><aside className="ab-plan-summary">
@@ -4032,7 +4115,8 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart }) {
       {plan.weeklyPrescription&&<div className="ab-safety-notes"><strong>Meta semanal do protocolo</strong><span>• {plan.weeklyPrescription.aerobicMinutesTarget}–{plan.weeklyPrescription.aerobicMinutesUpper} min aeróbicos</span><span>• Força em pelo menos {plan.weeklyPrescription.strengthDaysTarget} dias</span><span>• Intensidade: {plan.weeklyPrescription.intensityMethod}</span><span>• {plan.weeklyPrescription.sedentaryGuidance}</span></div>}
       {(plan.safetyNotes||[]).length>0&&<div className="ab-safety-notes"><strong>Cuidados do plano</strong>{plan.safetyNotes.map((note,i)=><span key={i}>• {note}</span>)}</div>}
       {plan.requiresMedicalClearance&&<div className="ab-clearance-warning" role="alert"><strong>Avaliação necessária</strong><span>Antes de iniciar, procure liberação de um profissional de saúde para as condições informadas.</span></div>}
-      <button className="ab-primary" style={{marginTop:20}} disabled={plan.requiresMedicalClearance} onClick={onStart}>{plan.requiresMedicalClearance?"Aguardando liberação":"Iniciar treinamento"} <Icon name="arrow" size={18}/></button>
+      <button className="ab-primary" style={{marginTop:20}} disabled={plan.requiresMedicalClearance||saving} onClick={onStart}>{saving?"Confirmando…":plan.requiresMedicalClearance?"Aguardando liberação":"Confirmar este plano"} <Icon name="arrow" size={18}/></button>
+      {error&&<p className="ab-form-error" role="alert">{error}</p>}<p className="ab-copy">Seu plano atual permanece salvo até esta confirmação. O histórico não será apagado.</p><button className="ab-secondary-action" disabled={saving} onClick={onCancel}>Cancelar troca de plano</button>
       </aside><main><div className="ab-section-title" style={{marginTop:0}}><h2>Estrutura semanal</h2><span>{plan.weekDays.length} sessões</span></div>
       <div className="ab-plan-days">
         {plan.weekDays.map((d,i)=>(
@@ -4070,7 +4154,7 @@ function SettingsModal({ onClose, user, onLogout }) {
   );
 }
 
-function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, onEvolucao, hasBody }) {
+function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, onEvolucao, hasBody, onMeasurements, onResume, onResumeWorkout }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
@@ -4129,6 +4213,9 @@ function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSetti
         </button>
       </div>
 
+      <button className="ab-measurement-entry" onClick={onMeasurements}><Icon name="chart" size={22}/><span><strong>Avaliação por medidas (RFM)</strong><small>Altura, cintura e evolução da estimativa</small></span><Icon name="arrow" size={18}/></button>
+      {onResume&&<button className="ab-secondary-action" onClick={onResume}>Continuar rascunho do plano</button>}
+      {onResumeWorkout&&<button className="ab-secondary-action" onClick={onResumeWorkout}>Retomar treino em andamento</button>}
       <div id="ab-workouts" className="ab-section-title"><h2>Seus treinos</h2><span>{plan.weekDays.length} sessões</span></div>
       <div className="ab-day-grid">
         {plan.duracao && <div style={{gridColumn:"1 / -1",fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
@@ -4629,6 +4716,9 @@ const GRUPOS_MANUAL = ["Peito","Costas","Ombros","Bíceps","Tríceps","Pernas","
 function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
   const [editDia, setEditDia] = useState(null);      // Date sendo editada
   const [gruposSel, setGruposSel] = useState([]);
+  const [saving,setSaving]=useState(false),[saveError,setSaveError]=useState("");
+  const savingRef=useRef(false);
+  const saveRecord=async registro=>{if(savingRef.current)return;savingRef.current=true;setSaving(true);setSaveError("");try{await onUpdateHistory(editDia,registro);track("registro_manual",{removido:registro===null});setEditDia(null);}catch{setSaveError("Não foi possível salvar o registro. Confira o armazenamento e tente novamente.");}finally{savingRef.current=false;setSaving(false);}};
   // Semana começando no domingo
   const startOfWeek = (d) => { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; };
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
@@ -4672,9 +4762,9 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
       </div>
 
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-        <button style={{...S.back,fontSize:20,padding:"0 8px"}} onClick={()=>shiftWeek(-1)}>‹</button>
+        <button className="ab-calendar-nav" style={{...S.back,fontSize:20,padding:"0 8px"}} aria-label="Semana anterior" onClick={()=>shiftWeek(-1)}>‹</button>
         <div style={{fontSize:14,fontWeight:700}}>{isCurrentWeek ? "Esta semana" : fmtRange}</div>
-        <button style={{...S.back,fontSize:20,padding:"0 8px"}} onClick={()=>shiftWeek(1)}>›</button>
+        <button className="ab-calendar-nav" style={{...S.back,fontSize:20,padding:"0 8px"}} aria-label="Próxima semana" onClick={()=>shiftWeek(1)}>›</button>
       </div>
 
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
@@ -4685,7 +4775,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
           const isFuture = d > today;
           const manual = done.find(s=>s.manual);
           return (
-            <div key={i} onClick={()=>{ if(isFuture) return; setGruposSel(manual ? (manual.grupos||[]) : []); setEditDia(d); }} style={{
+            <div key={i} role="button" tabIndex={isFuture?-1:0} aria-disabled={isFuture} aria-label={`Registrar treino em ${d.toLocaleDateString("pt-BR")}`} onKeyDown={e=>{if(!isFuture&&(e.key==="Enter"||e.key===" ")){e.preventDefault();e.currentTarget.click();}}} onClick={e=>{ if(isFuture) return; e.currentTarget.focus();setSaveError("");setGruposSel(manual ? (manual.grupos||[]) : []); setEditDia(d); }} style={{
               ...S.card, flexDirection:"row", alignItems:"center", gap:14, padding:"12px 16px",
               border: isToday ? `1.5px solid ${C.acc}` : `1px solid ${C.border}`,
               opacity: isFuture ? 0.4 : 1, cursor: isFuture ? "default" : "pointer",
@@ -4698,8 +4788,8 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
                 {trained ? (
                   done.map((s,j)=>(
                     <div key={j} style={{display:"flex",alignItems:"center",gap:8,marginBottom:j<done.length-1?4:0}}>
-                      <div style={{width:20,height:20,borderRadius:"50%",background:s.manual?"#f0a848":C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{s.manual?"✎":"✓"}</div>
-                      <span style={{fontSize:14,fontWeight:700,color:s.manual?"#f0a848":C.text}}>{s.dayLabel || "Treino"}{s.manual?" · manual":""}</span>
+                      <div style={{width:20,height:20,borderRadius:"50%",background:s.manual?"#f0a848":C.acc,color:s.manual?"#06140e":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{s.manual?"✎":"✓"}</div>
+                      <span style={{fontSize:14,fontWeight:700,color:s.manual?"#80540f":C.text}}>{s.dayLabel || "Treino"}{s.manual?" · manual":""}</span>
                     </div>
                   ))
                 ) : (
@@ -4713,7 +4803,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
 
       <div style={{...S.card,gap:8}}>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <div style={{width:18,height:18,borderRadius:"50%",background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✓</div>
+          <div style={{width:18,height:18,borderRadius:"50%",background:C.acc,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✓</div>
           <span style={{fontSize:12,color:C.muted}}>Check-in automático ao finalizar o treino no app</span>
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
@@ -4723,50 +4813,16 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
       </div>
 
       {editDia && (
-        <div style={S.modalOverlay} onClick={()=>setEditDia(null)}>
-          <div style={{...S.modal,maxHeight:"80vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-              <div style={S.eyebrow}>REGISTRO MANUAL</div>
-              <button style={{background:"none",border:"none",color:C.muted,fontSize:18}} onClick={()=>setEditDia(null)}>✕</button>
-            </div>
-            <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{editDia.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})}</div>
-            {plan?.weekDays?.length > 0 && (<>
-              <p style={{fontSize:12,color:C.muted,margin:"0 0 8px"}}>Qual treino do seu plano você fez nesse dia?</p>
-              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:14}}>
-                {plan.weekDays.map(day=>(
-                  <button key={day.id} onClick={()=>{ onUpdateHistory(editDia, { day }); track("registro_manual",{treino:day.label}); setEditDia(null); }}
-                    style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",cursor:"pointer",border:`1.5px solid #f0a848`}}>
-                    <span style={{fontSize:14,fontWeight:800,color:"#f0a848"}}>{day.label}</span>
-                    <span style={{fontSize:12,color:C.muted}}>{day.sub||""}</span>
-                  </button>
-                ))}
-              </div>
-              <p style={{fontSize:12,color:C.muted,margin:"0 0 8px"}}>Ou fez algo fora do plano? Selecione o(s) grupo(s):</p>
-            </>)}
-            {!(plan?.weekDays?.length > 0) && <p style={{fontSize:12,color:C.muted,margin:"0 0 12px"}}>Selecione o(s) grupo(s) muscular(es) que você treinou nesse dia:</p>}
-            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:16}}>
-              {GRUPOS_MANUAL.map(g=>{
-                const sel = gruposSel.includes(g);
-                return (
-                  <button key={g} onClick={()=>setGruposSel(sel ? gruposSel.filter(x=>x!==g) : [...gruposSel,g])}
-                    style={{padding:"8px 14px",borderRadius:20,fontSize:13,fontWeight:700,cursor:"pointer",
-                      border:`1.5px solid ${sel?"#f0a848":C.border}`,
-                      background:sel?"#f0a848":"transparent",color:sel?"#06140e":C.muted}}>{g}</button>
-                );
-              })}
-            </div>
-            <button style={{...S.btn,opacity:gruposSel.length?1:0.4}} disabled={!gruposSel.length}
-              onClick={()=>{ onUpdateHistory(editDia, { grupos: gruposSel }); track("registro_manual",{grupos:gruposSel}); setEditDia(null); }}>
-              Salvar registro
-            </button>
-            {workoutsOn(editDia).some(s=>s.manual) && (
-              <button style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,color:"#ff8a8a",fontSize:12,fontWeight:600,padding:"9px 12px",width:"100%",cursor:"pointer",marginTop:8}}
-                onClick={()=>{ onUpdateHistory(editDia, null); setEditDia(null); }}>
-                Remover registro manual deste dia
-              </button>
-            )}
-          </div>
-        </div>
+        <ModalShell title={editDia.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long"})} eyebrow="REGISTRO MANUAL" onClose={()=>{if(!saving)setEditDia(null);}} closeDisabled={saving} bodyClass="ab-calendar-editor">
+          <fieldset disabled={saving}>
+            {plan?.weekDays?.length > 0 && <><p>Qual treino do seu plano você fez nesse dia?</p><div style={{display:"grid",gap:8,marginBottom:16}}>{plan.weekDays.map(day=><button key={day.id} className="ab-secondary-action ab-calendar-plan" onClick={()=>saveRecord({day})}><strong>{day.label}</strong><span>{day.sub||""}</span></button>)}</div><p>Ou fez algo fora do plano? Selecione o(s) grupo(s):</p></>}
+            {!(plan?.weekDays?.length > 0)&&<p>Selecione o(s) grupo(s) muscular(es) que você treinou nesse dia:</p>}
+            <div className="ab-filter-row" style={{marginBottom:16}}>{GRUPOS_MANUAL.map(g=>{const selected=gruposSel.includes(g);return <button key={g} className="ab-filter-chip" data-active={selected} aria-pressed={selected} onClick={()=>setGruposSel(selected?gruposSel.filter(x=>x!==g):[...gruposSel,g])}>{g}</button>;})}</div>
+            <button className="ab-primary" disabled={!gruposSel.length} onClick={()=>saveRecord({grupos:gruposSel})}>Salvar registro</button>
+            {workoutsOn(editDia).some(record=>record.manual)&&<button className="ab-secondary-action ab-danger-action" style={{width:"100%",marginTop:12}} onClick={()=>saveRecord(null)}>Remover registro manual deste dia</button>}
+          </fieldset>
+          {saving&&<p role="status">Salvando registro.</p>}{saveError&&<p className="ab-form-error" role="alert">{saveError}</p>}
+        </ModalShell>
       )}
     </div>
   );
@@ -5112,13 +5168,8 @@ function LibraryScreen({ onBack }) {
   const [err, setErr] = useState(null);
   const [grupo, setGrupo] = useState("Todos");
   const [busca, setBusca] = useState("");
-  useEffect(()=>{
-    (async()=>{
-      try{
-        setExs(await fetchBiblioteca());
-      }catch(e){ setErr(e.message); }
-    })();
-  },[]);
+  const [attempt,setAttempt]=useState(0);
+  useEffect(()=>{let active=true;setErr(null);(async()=>{try{const rows=await fetchBiblioteca();if(active)setExs(rows);}catch{if(active)setErr('Não foi possível carregar a biblioteca. Verifique a conexão e tente novamente.');}})();return()=>{active=false;};},[attempt]);
   const grupos = exs ? ["Todos", ...Array.from(new Set(exs.map(e=>e.grupo_muscular)))] : [];
   const termo = busca.trim().toLocaleLowerCase("pt-BR");
   const lista = exs ? exs.filter(e=>(grupo==="Todos"||e.grupo_muscular===grupo)&&(!termo||`${e.nome} ${e.grupo_muscular} ${e.equipamento||""}`.toLocaleLowerCase("pt-BR").includes(termo))) : [];
@@ -5126,16 +5177,16 @@ function LibraryScreen({ onBack }) {
     <div className="ab-data-page">
       <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
       <header className="ab-page-head"><div><div className="ab-kicker">MOVIMENTOS</div><h1>Biblioteca de exercícios</h1><p className="ab-copy">Explore execuções, grupos musculares e equipamentos disponíveis.</p></div><div className="ab-stat-tile"><strong>{exs?lista.length:"—"}</strong><span>Resultados</span></div></header>
-      {err && <p style={{color:"#ff8a8a",fontSize:13}}>Não foi possível carregar a biblioteca ({err}). Verifique sua conexão e tente novamente.</p>}
+      {err&&<div className="ab-form-error" role="alert"><p>{err}</p><button className="ab-secondary-action" onClick={()=>setAttempt(n=>n+1)}>Tentar novamente</button></div>}
       <div className="ab-library-toolbar"><div className="ab-search"><Icon name="search" size={18}/><input aria-label="Buscar exercícios" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por exercício, grupo ou equipamento"/></div></div>
       {exs && <div className="ab-filter-row">
         {grupos.map(g=>(
-          <button key={g} onClick={()=>setGrupo(g)} className="ab-filter-chip" data-active={g===grupo}>{g}</button>
+          <button key={g} onClick={()=>setGrupo(g)} className="ab-filter-chip" data-active={g===grupo} aria-pressed={g===grupo}>{g}</button>
         ))}
       </div>}
       {!exs&&!err&&<div className="ab-library-grid">{[1,2,3,4,5,6].map(i=><div className="ab-skeleton" key={i}/>)}</div>}
       {exs&&lista.length>0&&<div className="ab-library-grid">{lista.map(ex=><ABodyCard key={ex.id} ex={ex}/>)}</div>}
-      {exs&&lista.length===0&&<div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="search" size={28}/></div><h1>Nenhum exercício encontrado.</h1><p>Tente outro nome, equipamento ou grupo muscular.</p></div></div>}
+      {exs&&lista.length===0&&<div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="search" size={28}/></div><h1>Nenhum exercício encontrado.</h1><p>Tente outro nome, equipamento ou grupo muscular.</p><button className="ab-secondary-action" onClick={()=>{setBusca("");setGrupo("Todos");}}>Limpar busca e filtros</button></div></div>}
     </div>
   );
 }

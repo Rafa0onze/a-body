@@ -23,6 +23,10 @@ test("aplicativo bloqueia pull-to-refresh acidental",()=>{
   assert.match(css,/html,body,#root \{ overscroll-behavior-y:none; \}/);
 });
 
-test("rascunho é removido ao concluir ou sair do treino",()=>{
-  assert.ok((source.match(/clearWorkoutDraft\(\)/g)||[]).length>=4);
+test("conclusão limpa rascunho; voltar à home preserva a sessão para retomar",()=>{
+  const finish=source.slice(source.indexOf('const finishWorkout='),source.indexOf('const buildReport='));
+  const back=source.slice(source.indexOf('const goHome='),source.indexOf('const current=queue'));
+  assert.match(finish,/clearWorkoutDraft\(\)/);
+  assert.doesNotMatch(back,/clearWorkoutDraft\(\)/);
+  assert.match(back,/localStorage\.setItem\(WORKOUT_DRAFT_KEY/);
 });
