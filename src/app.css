@@ -952,3 +952,11 @@ input,textarea,select { border-color:#b8cac0; }
 .ab-modal-close { width:44px;height:44px; }
 .ab-calendar-nav { min-width:44px;min-height:44px; }
 .ab-step[data-state="done"] i { color:#fff; }
+.ab-student-links { border-top:1px solid var(--ab-border);margin:20px 0;padding-top:20px; }
+.ab-student-links h2 { font-size:18px;margin:0 0 14px; }
+.ab-student-links h3 { font-size:17px;overflow-wrap:anywhere; }
+.ab-student-links p { font-size:14px;line-height:1.6; }
+.ab-student-links strong { overflow-wrap:anywhere; }
+.ab-unlink-action { color:#a12b2b;border-color:#d4aaa8; }
+.ab-link-actions { display:flex;flex-wrap:wrap;gap:10px;margin-top:16px; }
+@media(max-width:600px){.ab-student-links .ab-settings-row{align-items:stretch;flex-direction:column}.ab-link-actions>*{flex:1;min-width:140px}}

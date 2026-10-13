@@ -58,65 +58,13 @@ Deno.serve(async (req: Request) => {
   if (!alunoId) return json({ ok:false, error:"missing_student" }, 400);
   if (planError) return json({ ok:false, error:"invalid_plan", detail:planError }, 400);
 
-  const secretRaw = Deno.env.get("SUPABASE_SECRET_KEYS");
-  let adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (secretRaw) {
-    try { adminKey = JSON.parse(secretRaw)?.default || adminKey; } catch {}
-  }
-  const admin = createClient(url, adminKey, {
-    auth: { persistSession:false, autoRefreshToken:false },
+  const { data: published, error: publishError } = await userClient.rpc('publicar_treino_aluno', {
+    p_aluno_id: alunoId,
+    p_plano: plan,
+    p_treino_origem: body.treino_origem || null,
   });
-
-  const { data: aluno, error: alunoError } = await admin
-    .from("alunos")
-    .select("id,personal_id")
-    .eq("id", alunoId)
-    .eq("personal_id", user.id)
-    .maybeSingle();
-
-  if (alunoError) return json({ ok:false, error:"student_lookup_failed" }, 500);
-  if (!aluno) return json({ ok:false, error:"forbidden" }, 403);
-
-  const { data: activeRows, error: activeError } = await admin
-    .from("treinos_alunos")
-    .select("id")
-    .eq("aluno_id", alunoId)
-    .eq("ativo", true);
-
-  if (activeError) return json({ ok:false, error:"active_lookup_failed" }, 500);
-  const previousIds = (activeRows || []).map((r: {id:string}) => r.id);
-
-  if (previousIds.length) {
-    const off = await admin
-      .from("treinos_alunos")
-      .update({ ativo:false, atualizado_em:new Date().toISOString() })
-      .in("id", previousIds);
-    if (off.error) return json({ ok:false, error:"deactivate_failed" }, 500);
-  }
-
-  const insert = await admin
-    .from("treinos_alunos")
-    .insert({
-      aluno_id: alunoId,
-      personal_id: user.id,
-      plano: plan,
-      ativo: true,
-      atualizado_em: new Date().toISOString(),
-    })
-    .select("id,atualizado_em")
-    .single();
-
-  if (insert.error) {
-    if (previousIds.length) {
-      await admin.from("treinos_alunos").update({ ativo:true }).in("id", previousIds);
-    }
-    return json({ ok:false, error:"publish_failed", detail:insert.error.message }, 500);
-  }
-
-  return json({
-    ok:true,
-    treino_id:insert.data.id,
-    atualizado_em:insert.data.atualizado_em,
-    planName:plan.planName,
-  });
+  if (publishError) return json({ ok:false, error:'publish_failed' }, publishError.code==='42501'?403:publishError.code==='40001'?409:500);
+  const saved = Array.isArray(published) ? published[0] : published;
+  if (!saved?.id) return json({ ok:false, error:'publish_not_confirmed' }, 500);
+  return json({ok:true,treino_id:saved.id,atualizado_em:saved.atualizado_em,planName:plan.planName});
 });

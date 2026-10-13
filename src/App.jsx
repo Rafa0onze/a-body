@@ -7,6 +7,8 @@ import { RFM_KEY, RFM_PREFIX, mergeMeasurements } from "./rfm.js";
 import { PLAN_DRAFT_KEY, readPlanDraft, writePlanDraft, isCompletePlan, validProfile } from "./plan-draft.js";
 import {mergeCumulativeHistory,saveCumulativeHistory} from './history-sync.js';
 import {attachDialogFocus} from './dialog-focus.js';
+import StudentLinks from './StudentLinks.jsx';
+import {createStudentLinks} from './student-links.js';
 import { useAppScreen } from "./use-app-screen.js";
 import { adaptiveInsight } from "./adaptation.js";
 import { isUnilateralExercise, shouldAutoStartSeries } from "./workout-timing.js";
@@ -653,7 +655,7 @@ async function proFetch(pathQ, opts = {}) {
   if (!r.ok) {
     const body = await r.json().catch(()=>null);
     console.error("Supabase request failed", { path:pathQ.split("?")[0], status:r.status, code:body?.code });
-    if (throwOnError) throw new Error(body?.message || "Não foi possível concluir a operação.");
+    if (throwOnError) { const error=new Error(body?.message || "Não foi possível concluir a operação.");error.status=r.status;throw error; }
     return null;
   }
   if (r.status === 204) return true;
@@ -881,7 +883,7 @@ async function resgatarConvitePendente() {
 // vínculo do aluno logado: registro em alunos + treino ativo do personal
 async function fetchVinculoAluno() {
   const uid = await uidAtual(); if (!uid) return null;
-  const rows = await proFetch(`/rest/v1/alunos?user_id=eq.${uid}&select=id,nome,personal_id,status&limit=1`);
+  const rows = await proFetch(`/rest/v1/alunos?user_id=eq.${uid}&status=neq.inativo&personal_id=not.is.null&select=id,nome,personal_id,status&order=criado_em.asc&limit=1`);
   const aluno = rows?.[0];
   if (!aluno || aluno.status === "inativo") return null;
   const ts = await proFetch(`/rest/v1/treinos_alunos?aluno_id=eq.${aluno.id}&ativo=eq.true&select=id,plano&order=atualizado_em.desc&limit=1`);
@@ -1306,6 +1308,21 @@ function clearWorkoutDraft() {
 export default function App() {
   const [screen, setScreen]   = useAppScreen();
   const [showSettings, setShowSettings] = useState(false);
+  const linksService=useRef(null);
+  if(!linksService.current)linksService.current=createStudentLinks({request:(path,opts)=>proFetch(path,{...opts,throwOnError:true}),identity:async()=>({id:await uidAtual(),epoch:accountEpoch})});
+  const afterUnlink=async result=>{
+    const epoch=accountEpoch;
+    if(result.remaining_links===0){
+      setVinculo(null);setPersonal(null);
+      const retained=result.plan|| (plan?{...plan,locked:false}:null);
+      setPlan(retained);
+      try{if(retained)localStorage.setItem('abody:plan',JSON.stringify(retained));}catch{setSyncWarning('Vínculo encerrado no servidor. Reabra o app para recuperar seu plano; o armazenamento local está indisponível.');}
+      setScreen(retained?'home':'onboarding');
+    }else{
+      const remaining=await fetchVinculoAluno();if(epoch!==accountEpoch)return;setVinculo(remaining?{...remaining,treino:null}:null);
+      setPersonal(null);
+    }
+  };
   const [syncWarning,setSyncWarning]=useState(''),[syncBusy,setSyncBusy]=useState(false);
   useEffect(()=>{const warn=e=>setSyncWarning(e.detail),restored=()=>{if(!pendingSync.size)setSyncWarning('');};window.addEventListener('abody:sync-error',warn);window.addEventListener('abody:sync-restored',restored);return()=>{window.removeEventListener('abody:sync-error',warn);window.removeEventListener('abody:sync-restored',restored);};},[]);
   const retrySync=async()=>{setSyncBusy(true);try{for(const [key,entry] of pendingSync)await cloudSave(key,entry.value,entry.options);const h=await loadStorage('abody:history'),bh=await loadStorage('abody:bodyhistory');if(h)setHistory(h);if(bh)setBodyHistory(bh);}finally{setSyncBusy(false);}};
@@ -2002,7 +2019,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
       {screen==="proAlunos"    && pro && <ProAlunosScreen onBack={()=>setScreen("proHome")}/>}
       {AUTH_ENABLED && user && <ContaGlobal user={user} onLogout={doLogout}/>}
-      {screen==="aguardandoTreino" && vinculo && <AguardandoTreinoScreen vinculo={vinculo} personal={personal}
+      {screen==="aguardandoTreino" && vinculo && <AguardandoTreinoScreen vinculo={vinculo} personal={personal} onSettings={()=>setShowSettings(true)}
         onAtualizar={async()=>{ const v = await fetchVinculoAluno(); if (v?.treino?.plano) { setVinculo(v); setPlan({ ...v.treino.plano, locked: true }); setScreen("home"); } }}/>}
       {screen==="measurements" && <Measurements load={loadMeasurements} save={saveMeasurements} onBack={()=>setScreen(plan?"home":"onboarding")}/>}
       {screen==="onboarding"   && <OnboardingScreen onStart={resetPlan} onMeasurements={(!AUTH_ENABLED||user)?()=>setScreen("measurements"):null} onResume={hasPlanDraft?resumePlanDraft:null}/>}
@@ -2022,7 +2039,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {screen==="planPreview" && candidatePlan && <PlanPreviewScreen plan={candidatePlan} bodyAnalysis={bodyAnalysis} onStart={confirmCandidatePlan} onCancel={cancelPlanEdit} saving={confirmingPlan} error={planError}/>}
       {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>{ const u=new URL(window.location.href); u.searchParams.delete("view"); window.history.replaceState(null,"",u.pathname+u.search); setScreen("proHome"); }}>← Painel PRO</button>}
       {screen==="home"         && plan && <HomeScreen onResumeWorkout={readWorkoutDraft()?()=>restoreWorkoutDraft():null} onMeasurements={()=>setScreen("measurements")} onResume={hasPlanDraft?resumePlanDraft:null} plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
-      {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}}/>}
+      {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}} linksService={linksService.current} onDetached={afterUnlink} currentLink={vinculo} onLogin={()=>{setShowSettings(false);setScreen('auth');}}/>}
       {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={()=>setScreen("workoutOverview")}/>}
       {screen==="workout"      && currentDay && current && (<>
@@ -3516,7 +3533,7 @@ function ContaGlobal({ user, onLogout }) {
 
 // ─── ALUNO VINCULADO AGUARDANDO O PRIMEIRO TREINO ────────────────────────────
 
-function AguardandoTreinoScreen({ vinculo, personal, onAtualizar }) {
+function AguardandoTreinoScreen({ vinculo, personal, onAtualizar, onSettings }) {
   const [busy, setBusy] = useState(false);
   return (
     <div style={{...S.box, paddingTop: 60, textAlign:"center"}}>
@@ -3537,6 +3554,7 @@ function AguardandoTreinoScreen({ vinculo, personal, onAtualizar }) {
       <p style={{...S.sub,maxWidth:340,margin:"0 auto 24px"}}>
         Seu vínculo com o personal está confirmado. Ele está preparando seu treino — assim que publicar, ele aparece aqui.
       </p>
+      <button className="ab-secondary-action" style={{marginBottom:16}} onClick={onSettings}>Gerenciar vínculo com personal</button>
       <button style={{...S.btn,maxWidth:340,margin:"0 auto",opacity:busy?0.5:1}} disabled={busy}
         onClick={async()=>{ setBusy(true); await onAtualizar(); setBusy(false); }}>
         {busy ? "Verificando…" : "🔄 Verificar treino"}
@@ -4137,16 +4155,20 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart, onCancel, saving, erro
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 
-function SettingsModal({ onClose, user, onLogout }) {
+function SettingsModal({ onClose, user, onLogout, linksService, onDetached, currentLink, onLogin }) {
+  const [unlinkBusy,setUnlinkBusy]=useState(false);
+  const unlinkRunning=useRef(false);
+  const changeBusy=value=>{unlinkRunning.current=value;setUnlinkBusy(value);};
   return (
-    <ModalShell title="Configurações" eyebrow="PREFERÊNCIAS DO APP" onClose={onClose}>
+    <ModalShell title="Configurações" eyebrow="PREFERÊNCIAS DO APP" onClose={()=>{if(!unlinkRunning.current)onClose();}} closeDisabled={unlinkBusy}>
         {AUTH_ENABLED && (
           <div className="ab-settings-row">
             {user
-              ? (<><div><span>CONTA CONECTADA</span><strong>{user.email}</strong></div><button className="ab-secondary-action" onClick={onLogout}>Sair</button></>)
+              ? (<><div><span>CONTA CONECTADA</span><strong>{user.email}</strong></div><button className="ab-secondary-action" disabled={unlinkBusy} onClick={()=>{if(!unlinkRunning.current)onLogout();}}>Sair</button></>)
               : (<><div><span>MODO LOCAL</span><strong>Dados apenas neste aparelho</strong></div><button className="ab-secondary-action" onClick={onLogout}>Entrar</button></>)}
           </div>
         )}
+        {user&&<StudentLinks service={linksService} onDetached={onDetached} currentLink={currentLink} onLogin={onLogin} onBusy={changeBusy}/>}
         <div className="ab-settings-about">
           <BrandMark/><div><span>SOBRE</span><strong>A-BODY v1.2</strong><p>Personal AI Trainer com geração de treinos assistida por IA.</p></div>
         </div>

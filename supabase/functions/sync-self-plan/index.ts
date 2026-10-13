@@ -56,15 +56,22 @@ Deno.serve(async (req: Request) => {
     .from("alunos")
     .select("id,personal_id,status,user_id")
     .eq("user_id", user.id)
+    .neq("status", "inativo")
+    .not("personal_id", "is", null)
+    .order("criado_em", { ascending:true })
+    .limit(1)
     .maybeSingle();
 
   if (alunoError) return json({ ok:false, error:"student_lookup_failed" }, 500);
 
-  if (!aluno && body?.claim_single_student === true) {
+  if (!aluno && body?.claim_single_student === true && user.email) {
     const { data: candidates, error: candidatesError } = await admin
       .from("alunos")
       .select("id,personal_id,status,user_id")
       .eq("status","ativo")
+      .eq("personal_id",user.id)
+      .eq("email",user.email)
+      .is("user_id",null)
       .limit(2);
 
     if (candidatesError) return json({ ok:false, error:"student_claim_lookup_failed" }, 500);
@@ -99,7 +106,7 @@ Deno.serve(async (req: Request) => {
   const upgrade = body?.upgrade_plan;
   const legacyNames = new Set(["Hipertrofia & Definição 5x", "Hipertrofia 5x — foco tronco"]);
 
-  if (active && upgrade && typeof upgrade === "object" && Array.isArray(upgrade.weekDays)
+  if (active && aluno.personal_id===user.id && upgrade && typeof upgrade === "object" && Array.isArray(upgrade.weekDays)
       && upgrade.weekDays.length >= 1 && upgrade.weekDays.length <= 7
       && legacyNames.has(active.plano?.planName)
       && active.plano?.presetVersion !== upgrade.presetVersion) {
