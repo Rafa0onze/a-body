@@ -293,6 +293,18 @@ async function quotaRpc(jwt, nome, body) {
   return { ok:r.ok, data:await r.json().catch(()=>null) };
 }
 
+// Whitespace keeps long mobile/proxy connections active without changing the
+// JSON contract. Opt-in clients inspect the final error envelope after headers.
+export function createAIResponse(res,keepAlive,intervalMs=5000){
+  let timer;
+  const stop=()=>{clearInterval(timer);res.off?.('close',stop);};
+  return {
+    start(){if(!keepAlive)return;res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');res.write(' ');timer=setInterval(()=>{if(res.destroyed||res.writableEnded){stop();return;}res.write(' ');},intervalMs);timer.unref?.();res.once?.('close',stop);},
+    send(status,data){stop();if(res.destroyed)return;if(res.headersSent)return res.end(JSON.stringify(data));return res.status(status).json(data);},
+    stop,
+  };
+}
+
 export default async function handler(req, res) {
   const requestId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   const inicio = Date.now();
@@ -363,6 +375,8 @@ export default async function handler(req, res) {
     text: { verbosity: "low", ...(formato ? { format: formato } : {}) },
     input: mensagens.map(m => ({ role: m.role, content: conteudoOpenAI(m.content) })),
   };
+  const response=createAIResponse(res,body.keep_alive===true);
+  response.start();
 
   try {
     registrarEvento(requestId, "openai_started", { treino, anexos });
@@ -371,7 +385,7 @@ export default async function handler(req, res) {
       await cancelarReserva();
       const publico = erroPublicoOpenAI(result.status);
       registrarEvento(requestId, "openai_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
-      return res.status(publico.status).json({ error:{ ...publico, requestId } });
+      return response.send(publico.status,{ error:{ ...publico, requestId } });
     }
     if (treino) {
       let erros = validarPlano(textoResposta(result.data), texto);
@@ -397,27 +411,29 @@ export default async function handler(req, res) {
           await cancelarReserva();
           const publico = erroPublicoOpenAI(result.status);
           registrarEvento(requestId, "openai_retry_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
-          return res.status(publico.status).json({ error:{ ...publico, requestId } });
+          return response.send(publico.status,{ error:{ ...publico, requestId } });
         }
         erros = validarPlano(textoResposta(result.data), texto);
         criticos = errosCriticosPlano(erros);
         if (criticos.length) {
           await cancelarReserva();
           registrarEvento(requestId, "validation_failed", { categories:categoriasValidacao(criticos), errorCount:criticos.length, durationMs:Date.now()-inicio });
-          return res.status(422).json({ error: { code:"PLAN_VALIDATION_FAILED", message: "O treino não passou na validação de duração e segurança. Tente gerar novamente; esta tentativa não consumiu sua cota.", requestId } });
+          return response.send(422,{ error: { code:"PLAN_VALIDATION_FAILED", message: "O treino não passou na validação de duração e segurança. Tente gerar novamente; esta tentativa não consumiu sua cota.", requestId } });
         }
         if (erros.length) registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
       }
     }
     const confirmacao = await quotaRpc(jwt, "confirm_ia_quota", { reserva_id:reservaId });
     if (!confirmacao.ok || confirmacao.data !== true) throw new Error("quota confirmation failed");
-    res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-duration-v2");
+    if(!res.headersSent)res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-duration-v2");
     registrarEvento(requestId, "completed", { treino, durationMs:Date.now()-inicio });
-    return res.status(result.status).json(result.data);
+    return response.send(result.status,result.data);
   } catch (e) {
     await cancelarReserva();
     registrarEvento(requestId, "unexpected_failure", { errorName:e?.name || "Error", durationMs:Date.now()-inicio });
-    return res.status(502).json({ error: { code:"AI_NETWORK_ERROR", message: "Não foi possível concluir a geração. Verifique sua conexão e tente novamente.", requestId } });
+    return response.send(502,{ error: { code:"AI_NETWORK_ERROR", message: "Não foi possível concluir a geração. Verifique sua conexão e tente novamente.", requestId } });
+  } finally {
+    response.stop();
   }
 }
 

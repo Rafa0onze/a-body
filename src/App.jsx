@@ -9,6 +9,7 @@ import {mergeCumulativeHistory,saveCumulativeHistory} from './history-sync.js';
 import {attachDialogFocus} from './dialog-focus.js';
 import StudentLinks from './StudentLinks.jsx';
 import {createStudentLinks} from './student-links.js';
+import {requestAI} from './ai-request.js';
 import { useAppScreen } from "./use-app-screen.js";
 import { adaptiveInsight } from "./adaptation.js";
 import { isUnilateralExercise, shouldAutoStartSeries } from "./workout-timing.js";
@@ -506,15 +507,7 @@ async function saveMeasurements(entry) {
 }
 async function callOpenAI(body) {
   const s = await refreshIfNeeded();
-  if (!s?.access_token) throw new Error("Faça login para usar a geração por IA.");
-  const res = await fetch("/api/openai", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${s.access_token}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data;
+  return requestAI(body,s?.access_token);
 }
 
 // ─── SOM, VIBRAÇÃO E NOTIFICAÇÃO DO DESCANSO ─────────────────────────────────
@@ -1802,7 +1795,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       converted.perfil={idade:form.age,altura:form.height,peso:form.weight,objetivos:goalsText,nivel:form.level,dias:form.daysPerWeek,duracao:form.duration,lesoes:form.injuries,condicoes:form.conditions};
       const planoCatalogado = await catalogarIlustracoesPendentes(converted, "geracao_aluno");
       track("plano_ia_gerado",{dias:planoCatalogado?.weekDays?.length,ilustracoes_pendentes:planoCatalogado.missingIllustrations?.length||0}); if(run!==generationRun.current)return;if(!isCompletePlan(planoCatalogado))throw Error('O plano retornado está incompleto. Tente novamente; o treino atual foi mantido.');setCandidatePlan(planoCatalogado);setScreen("planPreview");
-    } catch(err){ if(run!==generationRun.current)return;setGenError(err.message||"Erro ao gerar plano."); setScreen("anamnesis"); }
+    } catch(err){ if(run!==generationRun.current)return;setGenError(`${err.message||"Não foi possível gerar o plano."} Seus dados do formulário e o treino atual foram mantidos.${err.requestId?` Referência: ${err.requestId}`:''}`); setScreen("anamnesis"); }
     if(run===generationRun.current)setGen(false);
   };
 
@@ -3679,7 +3672,7 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         <textarea id="anamnesis-injuries" style={{...S.field,height:90,resize:"none"}} value={form.injuries} onChange={e=>set("injuries",e.target.value)} placeholder="Ex: dor no joelho, hérnia lombar… (ou deixe em branco)"/>
         <label style={S.fieldLabel} htmlFor="anamnesis-conditions">CONDIÇÕES MÉDICAS RELEVANTES</label>
         <textarea id="anamnesis-conditions" style={{...S.field,height:80,resize:"none"}} value={form.conditions} onChange={e=>set("conditions",e.target.value)} placeholder="Ex: hipertensão, diabetes… (ou deixe em branco)"/>
-        {error&&<div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"12px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{error}</div>}
+        {error&&<p className="ab-form-error" role="alert">{error}</p>}
       </>)}
 
       {step===5&&(<>
@@ -3702,7 +3695,7 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
           </label>
         )}
         {logado && <div style={{marginTop:12}}><DocsSaude alunoId={null} selecionaveis selecionados={docsIA} setSelecionados={setDocsIA}/></div>}
-        {error&&<div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"12px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{error}</div>}
+        {error&&<p className="ab-form-error" role="alert">{error}</p>}
       </>)}
 
       </section>
