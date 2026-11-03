@@ -2,9 +2,7 @@
 // A rota principal está em /api/openai.
 import { SCIENCE_VERSIONS, scientificContext, validateScientificMetadata } from "./science.js";
 
-const SUPA_URL = process.env.VITE_SUPABASE_URL || "https://zvmriqxigpwuggyhpoun.supabase.co";
-const SUPA_ANON = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXAiLCJyZWYiOiJ6dm1yaXF4aWdwd3VnZ3locG91biIsInJvbGUiOiJhbm9uIiwiaWF0IjoxNzgzNTQzMTAwLCJleHAiOjIwOTkxMTkxMDB9.HrnVWaVSaWkGUXRc8MXKjM2Vj2N0xN6wwp95y7zmjbQ";
-const ORIGENS = ["https://a-body.vercel.app", "http://localhost:5173"];
+const origensPermitidas = () => [...(process.env.ALLOWED_ORIGINS || "").split(",").map(o => o.trim()).filter(Boolean), "http://localhost:5173"];
 const QUOTA_DIARIA = 20;
 const QUOTA_PRO = 60;
 // Marcadores explícitos emitidos pelo app. Os antigos ficam por compatibilidade
@@ -284,13 +282,8 @@ function registrarEvento(requestId, stage, fields = {}) {
   console.log(JSON.stringify({ service:"abody-ai", requestId, stage, ...fields }));
 }
 
-async function quotaRpc(jwt, nome, body) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/rpc/${nome}`, {
-    method: "POST",
-    headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return { ok:r.ok, data:await r.json().catch(()=>null) };
+async function quotaRpc(req, nome, body) {
+  try { return { ok:true, data:await req.abody.quota[nome](body) }; } catch { return { ok:false, data:null }; }
 }
 
 // Whitespace keeps long mobile/proxy connections active without changing the
@@ -310,7 +303,7 @@ export default async function handler(req, res) {
   const inicio = Date.now();
   res.setHeader("X-Request-Id", requestId);
   const origem = req.headers.origin || "";
-  if (ORIGENS.includes(origem)) res.setHeader("Access-Control-Allow-Origin", origem);
+  if (origensPermitidas().includes(origem)) res.setHeader("Access-Control-Allow-Origin", origem);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -319,11 +312,8 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return res.status(503).json({ error: { code:"AI_CONFIGURATION", message: "O serviço de geração está temporariamente indisponível.", requestId } });
-  const jwt = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (!jwt) return res.status(401).json({ error: { message: "Faça login para usar a geração por IA." } });
+  if (!req.abody?.owner || !req.abody?.quota) return res.status(401).json({ error: { message: "Sessão inválida ou expirada. Entre novamente." } });
 
-  const uResp = await fetch(`${SUPA_URL}/auth/v1/user`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
-  if (!uResp.ok) return res.status(401).json({ error: { message: "Sessão inválida ou expirada. Faça login novamente." } });
 
   const body = req.body || {};
   if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 4) return res.status(400).json({ error: { message: "Payload inválido" } });
@@ -344,13 +334,9 @@ export default async function handler(req, res) {
   }
 
   const treino = eGeracaoDeTreino(texto);
-  let quota = QUOTA_DIARIA;
-  try {
-    const p = await fetch(`${SUPA_URL}/rest/v1/profissionais?select=user_id&limit=1`, { headers: { apikey: SUPA_ANON, Authorization: `Bearer ${jwt}` } });
-    if (p.ok && (await p.json()).length) quota = QUOTA_PRO;
-  } catch {}
+  const quota = Number(process.env.AI_DAILY_QUOTA) || QUOTA_PRO;
   let reserva;
-  try { reserva = await quotaRpc(jwt, "reserve_ia_quota", { limite:quota }); }
+  try { reserva = await quotaRpc(req, "reserve_ia_quota", { limite:quota }); }
   catch { reserva = { ok:false, data:null }; }
   if (!reserva.ok || !reserva.data) {
     registrarEvento(requestId, "quota_rejected", { durationMs:Date.now()-inicio });
@@ -362,7 +348,7 @@ export default async function handler(req, res) {
   }
   const reservaId = reserva.data;
   const cancelarReserva = async () => {
-    try { await quotaRpc(jwt, "cancel_ia_quota", { reserva_id:reservaId }); } catch {}
+    try { await quotaRpc(req, "cancel_ia_quota", { reserva_id:reservaId }); } catch {}
   };
   const mensagens = prepararMensagens(body.messages, treino);
   const formato = formatoEstruturado(treino, texto);
@@ -423,7 +409,7 @@ export default async function handler(req, res) {
         if (erros.length) registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
       }
     }
-    const confirmacao = await quotaRpc(jwt, "confirm_ia_quota", { reserva_id:reservaId });
+    const confirmacao = await quotaRpc(req, "confirm_ia_quota", { reserva_id:reservaId });
     if (!confirmacao.ok || confirmacao.data !== true) throw new Error("quota confirmation failed");
     if(!res.headersSent)res.setHeader("X-A-Body-Validation", "ACSM-2026-IUSCA-duration-v2");
     registrarEvento(requestId, "completed", { treino, durationMs:Date.now()-inicio });

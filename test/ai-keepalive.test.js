@@ -8,4 +8,16 @@ test('actual HTTP idle cutoff reproduces buffered failure; keepalive delivers de
   try{await assert.rejects(throughIdleConnection('/buffered'),/idle cutoff/);assert.deepEqual(await throughIdleConnection('/stream'),{content:[{type:'text',text:'synthetic'}]});}finally{await new Promise(r=>server.close(r));}
 });
 test('legacy clients retain HTTP error status; keepalive retains error JSON and closes its timer',async()=>{const server=http.createServer(async(req,res)=>{adapt(res);const stream=createAIResponse(res,req.url==='/stream',10);stream.start();await delay(30);stream.send(503,{error:{code:'AI_CAPACITY',message:'synthetic'}});});await new Promise(r=>server.listen(0,'127.0.0.1',r));try{const base='http://127.0.0.1:'+server.address().port;const legacy=await fetch(base+'/legacy');assert.equal(legacy.status,503);const stream=await fetch(base+'/stream');assert.equal(stream.status,200);assert.equal((await stream.json()).error.code,'AI_CAPACITY');}finally{await new Promise(r=>server.close(r));}});
-test('real handler never opens keepalive before auth, payload and quota checks pass',async()=>{const previousFetch=globalThis.fetch,previousKey=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='synthetic-not-sent';try{for(const kind of ['missing-auth','bad-session','bad-payload','quota-unavailable']){globalThis.fetch=async url=>{if(String(url).includes('/auth/v1/user'))return Response.json({id:'synthetic'},{status:kind==='bad-session'?401:200});if(String(url).includes('/profissionais'))return Response.json([]);if(String(url).includes('/reserve_ia_quota'))return Response.json(null,{status:503});assert.fail('upstream AI must not be called');};let status,payload;const res={setHeader(){},write(){assert.fail('stream must not open')},status(value){status=value;return this},json(value){payload=value;return this}};await handler({method:'POST',headers:{authorization:kind==='missing-auth'?'':'Bearer fixture'},body:{keep_alive:true,messages:kind==='bad-payload'?[]:[{role:'user',content:'A-BODY:ANALISE_CORPORAL'}]}},res);assert.equal(status,kind==='bad-payload'?400:kind==='quota-unavailable'?503:401);assert(payload.error);}}finally{globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=previousKey;}});
+test('real handler never opens keepalive before auth, payload and quota checks pass',async()=>{
+  const previousFetch=globalThis.fetch,previousKey=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='synthetic-not-sent';
+  try{
+    for(const kind of ['missing-auth','bad-payload','quota-unavailable']){
+      globalThis.fetch=async()=>assert.fail('upstream AI must not be called');
+      let status,payload;
+      const res={setHeader(){},write(){assert.fail('stream must not open')},status(value){status=value;return this},json(value){payload=value;return this}};
+      const abody=kind==='missing-auth'?{owner:null,quota:null}:{owner:{id:'synthetic'},quota:{reserve_ia_quota:async()=>{throw new Error('down')}}};
+      await handler({method:'POST',headers:{},abody,body:{keep_alive:true,messages:kind==='bad-payload'?[]:[{role:'user',content:'A-BODY:ANALISE_CORPORAL'}]}},res);
+      assert.equal(status,kind==='bad-payload'?400:kind==='quota-unavailable'?503:401);assert(payload.error);
+    }
+  }finally{globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=previousKey;}
+});

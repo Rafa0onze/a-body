@@ -334,10 +334,15 @@ const SUPA_KEY  = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const AUTH_ENABLED = !!(SUPA_URL && SUPA_KEY);
 const wantsAthleteView = () => new URLSearchParams(window.location.search).get("view") === "workout";
 
-const getSession  = () => { try { return JSON.parse(localStorage.getItem("abody:session")) || null; } catch { return null; } };
-const saveSession = (s) => localStorage.setItem("abody:session", JSON.stringify(s));
+// Modo solo (Cloudflare Access): sessão fixa, sem tela de login. O acesso é protegido pelo Access.
+const SOLO_MODE = import.meta.env.VITE_SOLO_MODE === "1";
+const SOLO_SESSION = { access_token:"solo", refresh_token:"solo", expires_at:4102444800, user:{ id:import.meta.env.VITE_SOLO_USER_ID || "" } };
+if (SOLO_MODE) { try { localStorage.setItem("abody:session", JSON.stringify(SOLO_SESSION)); } catch {} }
+
+const getSession  = () => { if (SOLO_MODE) return SOLO_SESSION; try { return JSON.parse(localStorage.getItem("abody:session")) || null; } catch { return null; } };
+const saveSession = (s) => { if (!SOLO_MODE) localStorage.setItem("abody:session", JSON.stringify(s)); };
 let accountEpoch=0;
-const clearSession= () => {accountEpoch++;localStorage.removeItem("abody:session");};
+const clearSession= () => {accountEpoch++;if(!SOLO_MODE)localStorage.removeItem("abody:session");};
 
 async function supaFetch(path, opts={}) {
   const res = await fetch(`${SUPA_URL}${path}`, {
@@ -2011,7 +2016,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {screen==="proPerfil"    && pro && <ProPerfilScreen pro={pro} onSaved={(p)=>{setPro(p);setScreen("proHome");}} onBack={()=>setScreen("proHome")}/>}
       {screen==="proAgenda"    && pro && <ProAgendaScreen onBack={()=>setScreen("proHome")}/>}
       {screen==="proAlunos"    && pro && <ProAlunosScreen onBack={()=>setScreen("proHome")}/>}
-      {AUTH_ENABLED && user && <ContaGlobal user={user} onLogout={doLogout}/>}
+      {AUTH_ENABLED && !SOLO_MODE && user && <ContaGlobal user={user} onLogout={doLogout}/>}
       {screen==="aguardandoTreino" && vinculo && <AguardandoTreinoScreen vinculo={vinculo} personal={personal} onSettings={()=>setShowSettings(true)}
         onAtualizar={async()=>{ const v = await fetchVinculoAluno(); if (v?.treino?.plano) { setVinculo(v); setPlan({ ...v.treino.plano, locked: true }); setScreen("home"); } }}/>}
       {screen==="measurements" && <Measurements load={loadMeasurements} save={saveMeasurements} onBack={()=>setScreen(plan?"home":"onboarding")}/>}
