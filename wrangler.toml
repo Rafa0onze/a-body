@@ -1,0 +1,19 @@
+# Config do Pages (fonte da verdade). Repo público: nada sensível aqui.
+# OWNER_EMAIL, ACCESS_TEAM_DOMAIN, ACCESS_AUD, OPENAI_MODEL e OPENAI_API_KEY são Secrets no painel.
+name = "a-body"
+pages_build_output_dir = "dist"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "abody"
+database_id = "31be2623-499d-49e3-885b-363d61cce9ad"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "abody-files"
+
+[vars]
+OWNER_ID = "a40adc21-11df-41d8-ba22-8176847035a2"
+ALLOW_IMPORT = "1" # remover depois da importação
