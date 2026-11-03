@@ -9,7 +9,7 @@ test('actual HTTP idle cutoff reproduces buffered failure; keepalive delivers de
 });
 test('legacy clients retain HTTP error status; keepalive retains error JSON and closes its timer',async()=>{const server=http.createServer(async(req,res)=>{adapt(res);const stream=createAIResponse(res,req.url==='/stream',10);stream.start();await delay(30);stream.send(503,{error:{code:'AI_CAPACITY',message:'synthetic'}});});await new Promise(r=>server.listen(0,'127.0.0.1',r));try{const base='http://127.0.0.1:'+server.address().port;const legacy=await fetch(base+'/legacy');assert.equal(legacy.status,503);const stream=await fetch(base+'/stream');assert.equal(stream.status,200);assert.equal((await stream.json()).error.code,'AI_CAPACITY');}finally{await new Promise(r=>server.close(r));}});
 test('real handler never opens keepalive before auth, payload and quota checks pass',async()=>{
-  const previousFetch=globalThis.fetch,previousKey=process.env.ANTHROPIC_API_KEY;process.env.ANTHROPIC_API_KEY='synthetic-not-sent';
+  const previousFetch=globalThis.fetch,previousKey=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='synthetic-not-sent';
   try{
     for(const kind of ['missing-auth','bad-payload','quota-unavailable']){
       globalThis.fetch=async()=>assert.fail('upstream AI must not be called');
@@ -19,5 +19,5 @@ test('real handler never opens keepalive before auth, payload and quota checks p
       await handler({method:'POST',headers:{},abody,body:{keep_alive:true,messages:kind==='bad-payload'?[]:[{role:'user',content:'A-BODY:ANALISE_CORPORAL'}]}},res);
       assert.equal(status,kind==='bad-payload'?400:kind==='quota-unavailable'?503:401);assert(payload.error);
     }
-  }finally{globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=previousKey;}
+  }finally{globalThis.fetch=previousFetch;if(previousKey===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=previousKey;}
 });

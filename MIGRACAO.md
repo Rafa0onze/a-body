@@ -1,6 +1,6 @@
 # Migração A-Body → Cloudflare (modo solo)
 
-Pages (site + Functions) · D1 (dados) · R2 (fotos) · Access (login) · Claude (Anthropic) via proxy.
+Pages (site + Functions) · D1 (dados) · R2 (fotos) · Access (login com Google) · OpenAI via proxy.
 
 ## 1. Criar no painel da Cloudflare
 1. **Storage & databases → D1:** criar o banco `abody`. **R2:** criar o bucket `abody-files`.
@@ -22,7 +22,8 @@ Pages (site + Functions) · D1 (dados) · R2 (fotos) · Access (login) · Claude
 | `OWNER_EMAIL` | seu e-mail do Google (o mesmo da política do Access) |
 | `ACCESS_TEAM_DOMAIN` | `xxxx.cloudflareaccess.com` |
 | `ACCESS_AUD` | AUD tag do aplicativo no Access |
-| `ANTHROPIC_API_KEY` | chave da Anthropic (tipo Secret). Modelo fixo no código: `claude-opus-5-5` |
+| `OPENAI_API_KEY` | chave **nova** (tipo Secret) |
+| `OPENAI_MODEL` | o modelo que você usa hoje |
 | `ALLOW_IMPORT` | `1` (**apenas durante a importação**) |
 | `AI_DAILY_QUOTA` | opcional (padrão: cota do plano PRO do código) |
 

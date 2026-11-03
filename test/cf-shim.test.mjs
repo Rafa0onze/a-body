@@ -170,6 +170,6 @@ run("adaptador Node→Pages: json, streaming com keep-alive e proxy de IA proteg
   assert.deepEqual(JSON.parse(await s.text()), { ok: true });
   const { default: ia } = await carregar("api/claude.js");
   const semAcesso = nodeHandler(ia);
-  const bloqueado = await semAcesso(ctx(mkEnv({ DEV_BYPASS_ACCESS: "0", ANTHROPIC_API_KEY: "x" }), new Request("https://t.test/api/openai", { method: "POST", headers: { "content-type": "application/json" }, body: J({ messages: [{ role: "user", content: "A-BODY:PLANO_TREINO" }] }) })));
+  const bloqueado = await semAcesso(ctx(mkEnv({ DEV_BYPASS_ACCESS: "0", OPENAI_API_KEY: "x" }), new Request("https://t.test/api/openai", { method: "POST", headers: { "content-type": "application/json" }, body: J({ messages: [{ role: "user", content: "A-BODY:PLANO_TREINO" }] }) })));
   assert.equal(bloqueado.status, 401);
 });
