@@ -1,5 +1,5 @@
 # Config do Pages (fonte da verdade). Repo público: nada sensível aqui.
-# OWNER_EMAIL, ACCESS_TEAM_DOMAIN, ACCESS_AUD, OPENAI_MODEL e OPENAI_API_KEY são Secrets no painel.
+# OWNER_EMAIL, ACCESS_TEAM_DOMAIN, ACCESS_AUD e ANTHROPIC_API_KEY são Secrets no painel.
 name = "a-body"
 pages_build_output_dir = "dist"
 compatibility_date = "2025-04-01"

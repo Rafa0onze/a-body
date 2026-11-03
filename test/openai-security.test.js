@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conteudoAssistantOpenAI, conteudoOpenAI, eGeracaoDeTreino, erroPublicoOpenAI, errosCriticosPlano, formatoEstruturado, validarPlano } from "../api/claude.js";
+import { conteudoClaude, eGeracaoDeTreino, erroPublicoIA, errosCriticosPlano, formatoEstruturado, validarPlano } from "../api/claude.js";
 import { SCIENCE_VERSION, SCIENCE_VERSIONS, scientificContext, scientificProfile, validateScientificMetadata } from "../api/science.js";
 import { adaptiveInsight } from "../src/adaptation.js";
 
@@ -9,15 +9,15 @@ test("detecta somente geração de treino", () => {
   assert.equal(eGeracaoDeTreino("A-BODY:ANALISE_CORPORAL"), false);
 });
 
-test("converte somente anexos locais em data URLs", () => {
-  const itens = conteudoOpenAI([
+test("repassa anexos no formato da Anthropic sem campos extras", () => {
+  const itens = conteudoClaude([
     { type:"text", text:"ok" },
-    { type:"image", source:{ media_type:"image/jpeg", data:"YWJj" } },
-    { type:"document", source:{ media_type:"application/pdf", data:"YWJj", filename:"x.pdf" } },
+    { type:"image", source:{ type:"base64", media_type:"image/jpeg", data:"YWJj" } },
+    { type:"document", source:{ type:"base64", media_type:"application/pdf", data:"YWJj", filename:"x.pdf" } },
   ]);
-  assert.deepEqual(itens.map(x => x.type), ["input_text", "input_image", "input_file"]);
-  assert.match(itens[1].image_url, /^data:image\/jpeg;base64,/);
-  assert.match(itens[2].file_data, /^data:application\/pdf;base64,/);
+  assert.deepEqual(itens.map(x => x.type), ["text", "image", "document"]);
+  assert.deepEqual(itens[2].source, { type:"base64", media_type:"application/pdf", data:"YWJj" });
+  assert.equal(conteudoClaude("texto"), "texto");
 });
 
 test("usa Structured Outputs estrito nos planos", () => {
@@ -43,18 +43,14 @@ test("validador rejeita pernas consecutivas e falta de core", () => {
   assert.ok(erros.some(e => e.includes("core")));
 });
 
-test("usa output_text ao reenviar a resposta do assistant para correção", () => {
-  assert.deepEqual(conteudoAssistantOpenAI("plano"), [{ type:"output_text", text:"plano" }]);
-});
-
 test("não expõe mensagens internas do fornecedor de IA", () => {
-  assert.deepEqual(erroPublicoOpenAI(429), {
+  assert.deepEqual(erroPublicoIA(429), {
     status:503,
     code:"AI_CAPACITY",
     message:"A geração está temporariamente indisponível. Tente novamente em alguns minutos.",
   });
-  assert.equal(erroPublicoOpenAI(400).code, "AI_REQUEST_REJECTED");
-  assert.doesNotMatch(erroPublicoOpenAI(400).message, /openai|input_text|quota/i);
+  assert.equal(erroPublicoIA(400).code, "AI_REQUEST_REJECTED");
+  assert.doesNotMatch(erroPublicoIA(400).message, /openai|anthropic|claude|quota/i);
 });
 
 test("não bloqueia entrega por alertas heurísticos de qualidade", () => {

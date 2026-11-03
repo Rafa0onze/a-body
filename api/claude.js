@@ -1,5 +1,7 @@
-// Compatibilidade para clientes antigos. A implementação usa OpenAI Responses API.
-// A rota principal está em /api/openai.
+// Motor de IA do A-Body: Claude (Anthropic Messages API).
+// A rota principal está em /api/openai (nome mantido por compatibilidade com o app).
+import Anthropic from "@anthropic-ai/sdk";
+import { jsonSchemaOutputFormat } from "@anthropic-ai/sdk/helpers/json-schema";
 import { SCIENCE_VERSIONS, scientificContext, validateScientificMetadata } from "./science.js";
 
 const origensPermitidas = () => [...(process.env.ALLOWED_ORIGINS || "").split(",").map(o => o.trim()).filter(Boolean), "http://localhost:5173"];
@@ -212,32 +214,14 @@ function validarPlano(textoRespostaIA, textoPedido) {
   return erros;
 }
 
-function conteudoOpenAI(content) {
-  if (typeof content === "string") return [{ type: "input_text", text: content }];
+// O app já envia blocos no formato da Anthropic; só removemos o que a API não aceita.
+function conteudoClaude(content) {
+  if (typeof content === "string") return content;
   return (content || []).map(item => {
-    if (item.type === "text") return { type: "input_text", text: item.text || "" };
-    if (item.type === "image") {
-      return {
-        type: "input_image",
-        image_url: `data:${item.source.media_type};base64,${item.source.data}`,
-        detail: "high",
-      };
-    }
-    return {
-      type: "input_file",
-      filename: item.source.filename || "documento.pdf",
-      file_data: `data:${item.source.media_type};base64,${item.source.data}`,
-    };
+    if (item.type !== "document") return item;
+    const { filename, ...source } = item.source || {};
+    return { ...item, source };
   });
-}
-
-function respostaCompativelOpenAI(data) {
-  const texto = (data?.output || [])
-    .flatMap(item => Array.isArray(item.content) ? item.content : [])
-    .filter(item => item.type === "output_text")
-    .map(item => item.text || "")
-    .join("");
-  return { id: data?.id, model: data?.model, content: [{ type: "text", text: texto }], usage: data?.usage };
 }
 
 function errosCriticosPlano(erros) {
@@ -257,21 +241,27 @@ function categoriasValidacao(erros) {
   }))];
 }
 
-export function conteudoAssistantOpenAI(texto) {
-  return [{ type: "output_text", text: String(texto || "") }];
+const MODELO = "claude-opus-5-5";
+
+// Retorna { status, data } no formato que o app já consome: { content:[{type:"text"}] }.
+async function chamarClaude(cliente, params) {
+  try {
+    const msg = await cliente.beta.messages.parse({
+      ...params,
+      // Em recusa por política, a API refaz a chamada num modelo de reserva.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+    });
+    if (msg.stop_reason === "refusal") return { status: 400, data: null };
+    const texto = msg.content.filter(b => b.type === "text").map(b => b.text).join("");
+    return { status: 200, data: { id: msg.id, model: msg.model, content: [{ type: "text", text: texto }], usage: msg.usage } };
+  } catch (e) {
+    if (e instanceof Anthropic.APIError && e.status) return { status: e.status, data: null };
+    throw e;
+  }
 }
 
-async function chamarOpenAI(apiKey, body) {
-  const r = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-  });
-  const data = await r.json();
-  return { status: r.status, data: r.ok ? respostaCompativelOpenAI(data) : data };
-}
-
-function erroPublicoOpenAI(status) {
+function erroPublicoIA(status) {
   if (status === 429) return { status: 503, code: "AI_CAPACITY", message: "A geração está temporariamente indisponível. Tente novamente em alguns minutos." };
   if (status === 401 || status === 403) return { status: 503, code: "AI_CONFIGURATION", message: "O serviço de geração está temporariamente indisponível." };
   if (status >= 500) return { status: 503, code: "AI_UNAVAILABLE", message: "A geração está temporariamente indisponível. Tente novamente." };
@@ -310,7 +300,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "POST") return res.status(405).json({ error: { message: "Method not allowed" } });
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(503).json({ error: { code:"AI_CONFIGURATION", message: "O serviço de geração está temporariamente indisponível.", requestId } });
   if (!req.abody?.owner || !req.abody?.quota) return res.status(401).json({ error: { message: "Sessão inválida ou expirada. Entre novamente." } });
 
@@ -353,24 +343,25 @@ export default async function handler(req, res) {
   const mensagens = prepararMensagens(body.messages, treino);
   const formato = formatoEstruturado(treino, texto);
   const safeBody = {
-    model: process.env.OPENAI_MODEL || "gpt-5.6",
-    max_output_tokens: Math.min(Number(body.max_tokens) || 2000, 8192),
+    model: MODELO,
+    // Inclui o raciocínio adaptativo (sempre ativo no Opus 5.5), por isso a folga.
+    max_tokens: 16000,
     // Structured Outputs e o validador local já fazem a fiscalização pesada.
     // Esforço baixo reduz drasticamente o tempo de espera no telefone.
-    reasoning: { effort: "low" },
-    text: { verbosity: "low", ...(formato ? { format: formato } : {}) },
-    input: mensagens.map(m => ({ role: m.role, content: conteudoOpenAI(m.content) })),
+    output_config: { effort: "low", ...(formato ? { format: jsonSchemaOutputFormat(formato.schema) } : {}) },
+    messages: mensagens.map(m => ({ role: m.role, content: conteudoClaude(m.content) })),
   };
+  const cliente = new Anthropic({ apiKey });
   const response=createAIResponse(res,body.keep_alive===true);
   response.start();
 
   try {
-    registrarEvento(requestId, "openai_started", { treino, anexos });
-    let result = await chamarOpenAI(apiKey, safeBody);
+    registrarEvento(requestId, "ai_started", { treino, anexos });
+    let result = await chamarClaude(cliente, safeBody);
     if (result.status >= 400) {
       await cancelarReserva();
-      const publico = erroPublicoOpenAI(result.status);
-      registrarEvento(requestId, "openai_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
+      const publico = erroPublicoIA(result.status);
+      registrarEvento(requestId, "ai_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
       return response.send(publico.status,{ error:{ ...publico, requestId } });
     }
     if (treino) {
@@ -383,20 +374,18 @@ export default async function handler(req, res) {
         registrarEvento(requestId, "validation_warning", { categories:categoriasValidacao(erros), errorCount:erros.length });
       } else if (criticos.length) {
         const correcao = `A resposta falhou na validação automática: ${erros.join("; ")}. Gere novamente o MESMO plano em JSON válido, corrigindo tudo. A duração informada inclui 5 min de aquecimento e 10–15 min de aeróbico; ajuste a musculação para completar o restante. Use de 4 a 8 exercícios conforme necessário. Não explique.`;
-        result = await chamarOpenAI(apiKey, {
+        result = await chamarClaude(cliente, {
           ...safeBody,
-          input: [
-            ...safeBody.input,
-            // No Responses API, conteúdo histórico do assistant precisa usar
-            // output_text; input_text é aceito apenas em mensagens de entrada.
-            { role: "assistant", content: conteudoAssistantOpenAI(textoResposta(result.data)) },
-            { role: "user", content: [{ type: "input_text", text: correcao }] },
+          messages: [
+            ...safeBody.messages,
+            { role: "assistant", content: textoResposta(result.data) },
+            { role: "user", content: correcao },
           ],
         });
         if (result.status >= 400) {
           await cancelarReserva();
-          const publico = erroPublicoOpenAI(result.status);
-          registrarEvento(requestId, "openai_retry_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
+          const publico = erroPublicoIA(result.status);
+          registrarEvento(requestId, "ai_retry_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
           return response.send(publico.status,{ error:{ ...publico, requestId } });
         }
         erros = validarPlano(textoResposta(result.data), texto);
@@ -423,4 +412,4 @@ export default async function handler(req, res) {
   }
 }
 
-export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, errosCriticosPlano, conteudoOpenAI, formatoEstruturado, erroPublicoOpenAI };
+export { corpoTexto, eGeracaoDeTreino, extrairJSON, validarPlano, errosCriticosPlano, conteudoClaude, formatoEstruturado, erroPublicoIA };
