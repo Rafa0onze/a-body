@@ -16,4 +16,3 @@ bucket_name = "abody-files"
 
 [vars]
 OWNER_ID = "a40adc21-11df-41d8-ba22-8176847035a2"
-ALLOW_IMPORT = "1" # remover depois da importação
