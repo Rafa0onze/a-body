@@ -252,11 +252,11 @@ async function chamarClaude(cliente, params) {
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
     });
-    if (msg.stop_reason === "refusal") return { status: 400, data: null, detail: `refusal:${msg.stop_details?.category ?? "?"}` };
+    if (msg.stop_reason === "refusal") return { status: 400, data: null };
     const texto = msg.content.filter(b => b.type === "text").map(b => b.text).join("");
     return { status: 200, data: { id: msg.id, model: msg.model, content: [{ type: "text", text: texto }], usage: msg.usage } };
   } catch (e) {
-    if (e instanceof Anthropic.APIError && e.status) return { status: e.status, data: null, detail: String(e.message || "").slice(0, 300) };
+    if (e instanceof Anthropic.APIError && e.status) return { status: e.status, data: null };
     throw e;
   }
 }
@@ -361,7 +361,7 @@ export default async function handler(req, res) {
     if (result.status >= 400) {
       await cancelarReserva();
       const publico = erroPublicoIA(result.status);
-      registrarEvento(requestId, "ai_failed", { upstreamStatus:result.status, detail:result.detail, durationMs:Date.now()-inicio });
+      registrarEvento(requestId, "ai_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
       return response.send(publico.status,{ error:{ ...publico, requestId } });
     }
     if (treino) {
@@ -385,7 +385,7 @@ export default async function handler(req, res) {
         if (result.status >= 400) {
           await cancelarReserva();
           const publico = erroPublicoIA(result.status);
-          registrarEvento(requestId, "ai_retry_failed", { upstreamStatus:result.status, detail:result.detail, durationMs:Date.now()-inicio });
+          registrarEvento(requestId, "ai_retry_failed", { upstreamStatus:result.status, durationMs:Date.now()-inicio });
           return response.send(publico.status,{ error:{ ...publico, requestId } });
         }
         erros = validarPlano(textoResposta(result.data), texto);
