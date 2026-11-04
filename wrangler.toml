@@ -16,3 +16,9 @@ bucket_name = "abody-files"
 
 [vars]
 OWNER_ID = "a40adc21-11df-41d8-ba22-8176847035a2"
+
+# Alarme do fim de descanso (Durable Object no Worker abody-push, pasta workers/push).
+[[durable_objects.bindings]]
+name = "PUSH"
+class_name = "PushTimer"
+script_name = "abody-push"

@@ -544,9 +544,31 @@ function beepDescanso() {
 function pedirPermissaoNotif() {
   try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch {}
 }
+// Push do servidor no fim do descanso: chega mesmo com a tela apagada ou o app fechado.
+const VAPID_PUBLICA = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";
+let pushAgendado = false;
+const b64uBytes = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
+async function agendarPushDescanso(segundos) {
+  pushAgendado = false;
+  try {
+    if (!VAPID_PUBLICA || !("PushManager" in window) || Notification.permission !== "granted" || segundos < 1) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription()
+      || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(VAPID_PUBLICA) });
+    const r = await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "schedule", seconds: Math.round(segundos), subscription: { endpoint: sub.endpoint } }) });
+    pushAgendado = r.ok;
+  } catch {}
+}
+function cancelarPushDescanso() {
+  if (!pushAgendado) return;
+  pushAgendado = false;
+  fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "cancel" }), keepalive: true }).catch(() => {});
+}
 function notificarDescansoFim() {
   try {
-    if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+    // Com push agendado, o aviso vem do servidor; evita notificação duplicada.
+    if (!pushAgendado && "Notification" in window && Notification.permission === "granted" && document.hidden) {
       navigator.serviceWorker?.ready?.then(reg =>
         reg.showNotification("⏱ Descanso encerrado!", {
           body: "Hora da próxima série. Bora! 💪",
@@ -1714,6 +1736,14 @@ export default function App() {
     }
     return()=>clearInterval(restRef.current);
   },[screen,restSec===restTotal]);
+  // Agenda o push ao entrar no descanso; cancela se o descanso acabar antes (pulou)
+  // ou se o app estava aberto no fim (o bipe local já avisou).
+  useEffect(()=>{
+    if(screen!=="rest"||restSec<1) return;
+    const fim=Date.now()+restSec*1000;
+    agendarPushDescanso(restSec);
+    return()=>{ if(Date.now()<fim-1500||!document.hidden) cancelarPushDescanso(); };
+  },[screen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── PLANO VIA IA ──────────────────────────────────────────────────────────
 

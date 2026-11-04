@@ -43,6 +43,14 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
+// Push do servidor (sem conteúdo) = fim do descanso.
+self.addEventListener("push", (e) => {
+  e.waitUntil(self.registration.showNotification("⏱ Descanso encerrado!", {
+    body: "Hora da próxima série. Bora! 💪", tag: "abody-rest", renotify: true,
+    vibrate: [250, 120, 250], icon: "/icon-192.png",
+  }));
+});
+
 // Tocar no aviso de descanso traz o app de volta
 self.addEventListener("notificationclick", (e) => {
   e.notification.close();

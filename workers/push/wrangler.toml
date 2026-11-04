@@ -1,0 +1,19 @@
+# Worker auxiliar do A-Body: alarme do fim de descanso + Web Push.
+# Deploy: npx wrangler deploy (nesta pasta). Secret: VAPID_PRIVATE_JWK.
+name = "abody-push"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+workers_dev = false
+preview_urls = false
+
+[vars]
+VAPID_PUBLIC_KEY = "BFE1TyZdKCVPUUMxRktN9Q7hTUimcTm2iI78CZxg6BhULO1iw6ia0MjJjOPVrc2SSxEKNug2j4DCQZxK_nCY0q4"
+VAPID_SUBJECT = "https://a-body-dbh.pages.dev"
+
+[[durable_objects.bindings]]
+name = "PUSH"
+class_name = "PushTimer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PushTimer"]
