@@ -21,7 +21,7 @@ import { PRESETS } from "./presets.js";
 // ─── BIBLIOTECA DE EXERCÍCIOS ─────────────────────────────────────────────────
 
 const EXERCISE_LIBRARY = {
-  peito:       { label:"Peito", icon:"🫁", exercises:[
+  peito:       { label:"Peito", icon:"", exercises:[
     { id:"sup_ret_bar",  name:"Supino reto (barra)",         sets:4, reps:"6-8",   rest:90,  pose:"press_chest" },
     { id:"sup_ret_halt", name:"Supino reto (halteres)",      sets:4, reps:"8-10",  rest:90,  pose:"press_chest" },
     { id:"sup_inc_bar",  name:"Supino inclinado (barra)",    sets:3, reps:"8-10",  rest:75,  pose:"press_chest" },
@@ -32,7 +32,7 @@ const EXERCISE_LIBRARY = {
     { id:"cross_over",   name:"Cross-over no cabo",          sets:3, reps:"12-15", rest:60,  pose:"fly"         },
     { id:"flexao",       name:"Flexão de braço",             sets:3, reps:"10-15", rest:60,  pose:"press_chest" },
   ]},
-  ombro:       { label:"Ombro", icon:"🔺", exercises:[
+  ombro:       { label:"Ombro", icon:"", exercises:[
     { id:"dev_bar",      name:"Desenvolvimento (barra)",     sets:4, reps:"6-8",   rest:90,  pose:"press_overhead" },
     { id:"dev_halt",     name:"Desenvolvimento (halteres)",  sets:3, reps:"8-10",  rest:75,  pose:"press_overhead" },
     { id:"dev_smith",    name:"Desenvolvimento no Smith",    sets:3, reps:"8-10",  rest:75,  pose:"press_overhead" },
@@ -42,7 +42,7 @@ const EXERCISE_LIBRARY = {
     { id:"face_pull",    name:"Face pull",                   sets:3, reps:"12-15", rest:60,  pose:"face_pull"      },
     { id:"maq_ombro",    name:"Máquina de ombro",            sets:3, reps:"10-12", rest:75,  pose:"press_overhead" },
   ]},
-  triceps:     { label:"Tríceps", icon:"💪", exercises:[
+  triceps:     { label:"Tríceps", icon:"", exercises:[
     { id:"tri_corda",    name:"Tríceps corda",               sets:3, reps:"10-12", rest:60,  pose:"triceps" },
     { id:"tri_polia",    name:"Tríceps polia alta (barra)",  sets:3, reps:"10-12", rest:60,  pose:"triceps" },
     { id:"tri_frances",  name:"Tríceps francês",             sets:3, reps:"10-12", rest:60,  pose:"triceps" },
@@ -50,7 +50,7 @@ const EXERCISE_LIBRARY = {
     { id:"mergulho",     name:"Mergulho em banco",           sets:3, reps:"10-15", rest:60,  pose:"triceps" },
     { id:"tri_maq",      name:"Máquina de tríceps",          sets:3, reps:"12-15", rest:60,  pose:"triceps" },
   ]},
-  costas:      { label:"Costas", icon:"🪨", exercises:[
+  costas:      { label:"Costas", icon:"", exercises:[
     { id:"barra_fixa",   name:"Barra fixa",                  sets:4, reps:"6-8",   rest:90,  pose:"pulldown" },
     { id:"pux_alta",     name:"Puxada alta (frente)",        sets:4, reps:"8-10",  rest:90,  pose:"pulldown" },
     { id:"pux_supi",     name:"Puxada supinada",             sets:3, reps:"8-10",  rest:75,  pose:"pulldown" },
@@ -61,7 +61,7 @@ const EXERCISE_LIBRARY = {
     { id:"rem_maq",      name:"Remada na máquina",           sets:3, reps:"10-12", rest:75,  pose:"row"     },
     { id:"rem_cav",      name:"Remada cavalinho",            sets:3, reps:"10-12", rest:75,  pose:"row"     },
   ]},
-  biceps:      { label:"Bíceps", icon:"💪", exercises:[
+  biceps:      { label:"Bíceps", icon:"", exercises:[
     { id:"rosca_dir_bar",name:"Rosca direta (barra)",        sets:3, reps:"10-12", rest:60,  pose:"curl" },
     { id:"rosca_dir_halt",name:"Rosca direta (halteres)",   sets:3, reps:"10-12", rest:60,  pose:"curl" },
     { id:"rosca_alt",    name:"Rosca alternada",             sets:3, reps:"10-12", rest:60,  pose:"curl" },
@@ -69,7 +69,7 @@ const EXERCISE_LIBRARY = {
     { id:"rosca_conc",   name:"Rosca concentrada",           sets:3, reps:"10-12", rest:60,  pose:"curl" },
     { id:"rosca_cabo",   name:"Rosca no cabo baixo",         sets:3, reps:"12-15", rest:60,  pose:"curl" },
   ]},
-  quadriceps:  { label:"Quadríceps", icon:"🦵", exercises:[
+  quadriceps:  { label:"Quadríceps", icon:"", exercises:[
     { id:"agach_livre",  name:"Agachamento livre",           sets:4, reps:"6-8",   rest:120, pose:"squat"        },
     { id:"agach_smith",  name:"Agachamento no Smith",        sets:4, reps:"8-10",  rest:90,  pose:"squat"        },
     { id:"hack_squat",   name:"Hack squat (máquina)",        sets:3, reps:"8-10",  rest:90,  pose:"squat"        },
@@ -82,7 +82,7 @@ const EXERCISE_LIBRARY = {
     { id:"agach_sumo",   name:"Agachamento sumô",            sets:3, reps:"10-12", rest:75,  pose:"squat"        },
     { id:"wall_sit",     name:"Wall sit (isométrico)",       sets:3, reps:"40-60s", rest:60, pose:"squat", iso:true, isoSec:60 },
   ]},
-  posterior:   { label:"Posterior/Glúteo", icon:"🍑", exercises:[
+  posterior:   { label:"Posterior/Glúteo", icon:"", exercises:[
     { id:"terra_rom",    name:"Terra romeno (barra)",        sets:4, reps:"8-10",  rest:120, pose:"hinge"     },
     { id:"terra_halt",   name:"Terra romeno (halteres)",     sets:3, reps:"10-12", rest:90,  pose:"hinge"     },
     { id:"terra_conv",   name:"Terra convencional",          sets:4, reps:"6-8",   rest:120, pose:"hinge"     },
@@ -93,13 +93,13 @@ const EXERCISE_LIBRARY = {
     { id:"cad_flex",     name:"Cadeira flexora",             sets:3, reps:"12-15", rest:60,  pose:"leg_curl"  },
     { id:"nordic",       name:"Nordic curl",                 sets:3, reps:"6-8",   rest:90,  pose:"leg_curl"  },
   ]},
-  panturrilha: { label:"Panturrilha", icon:"🦶", exercises:[
+  panturrilha: { label:"Panturrilha", icon:"", exercises:[
     { id:"pant_pe",      name:"Panturrilha em pé",           sets:4, reps:"15-20", rest:45,  pose:"calf" },
     { id:"pant_sent",    name:"Panturrilha sentado",         sets:4, reps:"15-20", rest:45,  pose:"calf" },
     { id:"pant_maq",     name:"Panturrilha na máquina",      sets:4, reps:"15-20", rest:45,  pose:"calf" },
     { id:"pant_degrau",  name:"Panturrilha no degrau",       sets:4, reps:"15-20", rest:45,  pose:"calf" },
   ]},
-  abdomen:     { label:"Abdômen/Core", icon:"⚡", exercises:[
+  abdomen:     { label:"Abdômen/Core", icon:"", exercises:[
     { id:"prancha",      name:"Prancha abdominal",           sets:3, reps:"40-60s", rest:45, pose:"plank", iso:true, isoSec:60 },
     { id:"elev_pernas",  name:"Elevação de pernas",          sets:3, reps:"12-15", rest:45,  pose:"leg_raise"},
     { id:"abd_roda",     name:"Abdominal com roda",          sets:3, reps:"8-12",  rest:45,  pose:"plank"    },
@@ -123,23 +123,23 @@ const MOBILITY_BY_GROUP = {
 // ─── SPLITS ──────────────────────────────────────────────────────────────────
 
 const SPLITS = {
-  upperlower: { label:"Upper / Lower", icon:"⬆", description:"4 dias · Empurrar+Puxar / Pernas", days:[
+  upperlower: { label:"Upper / Lower", icon:"", description:"4 dias · Empurrar+Puxar / Pernas", days:[
     { id:"ul_upper_a", label:"Upper A", sub:"Peito · Ombro · Tríceps", suggestedGroups:["peito","ombro","triceps"] },
     { id:"ul_lower_a", label:"Lower A", sub:"Quadríceps",               suggestedGroups:["quadriceps","abdomen"]   },
     { id:"ul_upper_b", label:"Upper B", sub:"Costas · Bíceps",          suggestedGroups:["costas","biceps"]        },
     { id:"ul_lower_b", label:"Lower B", sub:"Posterior · Glúteo",       suggestedGroups:["posterior","panturrilha"]},
   ]},
-  ppl: { label:"Push / Pull / Legs", icon:"🔄", description:"3 ou 6 dias · Clássico e eficiente", days:[
+  ppl: { label:"Push / Pull / Legs", icon:"", description:"3 ou 6 dias · Clássico e eficiente", days:[
     { id:"ppl_push",  label:"Push",  sub:"Peito · Ombro · Tríceps",   suggestedGroups:["peito","ombro","triceps"]        },
     { id:"ppl_pull",  label:"Pull",  sub:"Costas · Bíceps",            suggestedGroups:["costas","biceps"]                },
     { id:"ppl_legs",  label:"Legs",  sub:"Pernas · Glúteo · Panturrilha", suggestedGroups:["quadriceps","posterior","panturrilha"] },
   ]},
-  fullbody: { label:"Full Body", icon:"🏋", description:"3 dias · Corpo inteiro por sessão", days:[
+  fullbody: { label:"Full Body", icon:"", description:"3 dias · Corpo inteiro por sessão", days:[
     { id:"fb_a", label:"Full Body A", sub:"Corpo inteiro", suggestedGroups:["peito","costas","quadriceps","abdomen"]  },
     { id:"fb_b", label:"Full Body B", sub:"Corpo inteiro", suggestedGroups:["ombro","biceps","triceps","posterior"]   },
     { id:"fb_c", label:"Full Body C", sub:"Corpo inteiro", suggestedGroups:["peito","costas","posterior","abdomen"]   },
   ]},
-  bro: { label:"Bro Split", icon:"💪", description:"5 dias · Um grupo muscular por dia", days:[
+  bro: { label:"Bro Split", icon:"", description:"5 dias · Um grupo muscular por dia", days:[
     { id:"bro_peito",  label:"Peito",   sub:"Foco em peitoral",         suggestedGroups:["peito","triceps"]             },
     { id:"bro_costas", label:"Costas",  sub:"Foco em dorsal",           suggestedGroups:["costas","biceps"]             },
     { id:"bro_ombro",  label:"Ombros",  sub:"Foco em deltóides",        suggestedGroups:["ombro","triceps"]             },
@@ -151,16 +151,16 @@ const SPLITS = {
 // ─── CARDIO / GOALS / LEVELS ─────────────────────────────────────────────────
 
 const CARDIO_OPTIONS = [
-  { id:"esteira",  name:"Esteira",  icon:"🏃" },
-  { id:"bike",     name:"Bike",     icon:"🚴" },
-  { id:"eliptico", name:"Elíptico", icon:"⚡" },
-  { id:"remo",     name:"Remo",     icon:"🚣" },
+  { id:"esteira",  name:"Esteira",  icon:"" },
+  { id:"bike",     name:"Bike",     icon:"" },
+  { id:"eliptico", name:"Elíptico", icon:"" },
+  { id:"remo",     name:"Remo",     icon:"" },
 ];
 const GOALS = [
-  { id:"massa",          label:"Ganho de massa",    icon:"💪" },
-  { id:"gordura",        label:"Perda de gordura",  icon:"🔥" },
-  { id:"condicionamento",label:"Condicionamento",   icon:"⚡" },
-  { id:"saude",          label:"Saúde geral",       icon:"❤️" },
+  { id:"massa",          label:"Ganho de massa",    icon:"" },
+  { id:"gordura",        label:"Perda de gordura",  icon:"" },
+  { id:"condicionamento",label:"Condicionamento",   icon:"" },
+  { id:"saude",          label:"Saúde geral",       icon:"" },
 ];
 const LEVELS = [
   { id:"iniciante",      label:"Iniciante",     sub:"< 6 meses"     },
@@ -189,7 +189,7 @@ const S={
   brandRow:{display:"flex",alignItems:"center",gap:10,marginBottom:22},
   logo:{width:30,height:30,borderRadius:2,background:C.acc,color:"#f5f6f3",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15},
   brand:{fontSize:15,fontWeight:800,letterSpacing:"0.05em"},
-  eyebrow:{fontSize:11,letterSpacing:"0.15em",color:C.acc,fontWeight:700,marginBottom:8},
+  eyebrow:{display:"none"},
   h1:{fontSize:26,fontWeight:800,margin:"0 0 6px 0",letterSpacing:"-0.01em"},
   sub:{fontSize:13,color:C.muted,margin:"0 0 16px 0",lineHeight:1.5},
   topRow:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14},
@@ -226,6 +226,15 @@ const ICON_PATHS = {
   zap: <path d="M13 2 3 14h8l-1 8 10-12h-8Z"/>,
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   check: <path d="m5 12.5 4.5 4.5L19 7.5"/>,
+  x: <path d="M6 6l12 12M18 6 6 18"/>,
+  back: <><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></>,
+  camera: <><path d="M4 8h3l2-3h6l2 3h3v11H4Z"/><circle cx="12" cy="13" r="3.5"/></>,
+  trash: <><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></>,
+  edit: <><path d="M4 20h4L19 9l-4-4L4 16Z"/><path d="m13 7 4 4"/></>,
+  alert: <><path d="M12 3 2 20h20Z"/><path d="M12 10v4M12 17v.5"/></>,
+  file: <><path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v4h4"/></>,
+  up: <path d="m6 15 6-6 6 6"/>,
+  down: <path d="m6 9 6 6 6-6"/>,
 };
 
 // Grupo muscular → tecido da prancha (cor). Só marca músculo; nunca enfeite.
@@ -619,8 +628,8 @@ function notificarDescansoFim() {
     // Com push agendado, o aviso vem do servidor; evita notificação duplicada.
     if (!pushAgendado && "Notification" in window && Notification.permission === "granted" && document.hidden) {
       navigator.serviceWorker?.ready?.then(reg =>
-        reg.showNotification("⏱ Descanso encerrado!", {
-          body: "Hora da próxima série. Bora! 💪",
+        reg.showNotification("Descanso encerrado", {
+          body: "Hora da próxima série.",
           tag: "abody-rest", renotify: true, vibrate: [250,120,250], silent: false,
         })
       ).catch(()=>{});
@@ -2086,7 +2095,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
           style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#f5f6f3",border:"none",borderRadius:2,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
-          💪 Seu personal atualizou seu treino — toque para dispensar
+          Seu personal atualizou seu treino — toque para dispensar
         </button>
       )}<style>{CSS}</style>
       {screen==='passwordRecovery'&&<PasswordRecovery key={recoveryLink?'recovery-update':'recovery-request'} request={supaFetch} recoveryLink={recoveryLink} initialEmail={recoveryEmail} redirectTo={window.location.origin+window.location.pathname+'?recovery=1'} onCancel={closeRecovery} onRequestNewLink={()=>setRecoveryLink(null)}/>}
@@ -2114,7 +2123,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         />
       )}
       {screen==="planPreview" && candidatePlan && <PlanPreviewScreen plan={candidatePlan} bodyAnalysis={bodyAnalysis} onStart={confirmCandidatePlan} onCancel={cancelPlanEdit} saving={confirmingPlan} error={planError}/>}
-      {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>{ const u=new URL(window.location.href); u.searchParams.delete("view"); window.history.replaceState(null,"",u.pathname+u.search); setScreen("proHome"); }}>← Painel PRO</button>}
+      {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>{ const u=new URL(window.location.href); u.searchParams.delete("view"); window.history.replaceState(null,"",u.pathname+u.search); setScreen("proHome"); }}><Icon name="back" size={16}/> Painel PRO</button>}
       {screen==="home"         && plan && <HomeScreen onResumeWorkout={readWorkoutDraft()?()=>restoreWorkoutDraft():null} onMeasurements={()=>setScreen("measurements")} onResume={hasPlanDraft?resumePlanDraft:null} plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}} linksService={linksService.current} onDetached={afterUnlink} currentLink={vinculo} onLogin={()=>{setShowSettings(false);setScreen('auth');}}/>}
       {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
@@ -2198,7 +2207,7 @@ function AuthScreen({ onDone, onSkip, onForgot }) {
       <h1>{mode==="login" ? "Entre para continuar" : "Crie sua conta"}</h1>
       {convitePendente ? (
         <div style={{background:"#edf6f1",border:`1px solid ${C.acc}`,borderRadius:2,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
-          🎟️ <b>Você foi convidado pelo seu personal.</b> {mode==="signup" ? "Crie sua conta abaixo" : "Entre com sua conta"} e seu acesso será ativado automaticamente.
+          <b>Você foi convidado pelo seu personal.</b> {mode==="signup" ? "Crie sua conta abaixo" : "Entre com sua conta"} e seu acesso será ativado automaticamente.
         </div>
       ) : (
         <p style={S.sub}>Seus treinos ficam salvos na nuvem e acessíveis de qualquer aparelho.</p>
@@ -2208,7 +2217,7 @@ function AuthScreen({ onDone, onSkip, onForgot }) {
         <>
           <label className="ab-label">EU SOU</label>
           <div className="ab-role-grid">
-            {[["aluno","🏋️ Aluno"],["pro","📋 Personal Trainer"]].map(([k,rotulo])=>(
+            {[["aluno","Aluno"],["pro","Personal Trainer"]].map(([k,rotulo])=>(
               <button key={k} onClick={()=>setTipo(k)} className="ab-role" data-active={tipo===k}>
                 {rotulo}
               </button>
@@ -2326,7 +2335,7 @@ function ProHomeScreen({ pro, onPerfil, onAgenda, onAlunos, onMeuTreino, onLogou
           <h3>PRIMEIROS PASSOS</h3>
           {passos.map((p,i)=>(
             <button key={i} onClick={p.acao} disabled={p.ok} className="ab-onboarding-item" data-done={p.ok}>
-              <i>{p.ok?"✓":i+1}</i><span>{p.t}</span>
+              <i>{p.ok?<Icon name="check" size={12}/>:i+1}</i><span>{p.t}</span>
             </button>
           ))}
         </div>
@@ -2385,7 +2394,7 @@ function ProPerfilScreen({ pro, onSaved, onBack }) {
 
   return (
     <div className="ab-pro-page ab-pro-profile-page">
-      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <button className="ab-back-link" onClick={onBack}><Icon name="back" size={16}/> Voltar ao painel</button>
       <div className="ab-page-head">
         <div><div className="ab-eyebrow">SUA IDENTIDADE</div><h1>Perfil profissional</h1><p className="ab-copy">Mantenha sua apresentação reconhecível e consistente para todos os alunos.</p></div>
       </div>
@@ -2444,7 +2453,7 @@ function ProAgendaScreen({ onBack }) {
 
   return (
     <div className="ab-pro-page">
-      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <button className="ab-back-link" onClick={onBack}><Icon name="back" size={16}/> Voltar ao painel</button>
       <div className="ab-pro-page-head">
         <div><div className="ab-eyebrow">ORGANIZAÇÃO SEMANAL</div><h1>Agenda</h1><p>Acompanhe seus atendimentos e acesse o treino de cada aluno.</p></div>
         <button className="ab-primary ab-compact-button" onClick={novaAula}><Icon name="calendar" size={17}/> Nova aula</button>
@@ -2518,7 +2527,7 @@ function ProAgendaScreen({ onBack }) {
                   <strong>{a.alunos?.nome || "Sem aluno vinculado"}</strong>
                   <span>{a.tipo==="presencial" ? "Presencial" : "Independente"}{a.local ? ` · ${a.local}` : ""}{a.data ? " · data única" : " · semanal"}</span>
                 </button>
-                <button className="ab-icon-button" aria-label={`Editar aula de ${a.alunos?.nome || "aluno"}`} onClick={()=>setEditando({...a})}>✎</button>
+                <button className="ab-icon-button" aria-label={`Editar aula de ${a.alunos?.nome || "aluno"}`} onClick={()=>setEditando({...a})}><Icon name="edit" size={16}/></button>
               </div>
             ))}
           </div>
@@ -2566,7 +2575,7 @@ function AulaModal({ aula, alunos, aulas, onClose, onSaved }) {
 
         <label style={S.fieldLabel}>TIPO</label>
         <div style={{display:"flex",gap:8,marginBottom:12}}>
-          {[["presencial","🏋️ Presencial"],["independente","🏃 Independente"]].map(([k,r])=>(
+          {[["presencial","Presencial"],["independente","Independente"]].map(([k,r])=>(
             <button key={k} onClick={()=>up("tipo",k)} style={{...S.card,flex:1,alignItems:"center",padding:"10px 8px",fontSize:13,fontWeight:700,
               color: form.tipo===k ? C.acc : C.muted, border:`1px solid ${form.tipo===k ? C.acc : C.border}`}}>{r}</button>
           ))}
@@ -2652,7 +2661,7 @@ function TreinoDoDiaModal({ aula, onClose }) {
         <h2 style={{fontSize:18,fontWeight:800,color:C.text,margin:"0 0 14px"}}>{aula.alunos?.nome || "Aula"}</h2>
 
         {estado==="carregando" && <p style={{color:C.muted,fontSize:13}}>Buscando treino…</p>}
-        {estado==="semAluno" && <p style={{color:C.muted,fontSize:13}}>Esta aula ainda não tem aluno vinculado. Edite a aula (✎) para vincular.</p>}
+        {estado==="semAluno" && <p style={{color:C.muted,fontSize:13}}>Esta aula ainda não tem aluno vinculado. Edite a aula () para vincular.</p>}
         {estado==="vazio" && <p style={{color:C.muted,fontSize:13}}>Este aluno ainda não tem treino ativo. A montagem de treinos chega no módulo de gestão de alunos.</p>}
 
         {estado==="ok" && (plano.weekDays||[]).map((d,i)=>(
@@ -2696,7 +2705,7 @@ function ModalShell({ title, eyebrow, onClose, children, layer=70, wide=false, b
   return (
     <div className="ab-modal-overlay" style={{zIndex:layer}} onMouseDown={(event)=>{if(event.target===event.currentTarget)onClose();}}>
       <section ref={panelRef} className={`ab-modal-sheet${wide?" ab-modal-wide":""}${bodyClass?` ${bodyClass}`:""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
-        <header className="ab-modal-header"><div>{eyebrow && <span>{eyebrow}</span>}<h2 id={titleId}>{title}</h2></div><button className="ab-modal-close" aria-label="Fechar" disabled={closeDisabled} onClick={onClose}>×</button></header>
+        <header className="ab-modal-header"><h2 id={titleId}>{title}</h2><button className="ab-modal-close" aria-label="Fechar" disabled={closeDisabled} onClick={onClose}><Icon name="x" size={20}/></button></header>
         {children}
       </section>
     </div>
@@ -2768,7 +2777,7 @@ function ProAlunosScreen({ onBack }) {
     const st = STATUS_ALUNO[sel.status] || STATUS_ALUNO.convidado;
     return (
       <div className="ab-pro-page">
-        <button className="ab-back-link" onClick={()=>{setVista("lista");carregar();}}>← Todos os alunos</button>
+        <button className="ab-back-link" onClick={()=>{setVista("lista");carregar();}}><Icon name="back" size={16}/> Todos os alunos</button>
         <header className="ab-student-profile-head">
           <AvatarFoto nome={sel.nome} size={68}/>
           <div className="ab-student-identity">
@@ -2827,7 +2836,7 @@ function ProAlunosScreen({ onBack }) {
 
   return (
     <div className="ab-pro-page">
-      <button className="ab-back-link" onClick={onBack}>← Voltar ao painel</button>
+      <button className="ab-back-link" onClick={onBack}><Icon name="back" size={16}/> Voltar ao painel</button>
       <div className="ab-pro-page-head">
         <div><div className="ab-eyebrow">CARTEIRA PROFISSIONAL</div><h1>Meus alunos</h1><p>Treinos, evolução e comunicação em uma visão organizada.</p></div>
         <button className="ab-primary ab-compact-button" onClick={()=>setNovoAluno(true)}><Icon name="users" size={17}/> Novo aluno</button>
@@ -2935,7 +2944,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
 
   return (
     <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}>← Cancelar</button>
+      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}><Icon name="back" size={16}/> Cancelar</button>
       <div style={S.eyebrow}>TREINO DE {aluno.nome.toUpperCase()}</div>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button style={{...S.btnOutline,fontSize:12,padding:"8px 10px"}} onClick={()=>{setImportando(v=>!v);setErr(null);}}>
@@ -2960,7 +2969,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
             <div style={{width:34,height:34,borderRadius:2,background:C.bg,border:`1px solid ${C.acc}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:C.acc}}>{d.label}</div>
             <input style={{...S.field,margin:0,flex:1}} value={d.sub} onChange={e=>upDia(di,{sub:e.target.value})} placeholder="grupos do dia (ex.: Peito + Tríceps)"/>
-            {plano.weekDays.length>1 && <button aria-label={`Remover dia ${d.label}`} style={{background:"none",border:"none",color:C.muted,fontSize:16}} onClick={()=>removerDia(di)}>🗑</button>}
+            {plano.weekDays.length>1 && <button aria-label={`Remover dia ${d.label}`} style={{background:"none",border:"none",color:C.muted,fontSize:16}} onClick={()=>removerDia(di)}><Icon name="trash" size={16}/></button>}
           </div>
 
           {d.exercises.map((ex, ei) => {
@@ -2970,10 +2979,10 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:700,color:C.text}}>{ex.name}{ex.custom && <span style={{fontSize:9,color:"#d9a441",marginLeft:6,fontWeight:800}}>PRÓPRIO</span>}</div>
-                    {ex.iso && <div style={{fontSize:10,color:C.acc,marginTop:2}}>⏱ cronômetro: {ex.isoSec}s</div>}
+                    {ex.iso && <div style={{fontSize:10,color:C.acc,marginTop:2}}>cronômetro: {ex.isoSec}s</div>}
                   </div>
                   <button aria-label={`Editar substituições de ${ex.name}`} style={{background:"none",border:"none",color:C.acc,fontSize:12,fontWeight:700}} onClick={()=>setSubsDe(aberto?null:{di,ei})}>subs {aberto?"▾":"▸"}</button>
-                  <button aria-label={`Remover ${ex.name}`} style={{background:"none",border:"none",color:C.muted,fontSize:14}} onClick={()=>removerEx(di,ei)}>✕</button>
+                  <button aria-label={`Remover ${ex.name}`} style={{background:"none",border:"none",color:C.muted,fontSize:14}} onClick={()=>removerEx(di,ei)}><Icon name="x" size={16}/></button>
                 </div>
                 <div style={{display:"flex",gap:8,marginTop:8}}>
                   <div style={{flex:1}}><label style={{...S.fieldLabel,fontSize:9}}>SÉRIES</label>
@@ -2992,7 +3001,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
                       <div key={si} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                         <button aria-label={`${sb.ativa?"Desativar":"Ativar"} substituição ${si+1}`} style={{background:"none",border:"none",fontSize:15}} onClick={()=>{
                           const subs=[...ex.subs]; subs[si]={...subs[si],ativa:!subs[si].ativa}; upEx(di,ei,{subs});
-                        }}>{sb.ativa?"✅":"⬜"}</button>
+                        }}>{sb.ativa?<Icon name="check" size={16}/>:<span className="ab-box" aria-hidden="true"/>}</button>
                         <input style={{...S.field,margin:0,padding:"7px 10px",fontSize:12,opacity:sb.ativa?1:0.5}} value={sb.name}
                           placeholder="sugerir substituição própria…"
                           onChange={e=>{ const subs=[...ex.subs]; subs[si]={...subs[si],name:e.target.value}; upEx(di,ei,{subs}); }}/>
@@ -3011,7 +3020,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
 
       <button style={{...S.btnOutline,marginTop:12,fontSize:13,padding:"11px"}} onClick={addDia}>+ Dia de treino</button>
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-      <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"💾 Salvar treino do aluno"}</button>
+      <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Salvar treino do aluno"}</button>
 
       {picker!==null && <ExercicioPickerModal onClose={()=>setPicker(null)} onPick={(ex)=>addEx(picker,ex)}/>}
     </div>
@@ -3033,7 +3042,7 @@ function ExercicioPickerModal({ onClose, onPick }) {
   return (
     <ModalShell title="Adicionar exercício" eyebrow="EDITOR DE TREINO" onClose={onClose} wide>
         <div style={{display:"flex",gap:8,marginBottom:14}}>
-          {[["lib","📚 Biblioteca"],["meus","⭐ Meus exercícios"]].map(([k,r])=>(
+          {[["lib","Biblioteca"],["meus","Meus exercícios"]].map(([k,r])=>(
             <button key={k} onClick={()=>setAba(k)} style={{...S.card,flex:1,alignItems:"center",padding:"10px 8px",fontSize:13,fontWeight:700,
               color: aba===k ? C.acc : C.muted, border:`1px solid ${aba===k ? C.acc : C.border}`}}>{r}</button>
           ))}
@@ -3041,14 +3050,14 @@ function ExercicioPickerModal({ onClose, onPick }) {
 
         {aba==="lib" && !grupo && Object.entries(EXERCISE_LIBRARY).map(([k,g])=>(
           <button key={k} style={{...S.card,flexDirection:"row",alignItems:"center",gap:10,marginBottom:8,padding:"12px 14px",width:"100%"}} onClick={()=>setGrupo(k)}>
-            <span style={{fontSize:20}}>{g.icon}</span>
+            
             <span style={{flex:1,textAlign:"left",fontSize:14,fontWeight:700,color:C.text}}>{g.label}</span>
             <span style={{fontSize:11,color:C.muted}}>{g.exercises.length}</span>
           </button>
         ))}
         {aba==="lib" && grupo && (
           <>
-            <button style={{background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:700,marginBottom:10,padding:0}} onClick={()=>setGrupo(null)}>← Grupos</button>
+            <button style={{background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:700,marginBottom:10,padding:0}} onClick={()=>setGrupo(null)}><Icon name="back" size={16}/> Grupos</button>
             {EXERCISE_LIBRARY[grupo].exercises.map(ex=>(
               <button key={ex.id} style={{...S.card,flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:8,padding:"12px 14px",width:"100%"}} onClick={()=>onPick({...ex,iso:false,isoSec:null})}>
                 <span style={{fontSize:13,fontWeight:700,color:C.text,textAlign:"left"}}>{ex.name}</span>
@@ -3067,7 +3076,7 @@ function ExercicioPickerModal({ onClose, onPick }) {
               <button key={row.id} style={{...S.card,flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:8,padding:"12px 14px",width:"100%"}} onClick={()=>onPick(doCustom(row))}>
                 <div style={{textAlign:"left"}}>
                   <div style={{fontSize:13,fontWeight:700,color:C.text}}>{row.nome}</div>
-                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{row.grupo_muscular||"geral"}{row.usa_cronometro?` · ⏱ ${row.tempo_seg}s`:""}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2}}>{row.grupo_muscular||"geral"}{row.usa_cronometro?` · ${row.tempo_seg}s`:""}</div>
                 </div>
                 <span style={{color:C.acc}}>＋</span>
               </button>
@@ -3106,7 +3115,7 @@ function ExercicioCustomModal({ onClose, onCreated }) {
           {Object.values(EXERCISE_LIBRARY).map(g=><option key={g.label} value={g.label}>{g.label}</option>)}
         </select>
         <div style={{display:"flex",alignItems:"center",gap:10,margin:"12px 0"}}>
-          <button style={{background:"none",border:"none",fontSize:18}} onClick={()=>up("usa_cronometro",!form.usa_cronometro)}>{form.usa_cronometro?"✅":"⬜"}</button>
+          <button style={{background:"none",border:"none",fontSize:18}} onClick={()=>up("usa_cronometro",!form.usa_cronometro)}>{form.usa_cronometro?<Icon name="check" size={16}/>:<span className="ab-box" aria-hidden="true"/>}</button>
           <span style={{fontSize:13,color:C.text,fontWeight:600}}>Usa cronômetro de execução</span>
         </div>
         {form.usa_cronometro && (
@@ -3205,7 +3214,7 @@ REGRAS DE FORMATO: exatamente ${form.dias} dias. Max 5 exercícios/dia.\n\nMOBIL
 
   return (
     <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}>← Voltar</button>
+      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}><Icon name="back" size={16}/> Voltar</button>
       <h1 style={{...S.h1,fontSize:22}}>Treino por IA</h1>
       <p style={S.sub}>Para {aluno.nome}. Você revisa e edita tudo antes de salvar.</p>
 
@@ -3248,7 +3257,7 @@ REGRAS DE FORMATO: exatamente ${form.dias} dias. Max 5 exercícios/dia.\n\nMOBIL
             <button style={{...S.card,alignItems:"center",padding:"14px 6px",fontSize:12,fontWeight:700,
               color: fotos[k] ? C.acc : C.muted, border:`1px solid ${fotos[k] ? C.acc : C.border}`}}
               onClick={()=>{ setSlotFoto(k); fileRef.current?.click(); }}>
-              <span style={{fontSize:18,marginBottom:4}}>{fotos[k] ? "✅" : "📷"}</span>
+              <span style={{fontSize:18,marginBottom:4}}>{fotos[k] ? <Icon name="check" size={18}/> : <Icon name="camera" size={18}/>}</span>
               {rotulo}
             </button>
             {fotos[k] && <button style={{background:"none",border:"none",color:C.muted,fontSize:11}} onClick={()=>setFotos(f=>({...f,[k]:null}))}>remover</button>}
@@ -3260,7 +3269,7 @@ REGRAS DE FORMATO: exatamente ${form.dias} dias. Max 5 exercícios/dia.\n\nMOBIL
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
 
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-      <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={gerar}>{busy?"Gerando treino…":"✨ Gerar treino"}</button>
+      <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={gerar}>{busy?"Gerando treino…":"Gerar treino"}</button>
     </div>
   );
 }
@@ -3279,13 +3288,13 @@ function ObsPersonalBox({ vinculo, contexto, placeholder }) {
   };
   return (
     <div style={{...S.card,padding:"12px 14px",marginBottom:14}}>
-      <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>💬 MENSAGEM PARA O PERSONAL</div>
+      <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>MENSAGEM PARA O PERSONAL</div>
       <textarea style={{...S.field,margin:0,minHeight:54,fontSize:13}} maxLength={2000} value={texto} onChange={e=>setTexto(e.target.value)} placeholder={placeholder}/>
       <div style={{display:"flex",alignItems:"center",gap:10,marginTop:8}}>
         <button style={{...S.btn,width:"auto",padding:"9px 16px",fontSize:12,opacity:(texto.trim()&&estado!=="enviando")?1:0.4}} disabled={!texto.trim()||estado==="enviando"} onClick={enviar}>
           {estado==="enviando"?"Enviando…":"Enviar"}
         </button>
-        {estado==="ok" && <span style={{fontSize:12,color:C.acc,fontWeight:700}}>✓ enviado ao personal</span>}
+        {estado==="ok" && <span style={{fontSize:12,color:C.acc,fontWeight:700}}>enviado ao personal</span>}
         {estado==="erro" && <span style={{fontSize:12,color:"#ff8080"}}>falha ao enviar — tente de novo</span>}
       </div>
     </div>
@@ -3329,7 +3338,7 @@ function ConviteModal({ aluno, onClose }) {
             {typeof navigator !== "undefined" && navigator.share && (
               <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={async()=>{ track("convite_share"); try { await navigator.share({ title: "Acesso ao A-Body", text: textoConvite }); } catch {} }}>Compartilhar…</button>
             )}
-            <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={copiar}>{copiado ? "✓ Mensagem copiada!" : "Copiar mensagem"}</button>
+            <button className="ab-secondary-action" style={{width:"100%",marginBottom:10}} onClick={copiar}>{copiado ? "Mensagem copiada!" : "Copiar mensagem"}</button>
           </>
         )}
     </ModalShell>
@@ -3397,7 +3406,7 @@ function MensagensModal({ aluno, onClose }) {
 
 // ─── B2B/B2C: DOCUMENTOS DE SAÚDE ────────────────────────────────────────────
 
-const TIPO_DOC = { bioimpedancia:{rotulo:"Bioimpedância",icon:"⚖️"}, exame:{rotulo:"Exame",icon:"🧪"}, outro:{rotulo:"Outro",icon:"📄"} };
+const TIPO_DOC = { bioimpedancia:{rotulo:"Bioimpedância",icon:""}, exame:{rotulo:"Exame",icon:""}, outro:{rotulo:"Outro",icon:""} };
 
 function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
   const [docs, setDocs]   = useState(null);
@@ -3443,7 +3452,7 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
 
   return (
     <div style={{...S.card,padding:"12px 14px",marginBottom:12}}>
-      <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>📄 DOCUMENTOS DE SAÚDE (BIOIMPEDÂNCIA, EXAMES)</div>
+      <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>DOCUMENTOS DE SAÚDE (BIOIMPEDÂNCIA, EXAMES)</div>
 
       {docs === null && <p style={{color:C.muted,fontSize:12,margin:0}}>Carregando…</p>}
       {docs && docs.length === 0 && <p style={{color:C.muted,fontSize:12,margin:"0 0 8px"}}>Nenhum documento ainda. PDF ou imagem, até 10 MB, guardados em área privada.</p>}
@@ -3452,13 +3461,13 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
         const sel = selecionaveis && (selecionados||[]).some(x=>x.id===doc.id);
         return (
           <div key={doc.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-            {selecionaveis && <button aria-label={`${sel?"Desmarcar":"Marcar"} ${nomeDoDoc(doc)} para análise`} style={{background:"none",border:"none",fontSize:15,padding:0}} onClick={()=>toggle(doc)}>{sel?"✅":"⬜"}</button>}
-            <span style={{fontSize:15}}>{t.icon}</span>
+            {selecionaveis && <button aria-label={`${sel?"Desmarcar":"Marcar"} ${nomeDoDoc(doc)} para análise`} style={{background:"none",border:"none",fontSize:15,padding:0}} onClick={()=>toggle(doc)}>{sel?<Icon name="check" size={16}/>:<span className="ab-box" aria-hidden="true"/>}</button>}
+            
             <button style={{flex:1,background:"none",border:"none",textAlign:"left",padding:0}} onClick={()=>abrir(doc)}>
               <div style={{fontSize:12,fontWeight:700,color:C.text,wordBreak:"break-all"}}>{nomeDoDoc(doc)}</div>
               <div style={{fontSize:10,color:C.muted}}>{t.rotulo} · {new Date(doc.criado_em).toLocaleDateString("pt-BR")}</div>
             </button>
-            {meuUid && doc.dono_user_id === meuUid && <button aria-label={`Excluir ${nomeDoDoc(doc)}`} style={{background:"none",border:"none",color:C.muted,fontSize:13}} onClick={()=>excluir(doc)}>✕</button>}
+            {meuUid && doc.dono_user_id === meuUid && <button aria-label={`Excluir ${nomeDoDoc(doc)}`} style={{background:"none",border:"none",color:C.muted,fontSize:13}} onClick={()=>excluir(doc)}><Icon name="x" size={16}/></button>}
           </div>
         );
       })}
@@ -3521,7 +3530,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
 
   return (
     <div style={S.box}>
-      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}>← Voltar</button>
+      <button style={{background:"none",border:"none",color:C.acc,fontSize:14,fontWeight:700,marginBottom:12,padding:0}} onClick={onCancel}><Icon name="back" size={16}/> Voltar</button>
       <h1 style={{...S.h1,fontSize:22}}>{anterior ? "Reavaliação corporal" : "Avaliação corporal"}</h1>
       <p style={S.sub}>{aluno.nome}{anterior ? ` · comparativo com ${new Date(anterior.date).toLocaleDateString("pt-BR")}` : " · primeira avaliação"}</p>
 
@@ -3538,7 +3547,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
             <button style={{...S.card,alignItems:"center",padding:"14px 6px",fontSize:12,fontWeight:700,
               color: fotos[k] ? C.acc : C.muted, border:`1px solid ${fotos[k] ? C.acc : C.border}`}}
               onClick={()=>{ setSlot(k); fileRef.current?.click(); }}>
-              <span style={{fontSize:18,marginBottom:4}}>{fotos[k] ? "✅" : "📷"}</span>
+              <span style={{fontSize:18,marginBottom:4}}>{fotos[k] ? <Icon name="check" size={18}/> : <Icon name="camera" size={18}/>}</span>
               {rotulo}
             </button>
             {fotos[k] && <button style={{background:"none",border:"none",color:C.muted,fontSize:11}} onClick={()=>setFotos(f=>({...f,[k]:null}))}>remover</button>}
@@ -3561,7 +3570,7 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       </label>
 
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{err}</div>}
-      <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={analisar}>{busy ? "Analisando…" : "📊 Analisar por IA"}</button>
+      <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={analisar}>{busy ? "Analisando…" : "Analisar por IA"}</button>
     </div>
   );
 }
@@ -3627,14 +3636,14 @@ function AguardandoTreinoScreen({ vinculo, personal, onAtualizar, onSettings }) 
           </div>
         </div>
       )}
-      <h1 style={{...S.h1,fontSize:22}}>Acesso ativado, {vinculo.aluno.nome.split(" ")[0]}! ✅</h1>
+      <h1 style={{...S.h1,fontSize:22}}>Acesso ativado, {vinculo.aluno.nome.split(" ")[0]}! </h1>
       <p style={{...S.sub,maxWidth:340,margin:"0 auto 24px"}}>
         Seu vínculo com o personal está confirmado. Ele está preparando seu treino — assim que publicar, ele aparece aqui.
       </p>
       <button className="ab-secondary-action" style={{marginBottom:16}} onClick={onSettings}>Gerenciar vínculo com personal</button>
       <button style={{...S.btn,maxWidth:340,margin:"0 auto",opacity:busy?0.5:1}} disabled={busy}
         onClick={async()=>{ setBusy(true); await onAtualizar(); setBusy(false); }}>
-        {busy ? "Verificando…" : "🔄 Verificar treino"}
+        {busy ? "Verificando…" : "Verificar treino"}
       </button>
     </div>
   );
@@ -3699,7 +3708,7 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
     <div className="ab-form-shell">
       <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>PLANO INTELIGENTE</span></div></div>
       <header className="ab-form-header">
-        <div className="ab-stepper">{stepNames.map((name,i)=>{const n=i+1;return <div key={name} className="ab-step" data-state={n<step?"done":n===step?"current":"pending"}><i>{n<step?"✓":n}</i><span>{name}</span></div>;})}</div>
+        <div className="ab-stepper">{stepNames.map((name,i)=>{const n=i+1;return <div key={name} className="ab-step" data-state={n<step?"done":n===step?"current":"pending"}><i>{n<step?<Icon name="check" size={12}/>:n}</i><span>{name}</span></div>;})}</div>
         <div className="ab-form-step-copy"><div className="ab-kicker">ETAPA {step} DE 5</div><h1>{stepNames[step-1]}</h1><p className="ab-copy">Suas respostas orientam a personalização do plano.</p></div>
       </header>
       <section className="ab-form-card">
@@ -3723,7 +3732,7 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         <div className="ab-option-grid" style={{marginBottom:18}}>
           {GOALS.map(g=>{ const sel=(form.goals||[]).includes(g.id); return(
             <button key={g.id} className="ab-option" data-active={sel} onClick={()=>toggleGoal(g.id)}>
-              <strong>{g.label}</strong><span>{sel?"✓ Selecionado":"Toque para selecionar"}</span>
+              <strong>{g.label}</strong><span>{sel?"Selecionado":"Toque para selecionar"}</span>
             </button>
           );})}
         </div>
@@ -3811,8 +3820,8 @@ function PhotoUploadStep({ photos, setPhotos }) {
   const refMap   = { front: frontRef, back: backRef, side: sideRef };
 
   const slots = [
-    { key:"front", label:"Frente",  icon:"🧍" },
-    { key:"back",  label:"Costas",  icon:"🔄" },
+    { key:"front", label:"Frente",  icon:"" },
+    { key:"back",  label:"Costas",  icon:"" },
     { key:"side",  label:"Lateral", icon:"↔️" },
   ];
 
@@ -3908,7 +3917,7 @@ function PhotoUploadStep({ photos, setPhotos }) {
               color: totalFotos === 3 ? C.acc : C.text}}
       onClick={() => multiRef.current && multiRef.current.click()}
     >
-      {totalFotos === 3 ? "✓ 3 fotos carregadas — trocar todas" : "📷 Enviar as 3 fotos de uma vez"}
+      {totalFotos === 3 ? "3 fotos carregadas — trocar todas" : "Enviar as 3 fotos de uma vez"}
     </button>
     {statusMulti && (
       <p style={{fontSize:11, color:C.muted, margin:"0 0 10px 0", lineHeight:1.5}}>{statusMulti}</p>
@@ -3948,11 +3957,11 @@ function PhotoUploadStep({ photos, setPhotos }) {
                       borderRadius:"50%", width:24, height:24, fontSize:12,
                       cursor:"pointer", fontWeight:700,
                       display:"flex", alignItems:"center", justifyContent:"center"}}
-                  >✕</button>
+                  ><Icon name="x" size={16}/></button>
                 </>
               ) : (
                 <>
-                  <div style={{fontSize:26, marginBottom:4}}>{s.icon}</div>
+                  
                   <div style={{fontSize:10, color:C.muted, textAlign:"center", lineHeight:1.5}}>
                     Toque para<br/>enviar foto
                   </div>
@@ -3960,7 +3969,7 @@ function PhotoUploadStep({ photos, setPhotos }) {
               )}
             </div>
             <div style={{fontSize:11, fontWeight:600, color: photo ? C.acc : C.muted}}>
-              {s.label}{photo ? " ✓" : ""}
+              {s.label}{photo ? "" : ""}
             </div>
           </div>
         );
@@ -3975,19 +3984,19 @@ function PhotoUploadStep({ photos, setPhotos }) {
 function SplitSelectScreen({ onSelect, onBack }) {
   return (
     <div style={S.box}>
-      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Voltar</button><div style={S.eyebrow}>TREINO MANUAL</div></div>
+      <div style={S.topRow}><button style={S.back} onClick={onBack}><Icon name="back" size={16}/> Voltar</button><div style={S.eyebrow}>TREINO MANUAL</div></div>
       <h1 style={S.h1}>Escolha a divisão</h1>
       <p style={S.sub}>Cada divisão organiza os grupos musculares de forma diferente.</p>
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {Object.entries(SPLITS).map(([key,s])=>(
           <button key={key} style={{...S.card,flexDirection:"row",alignItems:"center",gap:14,textAlign:"left"}} onClick={()=>onSelect(key)}>
-            <div style={{fontSize:28,flexShrink:0}}>{s.icon}</div>
+            
             <div style={{flex:1}}>
               <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{s.label}</div>
               <div style={{fontSize:12,color:C.muted}}>{s.description}</div>
               <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{s.days.map(d=><span key={d.id} style={{fontSize:10,background:"#e8f1ec",borderRadius:6,padding:"2px 8px",color:C.muted}}>{d.label}</span>)}</div>
             </div>
-            <span style={{color:C.acc,fontSize:18}}>→</span>
+            <span style={{color:C.acc,fontSize:18}}><Icon name="arrow" size={18}/></span>
           </button>
         ))}
       </div>
@@ -4003,7 +4012,7 @@ function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setU
 
   return (
     <div style={S.box}>
-      <div style={S.topRow}><button style={S.back} onClick={onBack}>← Voltar</button><div style={S.eyebrow}>{split.label} · MONTAGEM</div></div>
+      <div style={S.topRow}><button style={S.back} onClick={onBack}><Icon name="back" size={16}/> Voltar</button><div style={S.eyebrow}>{split.label} · MONTAGEM</div></div>
       <h1 style={S.h1}>Monte seus treinos</h1>
 
       <label style={S.fieldLabel}>SEU NOME</label>
@@ -4031,7 +4040,7 @@ function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setU
                 <div key={ex._key||i} style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px",marginBottom:6}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                     <div style={{fontSize:13,fontWeight:600,flex:1}}>{ex.name}</div>
-                    <button style={{background:"none",border:"none",color:"#e87a3a",fontSize:16,padding:"0 4px"}} onClick={()=>onRemove(d.id,ex.id)}>✕</button>
+                    <button style={{background:"none",border:"none",color:"#e87a3a",fontSize:16,padding:"0 4px"}} onClick={()=>onRemove(d.id,ex.id)}><Icon name="x" size={16}/></button>
                   </div>
                   <div style={{display:"flex",gap:8}}>
                     <div style={{flex:1}}>
@@ -4066,7 +4075,7 @@ function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setU
 
       {error&&<p className="ab-form-error" role="alert">{error}</p>}<button className="ab-secondary-action" onClick={onCancel}>Cancelar criação</button>
         <button style={{...S.btn,opacity:allDaysHaveExercises&&userName?1:0.35,marginTop:8}} disabled={!allDaysHaveExercises||!userName} onClick={onSave}>
-        Salvar meu plano →
+        Salvar meu plano <Icon name="arrow" size={17}/>
       </button>
       {(!allDaysHaveExercises||!userName)&&<p style={{fontSize:12,color:C.muted,textAlign:"center",marginTop:8}}>{!userName?"Informe seu nome para continuar.":"Adicione pelo menos 3 exercícios em cada dia."}</p>}
 
@@ -4096,10 +4105,10 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
       if(!vivo) return;
       if(!l.length){setLib(null);setActiveGroup(Object.keys(EXERCISE_LIBRARY)[0]);return;}
       const grupos = {};
-      const ICONES = { "Peito":"🫁","Costas":"🔙","Ombros":"🙆","Bíceps":"💪","Tríceps":"🦾","Antebraço":"🤜",
-        "Quadríceps":"🦵","Posteriores de Coxa":"🦵","Glúteos":"🍑","Adutores":"🦵","Panturrilhas":"🐐","Abdômen":"🎯" };
+      const ICONES = { "Peito":"","Costas":"","Ombros":"","Bíceps":"","Tríceps":"","Antebraço":"",
+        "Quadríceps":"","Posteriores de Coxa":"","Glúteos":"","Adutores":"","Panturrilhas":"","Abdômen":"" };
       l.forEach(e=>{
-        if(!grupos[e.grupo_muscular]) grupos[e.grupo_muscular] = { label:e.grupo_muscular, icon:ICONES[e.grupo_muscular]||"🏋️", exercises:[] };
+        if(!grupos[e.grupo_muscular]) grupos[e.grupo_muscular] = { label:e.grupo_muscular, icon:ICONES[e.grupo_muscular]||"", exercises:[] };
         grupos[e.grupo_muscular].exercises.push({ id:`lib_${e.id}`, name:e.nome, sets:3, reps:"8-12", rest:60, imagem_url:e.imagem_url });
       });
       setLib(grupos);
@@ -4132,7 +4141,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:8,marginBottom:12,flexShrink:0}}>
           {Object.entries(fonte).map(([key,g])=>(
             <button key={key} className="ab-filter-chip" data-active={activeGroup===key} aria-pressed={activeGroup===key} style={{flexShrink:0}} onClick={()=>setActiveGroup(key)}>
-              {g.icon} {g.label}
+              {g.label}
             </button>
           ))}
         </div>
@@ -4150,7 +4159,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
                     <div style={{fontSize:11,color:C.muted,marginTop:2}}>{ex.sets}x {ex.reps} · {ex.rest}s</div>
                   </div>
                 </div>
-                <span style={{color:already?C.muted:C.acc,fontSize:18,flexShrink:0}}>{already?"✓":"+"}</span>
+                <span style={{color:already?C.muted:C.acc,fontSize:18,flexShrink:0}}>{already?<Icon name="check" size={18}/>:"+"}</span>
               </button>
             );
           })}
@@ -4170,7 +4179,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
                 </button>
               </>
             )}
-            {sugestaoOk && <div style={{fontSize:12,color:C.acc,marginTop:8,textAlign:"center"}}>✓ Adicionado ao treino e sugestão enviada!</div>}
+            {sugestaoOk && <div style={{fontSize:12,color:C.acc,marginTop:8,textAlign:"center"}}>Adicionado ao treino e sugestão enviada!</div>}
           </div>
         </div>
     </ModalShell>
@@ -4191,11 +4200,11 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart, onCancel, saving, erro
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
             <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>PONTOS FORTES</div>
-              {(bodyAnalysis.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>✓ {p}</div>)}
+              {(bodyAnalysis.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}><Icon name="check" size={13}/> {p}</div>)}
             </div>
             <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
-              {(bodyAnalysis.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>→ {p}</div>)}
+              {(bodyAnalysis.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}><Icon name="arrow" size={13}/> {p}</div>)}
             </div>
           </div>
           {(bodyAnalysis.postureNotes||[]).length>0&&(
@@ -4343,7 +4352,7 @@ function OverviewExerciseMedia({ exercise, catalogo }) {
   return <div className="ab-overview-media ab-overview-media--pending" role="status"><b aria-hidden="true">A</b><span>Ilustração<small>em desenvolvimento</small></span></div>;
 }
 
-function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) {
+export function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) {
   const totalSeries = exercises.reduce((total,ex)=>total+(Number(ex.sets)||0),0);
   const [catalogo, setCatalogo] = useState(undefined);
   useEffect(()=>{
@@ -4351,13 +4360,13 @@ function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) 
     fetchBiblioteca().then(lista=>{if(active)setCatalogo(lista);}).catch(()=>{if(active)setCatalogo(null);});
     return ()=>{active=false;};
   },[]);
+  const grupoDe = useGrupos(exercises);
   return (
     <div className="ab-workout-overview">
-      <button className="ab-workout-exit" onClick={onBack}>← Sair do treino</button>
+      <button className="ab-workout-exit" onClick={onBack}><Icon name="back" size={16}/> Sair do treino</button>
       <header className="ab-overview-heading">
-        <div className="ab-kicker">{day.label} · VISÃO DO TREINO</div>
-        <h1>Saiba o que vem pela frente.</h1>
-        <p className="ab-copy">Revise a sequência antes de começar e organize mentalmente cargas, equipamentos e ritmo.</p>
+        <h1>Treino {day.label}{day.sub ? `: ${day.sub}` : ""}</h1>
+        <p className="ab-copy">Confira a sequência, os aparelhos e as cargas antes de começar.</p>
       </header>
       <div className="ab-overview-metrics" aria-label="Resumo do treino">
         <div><strong>{exercises.length}</strong><span>exercícios</span></div>
@@ -4365,12 +4374,12 @@ function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) 
         <div><strong>{duracao?`~${duracao}`:"—"}</strong><span>tempo previsto</span></div>
       </div>
       <section className="ab-overview-card">
-        <div className="ab-overview-card__head"><div><span>SEQUÊNCIA</span><h2>{day.sub||"Treino do dia"}</h2></div><small>Séries × repetições</small></div>
+        <div className="ab-overview-card__head"><h2>Sequência</h2><small>Séries × repetições</small></div>
         <ol className="ab-overview-list">
           {exercises.map((ex,i)=><li key={ex._key||ex.id||`${ex.name}-${i}`}>
-            <span className="ab-overview-number">{String(i+1).padStart(2,"0")}</span>
+            <MuscleKey n={i+1} grupo={grupoDe(ex)}/>
             <OverviewExerciseMedia exercise={ex} catalogo={catalogo}/>
-            <div><strong>{ex.name}</strong><span>{ex.sets} {Number(ex.sets)===1?"série":"séries"} × {ex.reps}{ex.iso?"":" repetições"}</span></div>
+            <div><strong>{ex.name}</strong><span>{grupoDe(ex) ? `${grupoDe(ex)} · ` : ""}{ex.sets} {Number(ex.sets)===1?"série":"séries"} × {ex.reps}{ex.iso?"":" repetições"}</span></div>
           </li>)}
         </ol>
       </section>
@@ -4381,20 +4390,19 @@ function WorkoutOverviewScreen({ day, exercises, duracao, onContinue, onBack }) 
 
 // ─── WARMUP ──────────────────────────────────────────────────────────────────
 
-function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }) {
+export function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }) {
   return (
     <div className="ab-warmup">
-      <button className="ab-workout-exit" onClick={onBack}>← Sair do treino</button>
+      <button className="ab-workout-exit" onClick={onBack}><Icon name="back" size={16}/> Sair do treino</button>
       <header className="ab-warmup-heading">
-        <div className="ab-kicker">{day.label} · PREPARAÇÃO</div>
-        <h1>Prepare o corpo.<br/>Eleve a performance.</h1>
-        <p className="ab-copy">Cinco minutos de cardio e uma sequência rápida de mobilidade.</p>
+        <h1>Aquecimento</h1>
+        <p className="ab-copy">Treino {day.label}: cinco minutos de cardio e uma sequência rápida de mobilidade.</p>
       </header>
       <div className="ab-warmup-layout">
         <section className="ab-warmup-card">
           <h2>Cardio de aquecimento</h2><p>Escolha o equipamento disponível.</p>
           <div className="ab-cardio-grid">
-            {CARDIO_OPTIONS.map(c=><button key={c.id} className="ab-cardio-choice" data-active={cardioChoice===c.id} onClick={()=>setCardioChoice(c.id)}><Icon name={c.id==="bike"?"repeat":c.id==="remo"?"users":"zap"}/><strong>{c.name}</strong></button>)}
+            {CARDIO_OPTIONS.map(c=><button key={c.id} className="ab-cardio-choice" data-active={cardioChoice===c.id} aria-pressed={cardioChoice===c.id} onClick={()=>setCardioChoice(c.id)}><strong>{c.name}</strong></button>)}
           </div>
         </section>
         <section className="ab-warmup-card">
@@ -4622,7 +4630,7 @@ function FotoComparativo({ bodyHistory, onFotosExcluidas }) {
 
   return (
     <div style={{...S.card, marginTop:12}}>
-      <div style={{fontSize:13,fontWeight:700,color:C.acc,marginBottom:8}}>📸 Evolução visual</div>
+      <div style={{fontSize:13,fontWeight:700,color:C.acc,marginBottom:8}}>Evolução visual</div>
       {mesmaData
         ? <p style={{fontSize:12,color:C.muted,margin:"0 0 10px"}}>Fotos de {new Date(primeira.date).toLocaleDateString("pt-BR")} guardadas. Na próxima reavaliação com fotos, o antes/depois aparece aqui.</p>
         : <p style={{fontSize:12,color:C.muted,margin:"0 0 10px"}}>{new Date(primeira.date).toLocaleDateString("pt-BR")} → {new Date(ultima.date).toLocaleDateString("pt-BR")}</p>}
@@ -4640,7 +4648,7 @@ function FotoComparativo({ bodyHistory, onFotosExcluidas }) {
         </div>
       ))}
       <button onClick={excluirTudo} disabled={excluindo} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:2,color:"#ff8a8a",fontSize:12,fontWeight:600,padding:"8px 12px",width:"100%",cursor:"pointer",opacity:excluindo?0.5:1}}>
-        {excluindo?"Excluindo…":"🗑 Excluir minhas fotos armazenadas (LGPD)"}
+        {excluindo?"Excluindo…":"Excluir minhas fotos armazenadas (LGPD)"}
       </button>
     </div>
   );
@@ -4666,15 +4674,15 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
 
   return (
     <div className="ab-data-page">
-      <button className="ab-workout-exit" onClick={onBack}>← Voltar</button>
+      <button className="ab-workout-exit" onClick={onBack}><Icon name="back" size={16}/> Voltar</button>
       <header className="ab-page-head"><div><div className="ab-kicker">AVALIAÇÃO CORPORAL</div><h1>Seu relatório inteligente</h1><p className="ab-copy">Avaliação de {new Date(last.date).toLocaleDateString("pt-BR")} · há {daysSince} dia{daysSince!==1?"s":""}{bodyHistory.length>1?` · ${bodyHistory.length}ª avaliação`:""}</p></div></header>
 
       {comp && (
         <section className="ab-insight-card" data-accent="true">
           <div style={{fontSize:11,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>EVOLUÇÃO vs AVALIAÇÃO ANTERIOR</div>
           {comp.summary && <p style={{fontSize:13,color:C.text,margin:"0 0 10px 0",lineHeight:1.5}}>{comp.summary}</p>}
-          {(comp.improvements||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.acc,marginBottom:4}}>▲ {p}</div>)}
-          {(comp.attentionPoints||[]).map((p,i)=><div key={i} style={{fontSize:13,color:"#e8a23a",marginBottom:4}}>⚠ {p}</div>)}
+          {(comp.improvements||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.acc,marginBottom:4}}><Icon name="up" size={13}/> {p}</div>)}
+          {(comp.attentionPoints||[]).map((p,i)=><div key={i} style={{fontSize:13,color:"#e8a23a",marginBottom:4}}><Icon name="alert" size={13}/> {p}</div>)}
         </section>
       )}
 
@@ -4725,7 +4733,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
       {(a.restricoesMovimento||[]).length > 0 && (
         <div style={{...S.card,marginBottom:14,border:"1.5px solid #e8a23a"}}>
           <div style={{fontSize:11,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>RESTRIÇÕES CONSIDERADAS NO TREINO</div>
-          {a.restricoesMovimento.map((r,i)=><div key={i} style={{fontSize:13,color:C.text,marginBottom:4}}>⚠ {r}</div>)}
+          {a.restricoesMovimento.map((r,i)=><div key={i} style={{fontSize:13,color:C.text,marginBottom:4}}><Icon name="alert" size={13}/> {r}</div>)}
           <p style={{fontSize:11,color:C.muted,margin:"8px 0 0 0",lineHeight:1.5}}>
             Exercícios com esses padrões de movimento ficam fora do seu plano. Isto não é diagnóstico — em caso de dor ou lesão, procure um profissional de saúde.
           </p>
@@ -4737,7 +4745,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
           {postura.map((p,i)=>(
             <div key={i} style={{marginBottom:8}}>
               <div style={{fontSize:13,color:C.text}}>• {p.achado}</div>
-              {p.implicacao && <div style={{fontSize:12,color:C.acc,marginLeft:12,marginTop:2}}>→ {p.implicacao}</div>}
+              {p.implicacao && <div style={{fontSize:12,color:C.acc,marginLeft:12,marginTop:2}}><Icon name="arrow" size={13}/> {p.implicacao}</div>}
             </div>
           ))}
         </BodyInsightCard>
@@ -4770,16 +4778,16 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
       <div style={{display:"flex",gap:10,marginBottom:14}}>
         <div style={{...S.card,flex:1}}>
           <div style={{fontSize:10,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>PONTOS FORTES</div>
-          {(a.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}>✓ {p}</div>)}
+          {(a.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}><Icon name="check" size={13}/> {p}</div>)}
         </div>
         <div style={{...S.card,flex:1}}>
           <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
-          {(a.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}>→ {p}</div>)}
+          {(a.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}><Icon name="arrow" size={13}/> {p}</div>)}
         </div>
       </div>
 
       <button style={{...S.btn,opacity:canReassess?1:0.45,marginBottom:8}} disabled={!canReassess} onClick={onReassess}>
-        📸 Nova avaliação comparativa
+        Nova avaliação comparativa
       </button>
       {!canReassess && (
         <p style={{fontSize:12,color:C.muted,textAlign:"center"}}>
@@ -4798,7 +4806,7 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
   return (
     <div style={S.box}>
       <div style={S.topRow}>
-        <button style={S.back} onClick={onBack}>← Voltar</button>
+        <button style={S.back} onClick={onBack}><Icon name="back" size={16}/> Voltar</button>
         <div style={S.eyebrow}>NOVA AVALIAÇÃO</div>
       </div>
       <h1 style={S.h1}>Avaliação comparativa</h1>
@@ -4818,7 +4826,7 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
       )}
       {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:10}}>{err}</div>}
       <button style={{...S.btn,marginTop:16,opacity:(hasAny&&!busy)?1:0.4}} disabled={!hasAny||busy} onClick={()=>{ if(!consent){alert("Marque a autorização de análise das fotos.");return;} onRun(); }}>
-        {busy ? "Analisando…" : "Gerar comparativo ✨"}
+        {busy ? "Analisando…" : "Gerar comparativo "}
       </button>
     </div>
   );
@@ -4860,7 +4868,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
   return (
     <div style={S.box}>
       <div style={S.topRow}>
-        <button style={S.back} onClick={onBack}>← Voltar</button>
+        <button style={S.back} onClick={onBack}><Icon name="back" size={16}/> Voltar</button>
         <div style={S.eyebrow}>FREQUÊNCIA</div>
       </div>
       <h1 style={S.h1}>Check-in semanal</h1>
@@ -4903,7 +4911,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
                 {trained ? (
                   done.map((s,j)=>(
                     <div key={j} style={{display:"flex",alignItems:"center",gap:8,marginBottom:j<done.length-1?4:0}}>
-                      <div style={{width:20,height:20,borderRadius:"50%",background:s.manual?"#f0a848":C.acc,color:s.manual?"#06140e":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{s.manual?"✎":"✓"}</div>
+                      <div style={{width:20,height:20,borderRadius:"50%",background:s.manual?"#f0a848":C.acc,color:s.manual?"#06140e":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{s.manual?<Icon name="edit" size={12}/>:<Icon name="check" size={12}/>}</div>
                       <span style={{fontSize:14,fontWeight:700,color:s.manual?"#80540f":C.text}}>{s.dayLabel || "Treino"}{s.manual?" · manual":""}</span>
                     </div>
                   ))
@@ -4918,11 +4926,11 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
 
       <div style={{...S.card,gap:8}}>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <div style={{width:18,height:18,borderRadius:"50%",background:C.acc,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✓</div>
+          <div style={{width:18,height:18,borderRadius:"50%",background:C.acc,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}><Icon name="check" size={12}/></div>
           <span style={{fontSize:12,color:C.muted}}>Check-in automático ao finalizar o treino no app</span>
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <div style={{width:18,height:18,borderRadius:"50%",background:"#f0a848",color:"#f5f6f3",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✎</div>
+          <div style={{width:18,height:18,borderRadius:"50%",background:"#f0a848",color:"#f5f6f3",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}><Icon name="edit" size={12}/></div>
           <span style={{fontSize:12,color:C.muted}}>Registro manual — toque em qualquer dia passado para adicionar ou corrigir</span>
         </div>
       </div>
@@ -4945,24 +4953,22 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
 
 // ─── POST CARDIO / REPORT ─────────────────────────────────────────────────────
 
-function PostCardioScreen({ day, onContinue }) {
+export function PostCardioScreen({ day, onContinue }) {
   const pc=day.postCardio;
   return (
-    <div style={S.box}>
-      <div style={S.eyebrow}>TREINO FINALIZADO 🎉</div>
-      <h1 style={S.h1}>Cardio pós-treino</h1>
-      <p style={S.sub}>{pc.text}</p>
-      <div style={{...S.card,flexDirection:"row",justifyContent:"space-between",marginBottom:8}}><span style={{fontSize:13,color:C.muted}}>Duração</span><span style={{fontWeight:700,color:C.acc}}>{pc.min}–{pc.max} min</span></div>
-      <div style={{...S.card,flexDirection:"row",justifyContent:"space-between",marginBottom:20}}><span style={{fontSize:13,color:C.muted}}>Intensidade</span><span style={{fontWeight:700,color:C.acc}}>{pc.intensity}</span></div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:24}}>
-        {CARDIO_OPTIONS.map(c=><div key={c.id} style={{...S.card,alignItems:"center"}}><div style={{fontSize:22}}>{c.icon}</div><div style={{fontSize:12,fontWeight:600,marginTop:4}}>{c.name}</div></div>)}
-      </div>
-      <button style={S.btn} onClick={onContinue}>Ver relatório</button>
+    <div className="ab-data-page ab-pc">
+      <header className="ab-page-head"><h1>Aeróbico pós-treino</h1><p className="ab-copy">{pc.text}</p></header>
+      <dl className="ab-w2-spec ab-pc-spec">
+        <div><dt>Duração</dt><dd className="ab-num">{pc.min}–{pc.max}<small> min</small></dd></div>
+        <div><dt>Intensidade</dt><dd>{pc.intensity}</dd></div>
+      </dl>
+      <p className="ab-pc-opts">Esteira, bike, elíptico ou remo: use o que estiver livre.</p>
+      <button className="ab-primary" style={{width:"100%"}} onClick={onContinue}>Ver relatório <Icon name="arrow" size={18}/></button>
     </div>
   );
 }
 
-function ReportScreen({ report, onHome, vinculo, onFeedback }) {
+export function ReportScreen({ report, onHome, vinculo, onFeedback }) {
   const totalVolume = report.rows.filter(r=>!r.iso).reduce((sum,r)=>sum+(Number(r.curVolume)||0),0);
   const evolucoes = report.rows.filter(r=>r.diffPct!=null&&r.diffPct>0).length;
   const [recovery,setRecovery] = useState("good");
@@ -4972,15 +4978,13 @@ function ReportScreen({ report, onHome, vinculo, onFeedback }) {
   return (
     <div className="ab-data-page">
       <section className="ab-report-hero">
-        <div className="ab-kicker">TREINO CONCLUÍDO · ÓTIMO TRABALHO</div>
-        <h1>{report.dayLabel}</h1>
+        <h1>{report.dayLabel} concluído</h1>
         <p>{report.hasPrev?`${evolucoes} exercício${evolucoes!==1?"s":""} com evolução em relação à sessão anterior.`:"Sua primeira sessão foi registrada. Este é o começo da sua linha de evolução."}</p>
-        <div className="ab-stat-grid">
-          <div className="ab-stat-tile"><strong>{report.rows.length}</strong><span>Exercícios</span></div>
-          <div className="ab-stat-tile"><strong>{Math.round(totalVolume)}</strong><span>Volume em kg</span></div>
-          <div className="ab-stat-tile"><strong>{evolucoes}</strong><span>Evoluções</span></div>
-          <div className="ab-stat-tile"><strong>100%</strong><span>Concluído</span></div>
-        </div>
+        <dl className="ab-w2-spec">
+          <div><dt>Exercícios</dt><dd className="ab-num">{report.rows.length}</dd></div>
+          <div><dt>Volume</dt><dd className="ab-num">{Math.round(totalVolume).toLocaleString("pt-BR")}<small> kg</small></dd></div>
+          <div><dt>Evoluções</dt><dd className="ab-num">{evolucoes}</dd></div>
+        </dl>
       </section>
       {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"fim_treino",treino:report.dayLabel||null}} placeholder="fale com seu personal: dúvidas, feedback, pedido de substituição…"/>}
       <div className="ab-section-title"><h2>Desempenho por exercício</h2><span>{report.hasPrev?"Comparado à sessão anterior":"Primeira referência"}</span></div>
@@ -5002,12 +5006,12 @@ function ReportScreen({ report, onHome, vinculo, onFeedback }) {
         </div>
       )}
       <section className="ab-feedback-card">
-        <div className="ab-section-title"><div><span>PRÓXIMA ADAPTAÇÃO</span><h2>Como seu corpo respondeu?</h2></div></div>
+        <h2 className="ab-feedback-title">Como seu corpo respondeu?</h2>
         <div className="ab-feedback-options">
-          {[["good","Recuperado"],["okay","Cansado, mas bem"],["poor","Muito fatigado"]].map(([value,label])=><button key={value} data-active={recovery===value} onClick={()=>{setRecovery(value);setFeedbackSaved(false);}}>{label}</button>)}
+          {[["good","Recuperado"],["okay","Cansado, mas bem"],["poor","Muito fatigado"]].map(([value,label])=><button key={value} data-active={recovery===value} aria-pressed={recovery===value} onClick={()=>{setRecovery(value);setFeedbackSaved(false);}}>{label}</button>)}
         </div>
         <label className="ab-pain-check"><input type="checkbox" checked={pain} onChange={event=>{setPain(event.target.checked);setFeedbackSaved(false);}}/><span>Senti dor articular, aguda ou diferente do esforço muscular esperado.</span></label>
-        <button className="ab-secondary-action" style={{width:"100%"}} onClick={saveFeedback}>{feedbackSaved?"✓ Resposta registrada":"Registrar resposta"}</button>
+        <button className="ab-secondary-action" style={{width:"100%"}} onClick={saveFeedback}>{feedbackSaved?"Resposta registrada":"Registrar resposta"}</button>
       </section>
       <button className="ab-primary" onClick={onHome}>Voltar para hoje <Icon name="arrow" size={18}/></button>
     </div>
@@ -5211,7 +5215,7 @@ function EvolucaoScreen({ history, onBack }) {
   const [sel, setSel] = useState(nomesDoGrupo[0]||nomes[0]||null);
   if (!nomes.length) return (
     <div className="ab-data-page">
-      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <button onClick={onBack} className="ab-workout-exit"><Icon name="back" size={16}/> Voltar</button>
       <div className="ab-empty-state"><div><div className="ab-empty-icon"><Icon name="chart" size={28}/></div><h1>Sua evolução começa no primeiro treino.</h1><p>Registre pesos e repetições durante uma sessão. Seus gráficos, recordes e tendências aparecerão automaticamente aqui.</p></div></div>
     </div>
   );
@@ -5228,7 +5232,7 @@ function EvolucaoScreen({ history, onBack }) {
   const fmtData = (iso)=> new Date(iso).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"});
   return (
     <div className="ab-data-page">
-      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <button onClick={onBack} className="ab-workout-exit"><Icon name="back" size={16}/> Voltar</button>
       <header className="ab-page-head"><div><div className="ab-kicker">PROGRESSO</div><h1>Evolução de carga</h1><p className="ab-copy">Escolha o grupo muscular e o exercício para consultar sua evolução.</p></div></header>
       <section className="ab-progress-browser" aria-label="Selecionar exercício">
         <div className="ab-progress-browser__step"><span>1</span><div><strong>Grupo muscular</strong><small>{grupos.length} grupo{grupos.length!==1?"s":""} com histórico</small></div></div>
@@ -5288,7 +5292,7 @@ function LibraryScreen({ onBack }) {
   const lista = exs ? exs.filter(e=>(grupo==="Todos"||e.grupo_muscular===grupo)&&(!termo||`${e.nome} ${e.grupo_muscular} ${e.equipamento||""}`.toLocaleLowerCase("pt-BR").includes(termo))) : [];
   return (
     <div className="ab-data-page">
-      <button onClick={onBack} className="ab-workout-exit">← Voltar</button>
+      <button onClick={onBack} className="ab-workout-exit"><Icon name="back" size={16}/> Voltar</button>
       <header className="ab-page-head"><div><div className="ab-kicker">MOVIMENTOS</div><h1>Biblioteca de exercícios</h1><p className="ab-copy">Explore execuções, grupos musculares e equipamentos disponíveis.</p></div><div className="ab-stat-tile"><strong>{exs?lista.length:"—"}</strong><span>Resultados</span></div></header>
       {err&&<div className="ab-form-error" role="alert"><p>{err}</p><button className="ab-secondary-action" onClick={()=>setAttempt(n=>n+1)}>Tentar novamente</button></div>}
       <div className="ab-library-toolbar"><div className="ab-search"><Icon name="search" size={18}/><input aria-label="Buscar exercícios" value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar por exercício, grupo ou equipamento"/></div></div>
