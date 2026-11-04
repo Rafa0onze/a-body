@@ -1555,19 +1555,30 @@ export default function App() {
     return ()=>cancelAnimationFrame(frame);
   },[screen]);
 
-  useEffect(()=>{
+  // Rascunho da sessão: salvo quando algo estrutural muda e, com cronômetro rodando,
+  // a cada 5 s. Antes era reescrito a cada tique do relógio.
+  const restEndsAtRef = useRef(null);
+  const salvarRascunhoRef = useRef(()=>{});
+  salvarRascunhoRef.current = ()=>{
     if (!ACTIVE_WORKOUT_SCREENS.has(screen) || !currentDay || !queue.length) return;
-    const timer = setTimeout(()=>{
-      try {
-        localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({
-          version:1,updatedAt:Date.now(),screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,
-          weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,
-          restSec,restTotal,restEndsAt:screen==="rest"?Date.now()+restSec*1000:null,workoutStartedAt:workoutStartedAt.current
-        }));
-      } catch {}
-    },180);
+    const fimDescanso = screen==="rest" ? restEndsAtRef.current : null;
+    try {
+      localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({
+        version:1,updatedAt:Date.now(),screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,
+        weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,
+        restSec:fimDescanso?Math.max(0,Math.ceil((fimDescanso-Date.now())/1000)):restSec,restTotal,restEndsAt:fimDescanso,workoutStartedAt:workoutStartedAt.current
+      }));
+    } catch {}
+  };
+  useEffect(()=>{
+    const timer = setTimeout(()=>salvarRascunhoRef.current(),180);
     return ()=>clearTimeout(timer);
-  },[screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,restSec,restTotal]);
+  },[screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,weightInput,repsInput,rirInput,cardioChoice,isoTotal,isoDone,unilateralSide,firstSideElapsed,restTotal,seriesRunning,isoRunning]);
+  useEffect(()=>{
+    if (!seriesRunning && !isoRunning) return;
+    const t = setInterval(()=>salvarRascunhoRef.current(),5000);
+    return ()=>clearInterval(t);
+  },[seriesRunning,isoRunning]);
 
   useEffect(()=>{
     (async () => {
@@ -1776,23 +1787,18 @@ export default function App() {
   useEffect(()=>{ if(seriesRunning&&screen==='workout'){seriesRef.current=setInterval(()=>setSeriesElapsed(s=>s+1),1000);}else clearInterval(seriesRef.current); return()=>clearInterval(seriesRef.current); },[seriesRunning,screen]);
   useEffect(()=>{ if(isoRunning&&isoSec>0&&screen==="workout"){isoRef.current=setInterval(()=>{setIsoSec(s=>{if(s<=1){clearInterval(isoRef.current);setIsoRunning(false);setIsoDone(true);return 0;}return s-1;});},1000);}else clearInterval(isoRef.current); return()=>clearInterval(isoRef.current); },[isoRunning,screen]);
   useEffect(()=>{
-    if(screen==="rest"&&restSec>0){
-      const fim = Date.now() + restSec*1000; // timestamp absoluto: exato mesmo se o navegador suspender
-      const tick = () => {
-        const falta = Math.max(0, Math.round((fim - Date.now())/1000));
-        if (falta <= 0) {
-          clearInterval(restRef.current);
-          beepDescanso(); notificarDescansoFim();
-          advanceAfterRest();
-        } else setRestSec(falta);
-      };
-      restRef.current = setInterval(tick, 500);
-      const onVis = () => { if (!document.hidden) tick(); }; // recalcula ao voltar
-      document.addEventListener("visibilitychange", onVis);
-      return()=>{ clearInterval(restRef.current); document.removeEventListener("visibilitychange", onVis); };
-    }
-    return()=>clearInterval(restRef.current);
-  },[screen,restSec===restTotal]);
+    if(screen!=="rest"||restSec<=0){ restEndsAtRef.current=null; return; }
+    // Fim absoluto: exato mesmo se o navegador suspender. A contagem visível vive no
+    // RestScreen; aqui só um temporizador que dispara no fim (sem setState por segundo).
+    const fim = Date.now() + restSec*1000;
+    restEndsAtRef.current = fim;
+    const acabar = () => { clearTimeout(restRef.current); beepDescanso(); notificarDescansoFim(); advanceAfterRest(); };
+    const agendar = () => { clearTimeout(restRef.current); const falta = fim - Date.now(); if (falta <= 0) acabar(); else restRef.current = setTimeout(agendar, Math.min(falta, 1000)); };
+    agendar();
+    const onVis = () => { if (!document.hidden) agendar(); };
+    document.addEventListener("visibilitychange", onVis);
+    return()=>{ clearTimeout(restRef.current); document.removeEventListener("visibilitychange", onVis); };
+  },[screen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Agenda o push ao entrar no descanso; cancela se o descanso acabar antes (pulou)
   // ou se o app estava aberto no fim (o bipe local já avisou).
   useEffect(()=>{
@@ -2084,13 +2090,13 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
   };
 
   const cancelWorkout=()=>{ clearInterval(seriesRef.current);clearInterval(isoRef.current);clearInterval(restRef.current); cancelarPushDescanso(); clearWorkoutDraft(); finishingWorkout.current=false; workoutStartedAt.current=null; setSeriesRunning(false);setIsoRunning(false); setQueue([]);setCompleted([]);setSetIdx(0);setCurrentDay(null);setReport(null); track("treino_cancelado"); setScreen("home"); };
-  const goHome=()=>{if(ACTIVE_WORKOUT_SCREENS.has(screen)&&currentDay&&queue.length){try{localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({version:1,updatedAt:Date.now(),screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,restSec,restTotal,restEndsAt:screen==='rest'?Date.now()+restSec*1000:null,workoutStartedAt:workoutStartedAt.current}));}catch{}}setScreen('home');setReport(null);setSeriesRunning(false);setIsoRunning(false);};
+  const goHome=()=>{salvarRascunhoRef.current();setScreen('home');setReport(null);setSeriesRunning(false);setIsoRunning(false);};
   const current=queue[0]||null;
 
   if(screen==="boot") return <div style={S.page}><p style={{color:C.acc,marginTop:80,fontFamily:"sans-serif"}}>Carregando…</p></div>;
 
   return (
-    <div style={S.page} className="ab-app-shell">
+    <main style={S.page} className="ab-app-shell">
       {syncWarning&&<div className="ab-sync-warning" role="status"><p>{syncWarning}</p><button className="ab-secondary-action" disabled={syncBusy} onClick={retrySync}>{syncBusy?"Sincronizando…":"Tentar sincronizar"}</button></div>}
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
@@ -2132,7 +2138,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} unilateralSide={unilateralSide} firstSideElapsed={firstSideElapsed} onNextSide={advanceUnilateralSide} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
-      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1} startedAt={workoutStartedAt.current} dayLabel={currentDay?`${currentDay.label} · ${currentDay.sub||""}`:null} lastLoad={pesoAnterior(queue[0],setIdx)} lastReps={repsAnterior(queue[0],setIdx)}/>}
+      {screen==="rest"         && <RestScreen endsAt={restEndsAtRef.current||Date.now()+restSec*1000} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1} startedAt={workoutStartedAt.current} dayLabel={currentDay?`${currentDay.label} · ${currentDay.sub||""}`:null} lastLoad={pesoAnterior(queue[0],setIdx)} lastReps={repsAnterior(queue[0],setIdx)}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>({...resto,photoPaths:null})); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
@@ -2148,7 +2154,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
       {ACTIVE_WORKOUT_SCREENS.has(screen) && currentDay && <CancelWorkout dayLabel={currentDay.label} setsLogged={completed.reduce((n,e)=>n+(Number(e.sets)||0),0)+(screen==="workout"||screen==="rest"?setIdx:0)} onConfirm={cancelWorkout}/>}
       {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo} onFeedback={saveLatestFeedback}/>}
-    </div>
+    </main>
   );
 }
 
@@ -4579,8 +4585,16 @@ function SubModal({ exercise, onSelect, onClose, locked }) {
 
 // ─── REST ─────────────────────────────────────────────────────────────────────
 
-export function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao, nextSet, startedAt, dayLabel, lastLoad, lastReps }) {
+export function RestScreen({ endsAt, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao, nextSet, startedAt, dayLabel, lastLoad, lastReps }) {
   const grupoDe = useGrupos([...completed, ...queue]);
+  const restante = () => Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  const [seconds, setSeconds] = useState(restante);
+  useEffect(() => {
+    const t = setInterval(() => setSeconds(restante()), 250);
+    const onVis = () => { if (!document.hidden) setSeconds(restante()); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+  }, [endsAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const prox = queue[0];
   const serie = Math.min(nextSet || 1, prox?.sets || 1);
   const totalSeries = [...completed, ...queue].reduce((n, e) => n + (Number(e.sets) || 0), 0);
@@ -4591,7 +4605,7 @@ export function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, 
     <div className="ab-rest2">
       <div className="ab-rest2-bar"><span>{dayLabel || "Treino"}</span><span>{feitas}/{totalSeries} séries</span></div>
       <section className="ab-rest2-clock" data-last={seconds <= 10} aria-live="off">
-        <small>Descanso</small>
+        <h1 className="ab-rest2-label">Descanso</h1>
         <time aria-label={`${seconds} segundos de descanso`}>{fmt(seconds)}</time>
         <div className="ab-rest2-drain"><span style={{ transform: `scaleX(${total ? seconds / total : 0})` }}/></div>
       </section>

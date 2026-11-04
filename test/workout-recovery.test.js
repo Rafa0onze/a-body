@@ -28,5 +28,8 @@ test("conclusão limpa rascunho; voltar à home preserva a sessão para retomar"
   const back=source.slice(source.indexOf('const goHome='),source.indexOf('const current=queue'));
   assert.match(finish,/clearWorkoutDraft\(\)/);
   assert.doesNotMatch(back,/clearWorkoutDraft\(\)/);
-  assert.match(back,/localStorage\.setItem\(WORKOUT_DRAFT_KEY/);
+  assert.match(back,/salvarRascunhoRef\.current\(\)/);
+  const saver=source.slice(source.indexOf('salvarRascunhoRef.current = ()=>'),source.indexOf('useEffect(',source.indexOf('salvarRascunhoRef.current = ()=>')));
+  assert.match(saver,/localStorage\.setItem\(WORKOUT_DRAFT_KEY/);
+  assert.match(saver,/restEndsAt:fimDescanso/);
 });

@@ -636,3 +636,21 @@ a { text-underline-offset: .18em; }
 }
 .ab-cancel-final:disabled { background: transparent; color: var(--ab-danger) !important; opacity: .55; }
 .ab-cancel-actions .ab-cancel-danger { min-height: 50px; font-size: 15px !important; font-weight: 650; }
+
+/* auditoria: estados selecionados levam o texto junto (o CSS antigo pintava filhos) */
+.ab-cardio-choice[data-active="true"] *, .ab-option[data-active="true"] *, .ab-filter-chip[data-active="true"] *,
+.ab-muscle-group[data-active="true"] small, .ab-role[data-active="true"] *, .ab-feedback-options button[data-active="true"] *,
+.ab-exercise-index__item[data-active="true"] span { color: inherit !important; }
+.ab-rest2-clock h1.ab-rest2-label { display: block; margin: 0; font-size: 13px !important; font-weight: 600; letter-spacing: .06em !important; line-height: 1.3; text-transform: uppercase; color: var(--ab-muted) !important; }
+/* alvos de toque de 44 px nos botões de filtro e de resposta */
+.ab-filter-chip, .ab-feedback-options button { min-height: 44px !important; }
+
+/* movimento reduzido: sem laços decorativos nem deslizes; mudanças de estado continuam visíveis */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  .ab-skeleton, .ab-movement-placeholder--loading, .ab-overview-media--loading,
+  .ab-generating-core, .ab-generating-core::after, .ab-generating-status::before { animation: none !important; }
+  .ab-modal-sheet { animation-name: ab-fade-in !important; animation-duration: .12s !important; }
+  .ab-primary:active:not(:disabled) { transform: none; }
+  .ab-w2-progress span, .ab-muscle-group, .ab-h2-days button, .ab-h2-tools button { transition-duration: .01ms !important; }
+}
