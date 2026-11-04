@@ -589,7 +589,8 @@ a { text-underline-offset: .18em; }
 .ab-settings-about { background: transparent !important; border: 0 !important; border-top: 1px solid var(--ab-rule) !important; padding: 12px 0 !important; color: var(--ab-muted) !important; }
 .ab-body-grid { gap: 0 !important; }
 .ab-measurement-entry { border-radius: 2px !important; }
-.ab-app-shell .ab-search input { border: 0 !important; background: transparent !important; padding: 0 !important; }
+.ab-app-shell .ab-search input { border: 0 !important; background: transparent !important; padding: 0 0 0 2px !important; }
+.ab-search svg { position: static !important; transform: none !important; flex: none; }
 .ab-score-row { --m: var(--ab-text); }
 .ab-score-row[data-m="costas"] { --m: var(--m-costas); } .ab-score-row[data-m="peito"] { --m: var(--m-peito); } .ab-score-row[data-m="ombros"] { --m: var(--m-ombros); }
 .ab-score-row[data-m="bracos"] { --m: var(--m-bracos); } .ab-score-row[data-m="pernas"] { --m: var(--m-pernas); } .ab-score-row[data-m="core"] { --m: var(--m-core); }
