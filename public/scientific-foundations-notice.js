@@ -14,9 +14,9 @@
     const box = document.createElement("div");
     box.dataset.abodyScientificNotice = tipo;
     box.style.cssText = [
-      "background:#f3f8f5",
-      "border:1px solid #cfe2d8",
-      "border-radius:16px",
+      "background:#ffffff",
+      "border:1px solid #c9ccc6",
+      "border-radius:2px",
       "padding:14px 16px",
       "margin:16px 0 4px",
       "font-family:inherit",
@@ -24,12 +24,12 @@
     ].join(";");
 
     const title = document.createElement("div");
-    title.textContent = "✓ " + TEXT[tipo].title;
-    title.style.cssText = "font-size:13px;font-weight:800;color:#176b49;margin-bottom:5px";
+    title.textContent = TEXT[tipo].title;
+    title.style.cssText = "font-size:13px;font-weight:800;color:#1b1d1c;margin-bottom:5px";
 
     const body = document.createElement("div");
     body.textContent = TEXT[tipo].body;
-    body.style.cssText = "font-size:12px;color:#52675c";
+    body.style.cssText = "font-size:12px;color:#565b57";
 
     box.append(title, body);
     return box;
@@ -66,7 +66,7 @@
 
     const overlay = document.createElement("div");
     overlay.dataset.abodyWorkoutPreview = "true";
-    overlay.style.cssText = "position:fixed;inset:0;z-index:10050;background:#071b13;overflow-y:auto;font-family:inherit;color:#ecf5ef";
+    overlay.style.cssText = "position:fixed;inset:0;z-index:10050;background:#f5f6f3;overflow-y:auto;font-family:inherit;color:#1b1d1c";
 
     const page = document.createElement("div");
     page.style.cssText = "max-width:480px;margin:0 auto;min-height:100%;padding:28px 25px 34px;box-sizing:border-box";
@@ -75,24 +75,24 @@
     top.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:22px";
     const back = document.createElement("button");
     back.textContent = "← Voltar";
-    back.style.cssText = "background:none;border:none;color:#48df91;font-size:14px;font-weight:700;padding:0;cursor:pointer";
+    back.style.cssText = "background:none;border:none;color:#1b1d1c;font-size:14px;font-weight:700;padding:0;cursor:pointer";
     back.onclick = fecharResumo;
     const brand = document.createElement("div");
     brand.textContent = "A-BODY";
-    brand.style.cssText = "font-size:14px;font-weight:800;letter-spacing:.08em;color:#ecf5ef";
+    brand.style.cssText = "font-size:14px;font-weight:800;letter-spacing:.08em;color:#1b1d1c";
     top.append(back, brand);
 
     const eyebrow = document.createElement("div");
     eyebrow.textContent = `${day.label || "TREINO"} · RESUMO DO TREINO`;
-    eyebrow.style.cssText = "font-size:12px;font-weight:800;letter-spacing:.14em;color:#48df91;margin-bottom:10px";
+    eyebrow.style.cssText = "display:none";
 
     const h1 = document.createElement("h1");
     h1.textContent = day.sub || day.label || "Seu treino";
-    h1.style.cssText = "font-size:29px;line-height:1.15;margin:0 0 10px;font-weight:850;color:#f2f7f4";
+    h1.style.cssText = "font-size:29px;line-height:1.15;margin:0 0 10px;font-weight:850;color:#1b1d1c";
 
     const intro = document.createElement("p");
     intro.textContent = "Revise a sequência e prepare o primeiro equipamento antes de começar.";
-    intro.style.cssText = "font-size:14px;line-height:1.5;color:#9bb7a7;margin:0 0 18px";
+    intro.style.cssText = "font-size:14px;line-height:1.5;color:#565b57;margin:0 0 18px";
 
     const stats = document.createElement("div");
     stats.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:22px";
@@ -103,38 +103,38 @@
     ];
     statItems.forEach(([value, label]) => {
       const item = document.createElement("div");
-      item.style.cssText = "background:#0d2a1d;border:1px solid #214a35;border-radius:13px;padding:12px 8px;text-align:center";
+      item.style.cssText = "background:#ffffff;border:1px solid #c9ccc6;border-radius:2px;padding:12px 8px;text-align:center";
       const number = document.createElement("div");
       number.textContent = value;
-      number.style.cssText = "font-size:16px;font-weight:850;color:#ecf5ef";
+      number.style.cssText = "font-size:16px;font-weight:850;color:#1b1d1c";
       const caption = document.createElement("div");
       caption.textContent = label;
-      caption.style.cssText = "font-size:10px;color:#8fb09d;margin-top:3px;text-transform:uppercase;letter-spacing:.06em";
+      caption.style.cssText = "font-size:10px;color:#565b57;margin-top:3px;text-transform:uppercase;letter-spacing:.06em";
       item.append(number, caption);
       stats.appendChild(item);
     });
 
     const section = document.createElement("div");
     section.textContent = "EXERCÍCIOS";
-    section.style.cssText = "font-size:11px;font-weight:800;letter-spacing:.12em;color:#9bb7a7;margin-bottom:8px";
+    section.style.cssText = "font-size:11px;font-weight:800;letter-spacing:.12em;color:#565b57;margin-bottom:8px";
 
     const list = document.createElement("div");
     list.style.cssText = "display:flex;flex-direction:column;gap:8px;margin-bottom:22px";
     exercises.forEach((ex, index) => {
       const row = document.createElement("div");
-      row.style.cssText = "display:flex;align-items:center;gap:12px;background:#0d2a1d;border:1px solid #214a35;border-radius:14px;padding:12px 14px";
+      row.style.cssText = "display:flex;align-items:center;gap:12px;background:#ffffff;border:1px solid #c9ccc6;border-radius:2px;padding:12px 14px";
       const number = document.createElement("div");
       number.textContent = String(index + 1);
-      number.style.cssText = "width:28px;height:28px;border-radius:9px;background:#123b29;color:#48df91;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:850;flex-shrink:0";
+      number.style.cssText = "width:28px;height:28px;border-radius:2px;background:#1b1d1c;color:#f5f6f3;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:850;flex-shrink:0";
       const info = document.createElement("div");
       info.style.cssText = "flex:1;min-width:0";
       const name = document.createElement("div");
       name.textContent = ex.name || `Exercício ${index + 1}`;
-      name.style.cssText = "font-size:13px;font-weight:750;color:#ecf5ef;line-height:1.35";
+      name.style.cssText = "font-size:13px;font-weight:750;color:#1b1d1c;line-height:1.35";
       const details = document.createElement("div");
       const reps = ex.iso ? `${ex.isoSec || 45}s` : (ex.reps || "repetições");
       details.textContent = `${ex.sets || 3} séries · ${reps} · descanso ${ex.rest || 60}s`;
-      details.style.cssText = "font-size:11px;color:#8fb09d;margin-top:3px";
+      details.style.cssText = "font-size:11px;color:#565b57;margin-top:3px";
       info.append(name, details);
       row.append(number, info);
       list.appendChild(row);
@@ -142,11 +142,11 @@
 
     const ready = document.createElement("div");
     ready.textContent = "Comece somente quando estiver com o primeiro equipamento preparado.";
-    ready.style.cssText = "background:#0c251a;border:1px solid #214a35;border-radius:12px;padding:11px 13px;font-size:11px;line-height:1.45;color:#9bb7a7;margin-bottom:14px";
+    ready.style.cssText = "background:#ffffff;border:1px solid #c9ccc6;border-radius:2px;padding:11px 13px;font-size:11px;line-height:1.45;color:#565b57;margin-bottom:14px";
 
     const start = document.createElement("button");
     start.textContent = "▶ Iniciar agora";
-    start.style.cssText = "width:100%;background:#267746;border:none;border-radius:14px;padding:16px;color:#06140e;font-size:15px;font-weight:850;cursor:pointer";
+    start.style.cssText = "width:100%;background:#1b1d1c;border:none;border-radius:2px;padding:16px;color:#f5f6f3;font-size:15px;font-weight:850;cursor:pointer";
     start.onclick = () => {
       fecharResumo();
       botaoOriginal.dataset.abodyPreviewBypass = "true";

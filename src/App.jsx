@@ -286,16 +286,7 @@ function Icon({ name, size = 20, className = "" }) {
   return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>;
 }
 
-function BrandMark({ className = "" }) {
-  return (
-    <span className={`ab-logo-mark ${className}`} aria-hidden="true">
-      <svg viewBox="0 0 40 40" role="img">
-        <path fillRule="evenodd" d="M4.5 35 16.8 5h6.5l8.4 21.2-6.1 2.7-2.2-6.1h-8L10.7 35H4.5Zm13-18h3.9l-2-5.7-1.9 5.7Z"/>
-        <path d="m26.6 30.6 5.9-2.7 2.8 7.1h-6.2l-2.5-4.4Z"/>
-      </svg>
-    </span>
-  );
-}
+function BrandMark() { return null; }
 async function loadStorage(key) {
   const epoch=accountEpoch,owner=localStorage.getItem('abody:owner');
   let local = null;
@@ -2246,7 +2237,7 @@ function AuthScreen({ onDone, onSkip, onForgot }) {
       <input id="auth-password" aria-label="Senha da conta" className="ab-input" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
 
       {mode==="login"&&<button type="button" className="ab-link" onClick={()=>onForgot(email)}>Esqueci minha senha</button>}
-      {err  && <div role="alert" style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {err  && <div role="alert" style={{background:"#fff",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"var(--ab-danger)",marginTop:12}}>{err}</div>}
       {info && <div role="status" style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:2,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
 
       <button className="ab-primary" style={{marginTop:18}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
@@ -2627,10 +2618,10 @@ function AulaModal({ aula, alunos, aulas, onClose, onSaved }) {
         </select>
         {alunos.length===0 && <p style={{fontSize:11,color:C.muted,margin:"6px 2px 0"}}>O cadastro de alunos chega no próximo módulo — dá pra criar a aula e vincular depois.</p>}
 
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+        {err && <div style={{background:"#fff",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"var(--ab-danger)",marginTop:12}}>{err}</div>}
 
         <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Salvar aula"}</button>
-        {form.id && <button style={{...S.btnOutline,marginTop:10,fontSize:13,color:"#ff8080",borderColor:"#8b2a2a"}} disabled={busy} onClick={remover}>Excluir aula</button>}
+        {form.id && <button style={{...S.btnOutline,marginTop:10,fontSize:13,color:"var(--ab-danger)",borderColor:"var(--ab-danger)"}} disabled={busy} onClick={remover}>Excluir aula</button>}
       </div>
     </div>
   );
@@ -2692,7 +2683,7 @@ function TreinoDoDiaModal({ aula, onClose }) {
 
 // ─── B2B: GESTÃO DE ALUNOS E EDITOR DE TREINOS ───────────────────────────────
 
-const STATUS_ALUNO = { convidado:{rotulo:"Convidado",cor:"#d9a441"}, ativo:{rotulo:"Ativo",cor:C.acc}, inativo:{rotulo:"Inativo",cor:C.muted} };
+const STATUS_ALUNO = { convidado:{rotulo:"Convidado",cor:"var(--m-ombros)"}, ativo:{rotulo:"Ativo",cor:C.acc}, inativo:{rotulo:"Inativo",cor:C.muted} };
 
 function ModalShell({ title, eyebrow, onClose, children, layer=70, wide=false, bodyClass="", closeDisabled=false }) {
   const panelRef = useRef(null);
@@ -2958,7 +2949,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
         <button className="ab-primary ab-compact-button" disabled={!jsonPlano.trim()} onClick={importarPlano}>Validar e carregar</button>
       </section>}
       <input style={{...S.field,fontSize:17,fontWeight:800}} value={plano.planName} onChange={e=>setPlano(p=>({...p,planName:e.target.value}))} placeholder="nome do plano"/>
-      {(plano.missingIllustrations||[]).length>0 && <section role="status" style={{background:"#fff8e8",border:"1px solid #e2bd69",borderRadius:2,padding:"12px 14px",margin:"10px 0 14px",color:"#4b3510"}}>
+      {(plano.missingIllustrations||[]).length>0 && <section role="status" style={{background:"#fff",border:"1px solid #e2bd69",borderRadius:2,padding:"12px 14px",margin:"10px 0 14px",color:"#4b3510"}}>
         <strong style={{display:"block",fontSize:13,marginBottom:5}}>Ilustrações a providenciar · {plano.missingIllustrations.length}</strong>
         <p style={{fontSize:11,lineHeight:1.45,margin:"0 0 7px"}}>Estes exercícios foram escolhidos pelo resultado esperado, sem influência da biblioteca visual, e já entraram na fila de produção:</p>
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{plano.missingIllustrations.map(nome=><span key={nome} style={{background:"#fff",borderRadius:7,padding:"4px 7px",fontSize:11,fontWeight:700}}>{nome}</span>)}</div>
@@ -2978,7 +2969,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
               <div key={ei} style={{borderTop:`1px solid ${C.border}`,padding:"10px 0"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>{ex.name}{ex.custom && <span style={{fontSize:9,color:"#d9a441",marginLeft:6,fontWeight:800}}>PRÓPRIO</span>}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:C.text}}>{ex.name}{ex.custom && <span style={{fontSize:9,color:"var(--m-ombros)",marginLeft:6,fontWeight:800}}>PRÓPRIO</span>}</div>
                     {ex.iso && <div style={{fontSize:10,color:C.acc,marginTop:2}}>cronômetro: {ex.isoSec}s</div>}
                   </div>
                   <button aria-label={`Editar substituições de ${ex.name}`} style={{background:"none",border:"none",color:C.acc,fontSize:12,fontWeight:700}} onClick={()=>setSubsDe(aberto?null:{di,ei})}>subs {aberto?"▾":"▸"}</button>
@@ -3019,7 +3010,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
       ))}
 
       <button style={{...S.btnOutline,marginTop:12,fontSize:13,padding:"11px"}} onClick={addDia}>+ Dia de treino</button>
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {err && <div style={{background:"#fff",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"var(--ab-danger)",marginTop:12}}>{err}</div>}
       <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Salvar treino do aluno"}</button>
 
       {picker!==null && <ExercicioPickerModal onClose={()=>setPicker(null)} onPick={(ex)=>addEx(picker,ex)}/>}
@@ -3268,7 +3259,7 @@ REGRAS DE FORMATO: exatamente ${form.dias} dias. Max 5 exercícios/dia.\n\nMOBIL
       {(fotos.front||fotos.back||fotos.side) && <label className="ab-pain-check"><input type="checkbox" checked={consentFotos} onChange={e=>setConsentFotos(e.target.checked)}/><span>Confirmo que o aluno autorizou o processamento destas fotos pela IA para personalização do treino.</span></label>}
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
 
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {err && <div style={{background:"#fff",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"var(--ab-danger)",marginTop:12}}>{err}</div>}
       <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={gerar}>{busy?"Gerando treino…":"Gerar treino"}</button>
     </div>
   );
@@ -3295,7 +3286,7 @@ function ObsPersonalBox({ vinculo, contexto, placeholder }) {
           {estado==="enviando"?"Enviando…":"Enviar"}
         </button>
         {estado==="ok" && <span style={{fontSize:12,color:C.acc,fontWeight:700}}>enviado ao personal</span>}
-        {estado==="erro" && <span style={{fontSize:12,color:"#ff8080"}}>falha ao enviar — tente de novo</span>}
+        {estado==="erro" && <span style={{fontSize:12,color:"var(--ab-danger)"}}>falha ao enviar — tente de novo</span>}
       </div>
     </div>
   );
@@ -3330,7 +3321,7 @@ function ConviteModal({ aluno, onClose }) {
           <>
             <div style={{...S.card,padding:"12px 14px",marginBottom:10,wordBreak:"break-all",fontSize:12,color:C.acc}}>{link}</div>
             <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Válido até {new Date(conv.expira_em).toLocaleDateString("pt-BR")} · uso único</div>
-            <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:2,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
+            <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:2,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
               ℹ️ O envio sai do <b style={{color:C.text}}>seu</b> aparelho: os botões abaixo abrem o app escolhido com a mensagem pronta — é só confirmar o envio lá.
             </div>
             <button className="ab-primary" style={{marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank", "noopener,noreferrer"); }}>Enviar por WhatsApp</button>
@@ -3386,7 +3377,7 @@ function MensagensModal({ aluno, onClose }) {
             return (
               <div key={m.id} style={{display:"flex",justifyContent: minha ? "flex-end" : "flex-start",marginBottom:8}}>
                 <div style={{maxWidth:"82%",background: minha ? "#123526" : C.card,border:`1px solid ${minha ? C.acc : C.border}`,borderRadius:2,padding:"9px 12px"}}>
-                  {ctx && <div style={{fontSize:9,color:"#d9a441",fontWeight:800,letterSpacing:"0.05em",marginBottom:3}}>{ctx.toUpperCase()}</div>}
+                  {ctx && <div style={{fontSize:9,color:"var(--m-ombros)",fontWeight:800,letterSpacing:"0.05em",marginBottom:3}}>{ctx.toUpperCase()}</div>}
                   <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap"}}>{m.texto}</div>
                   <div style={{fontSize:9,color:C.muted,marginTop:4,textAlign:"right"}}>{new Date(m.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>
                 </div>
@@ -3481,7 +3472,7 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
       </div>
       {alunoId && <label className="ab-pain-check" style={{marginTop:10}}><input type="checkbox" checked={consentDoc} onChange={e=>setConsentDoc(e.target.checked)}/><span>Confirmo que o aluno autorizou o armazenamento deste dado sensível de saúde para prontuário e personalização do treino.</span></label>}
       {selecionaveis && <p style={{fontSize:10,color:C.muted,margin:"8px 0 0"}}>Marque até {MAX_DOCS_IA} documentos para a IA considerar na geração do treino. O conteúdo é tratado como dado não-confiável (proteção contra instruções embutidas).</p>}
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"9px 12px",fontSize:12,color:"#ff8080",marginTop:8}}>{err}</div>}
+      {err && <div style={{background:"#fff",border:"1px solid #8b2a2a",borderRadius:2,padding:"9px 12px",fontSize:12,color:"var(--ab-danger)",marginTop:8}}>{err}</div>}
     </div>
   );
 }
@@ -3560,16 +3551,16 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       <p style={{fontSize:11,color:C.muted,margin:"0 0 8px 0"}}>Marque os documentos que a IA deve considerar nesta avaliação.</p>
       <DocsSaude alunoId={aluno.id} selecionaveis selecionados={docsAluno} setSelecionados={setDocsAluno}/>
 
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#fff",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
         <span>Confirmo que o aluno <b>consentiu</b> com o envio das fotos para análise pela IA. São <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para esta avaliação.</span>
       </label>
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#fff",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={guardar} onChange={e=>setGuardar(e.target.checked)} style={{marginTop:2}}/>
         <span><b>Armazenar as fotos</b> em área privada para o <b>comparativo visual antes/depois</b> nas próximas avaliações. Podem ser excluídas a qualquer momento no relatório.</span>
       </label>
 
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{err}</div>}
+      {err && <div style={{background:"#fff",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"var(--ab-danger)",marginTop:8}}>{err}</div>}
       <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={analisar}>{busy ? "Analisando…" : "Analisar por IA"}</button>
     </div>
   );
@@ -3597,11 +3588,11 @@ function ContaGlobal({ user, onLogout }) {
               borderRadius:2,padding:"12px 14px",minWidth:220,boxShadow:"0 6px 24px rgba(0,0,0,0.5)"}}>
             <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:4}}>CONECTADO COMO</div>
             <div style={{fontSize:13,color:C.text,fontWeight:600,marginBottom:12,wordBreak:"break-all"}}>{user?.email || "—"}</div>
-            <button style={{...S.btnOutline,fontSize:13,padding:"10px",color:"#ff8080",borderColor:"#8b2a2a"}}
+            <button style={{...S.btnOutline,fontSize:13,padding:"10px",color:"var(--ab-danger)",borderColor:"var(--ab-danger)"}}
               onClick={()=>{ setAberto(false); onLogout(); }}>
               Sair da conta
             </button>
-            <button disabled={excluindo} style={{...S.btnOutline,fontSize:12,padding:"9px",marginTop:8,color:"#ff8080",borderColor:"#8b2a2a",opacity:excluindo?0.5:1}}
+            <button disabled={excluindo} style={{...S.btnOutline,fontSize:12,padding:"9px",marginTop:8,color:"var(--ab-danger)",borderColor:"var(--ab-danger)",opacity:excluindo?0.5:1}}
               onClick={async()=>{
                 if (!window.confirm("Excluir definitivamente sua conta, treinos, fotos e documentos? Esta ação não pode ser desfeita.")) return;
                 setExcluindo(true);
@@ -3772,17 +3763,17 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         <h2 style={S.h1}>Análise corporal</h2>
         <p style={S.sub}>Envie fotos de roupa de banho para que a IA identifique seus pontos fortes e fracos e personalize seu plano. <b style={{color:C.acc}}>As fotos são processadas apenas pela IA e não são armazenadas.</b></p>
         <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
-        <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
+        <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
           ℹ️ As fotos são opcionais. Sem elas, o plano será gerado apenas com base na anamnese.
         </div>
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#fff",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoConsent} onChange={e=>setForm({...form,photoConsent:e.target.checked})} style={{marginTop:2}}/>
             <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b>. Entendo que são <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para gerar minha análise corporal.</span>
           </label>
         )}
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#fff",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoStoreConsent} onChange={e=>setForm({...form,photoStoreConsent:e.target.checked})} style={{marginTop:2}}/>
             <span><b>Opcional:</b> autorizo o <b>armazenamento seguro</b> das minhas fotos em área privada, acessível somente por mim, com a finalidade exclusiva de gerar <b>comparativos visuais da minha evolução</b>. Posso excluí-las a qualquer momento no Relatório Corporal.</span>
           </label>
@@ -3807,7 +3798,7 @@ function GeneratingScreen({ name, photoAnalyzing, onCancel }) {
   const msgs=["Analisando seu perfil","Definindo grupos musculares","Calculando volume ideal","Montando periodização","Ajustando intensidade","Finalizando plano"];
   const [mi,setMi]=useState(0); useEffect(()=>{const t=setInterval(()=>setMi(i=>(i+1)%msgs.length),1800);return()=>clearInterval(t);},[]);
   return (
-    <div className="ab-generating"><div><button className="ab-secondary-action" onClick={onCancel}>Voltar sem substituir meu plano</button><div className="ab-generating-core"><Icon name="sparkles" size={46}/></div><div className="ab-kicker">A-BODY INTELLIGENCE</div><h1>Criando seu plano</h1><p className="ab-copy">{name?`${name}, estamos combinando suas respostas`:"Estamos combinando suas respostas"} para construir uma rotina coerente e personalizada.</p>{photoAnalyzing&&<p style={{color:"#f0b45a",fontSize:11}}>Análise corporal incluída no processamento.</p>}<div className="ab-generating-status" aria-live="polite">{msgs[mi]}</div></div></div>
+    <div className="ab-generating"><div><button className="ab-secondary-action" onClick={onCancel}>Voltar sem substituir meu plano</button><div className="ab-kicker">A-BODY INTELLIGENCE</div><h1>Criando seu plano</h1><p className="ab-copy">{name?`${name}, estamos combinando suas respostas`:"Estamos combinando suas respostas"} para construir uma rotina coerente e personalizada.</p>{photoAnalyzing&&<p style={{color:"var(--m-ombros)",fontSize:11}}>Análise corporal incluída no processamento.</p>}<div className="ab-generating-status" aria-live="polite">{msgs[mi]}</div></div></div>
   );
 }
 
@@ -3994,7 +3985,7 @@ function SplitSelectScreen({ onSelect, onBack }) {
             <div style={{flex:1}}>
               <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{s.label}</div>
               <div style={{fontSize:12,color:C.muted}}>{s.description}</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{s.days.map(d=><span key={d.id} style={{fontSize:10,background:"#e8f1ec",borderRadius:6,padding:"2px 8px",color:C.muted}}>{d.label}</span>)}</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>{s.days.map(d=><span key={d.id} style={{fontSize:10,background:"#fff",borderRadius:6,padding:"2px 8px",color:C.muted}}>{d.label}</span>)}</div>
             </div>
             <span style={{color:C.acc,fontSize:18}}><Icon name="arrow" size={18}/></span>
           </button>
@@ -4027,7 +4018,7 @@ function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setU
           <div key={d.id} style={{...S.card,marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <div>
-                <div style={{fontWeight:700,fontSize:15}}>{d.label} <span style={{fontSize:11,color:exs.length>=3?C.acc:"#e8a23a",fontWeight:700}}>({exs.length} ex.)</span></div>
+                <div style={{fontWeight:700,fontSize:15}}>{d.label} <span style={{fontSize:11,color:exs.length>=3?C.acc:"var(--m-ombros)",fontWeight:700}}>({exs.length} ex.)</span></div>
                 <div style={{fontSize:11,color:C.muted,marginTop:2}}>{d.sub}</div>
               </div>
               <button style={{...S.btnOutline,width:"auto",padding:"6px 14px",fontSize:12}} onClick={()=>setEditingDayId(isEditing?null:d.id)}>
@@ -4037,7 +4028,7 @@ function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setU
 
             {isEditing&&(<>
               {exs.map((ex,i)=>(
-                <div key={ex._key||i} style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px",marginBottom:6}}>
+                <div key={ex._key||i} style={{background:"#fff",borderRadius:2,padding:"10px 12px",marginBottom:6}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                     <div style={{fontSize:13,fontWeight:600,flex:1}}>{ex.name}</div>
                     <button style={{background:"none",border:"none",color:"#e87a3a",fontSize:16,padding:"0 4px"}} onClick={()=>onRemove(d.id,ex.id)}><Icon name="x" size={16}/></button>
@@ -4065,7 +4056,7 @@ function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setU
 
             {!isEditing&&exs.length>0&&(
               <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                {exs.map((ex,i)=><span key={i} style={{fontSize:11,background:"#e8f1ec",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
+                {exs.map((ex,i)=><span key={i} style={{fontSize:11,background:"#fff",borderRadius:6,padding:"3px 8px",color:C.muted}}>{ex.name}</span>)}
               </div>
             )}
             {!isEditing&&exs.length===0&&<div style={{fontSize:12,color:"#8fb8a2",fontStyle:"italic"}}>Nenhum exercício adicionado ainda</div>}
@@ -4198,17 +4189,17 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart, onCancel, saving, erro
           <h2>ANÁLISE CORPORAL IA</h2>
           {bodyAnalysis.overallAnalysis&&<p style={{fontSize:13,color:C.muted,margin:0,lineHeight:1.5}}>{bodyAnalysis.overallAnalysis}</p>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
+            <div style={{background:"#fff",borderRadius:2,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>PONTOS FORTES</div>
               {(bodyAnalysis.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}><Icon name="check" size={13}/> {p}</div>)}
             </div>
-            <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
-              <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
+            <div style={{background:"#fff",borderRadius:2,padding:"10px 12px"}}>
+              <div style={{fontSize:10,color:"var(--m-ombros)",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
               {(bodyAnalysis.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}><Icon name="arrow" size={13}/> {p}</div>)}
             </div>
           </div>
           {(bodyAnalysis.postureNotes||[]).length>0&&(
-            <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
+            <div style={{background:"#fff",borderRadius:2,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>POSTURA</div>
               {bodyAnalysis.postureNotes.map((p,i)=><div key={i} style={{fontSize:12,color:C.muted,marginBottom:3}}>• {p}</div>)}
             </div>
@@ -4647,7 +4638,7 @@ function FotoComparativo({ bodyHistory, onFotosExcluidas }) {
           </div>
         </div>
       ))}
-      <button onClick={excluirTudo} disabled={excluindo} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:2,color:"#ff8a8a",fontSize:12,fontWeight:600,padding:"8px 12px",width:"100%",cursor:"pointer",opacity:excluindo?0.5:1}}>
+      <button onClick={excluirTudo} disabled={excluindo} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:2,color:"var(--ab-danger)",fontSize:12,fontWeight:600,padding:"8px 12px",width:"100%",cursor:"pointer",opacity:excluindo?0.5:1}}>
         {excluindo?"Excluindo…":"Excluir minhas fotos armazenadas (LGPD)"}
       </button>
     </div>
@@ -4682,7 +4673,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
           <div style={{fontSize:11,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>EVOLUÇÃO vs AVALIAÇÃO ANTERIOR</div>
           {comp.summary && <p style={{fontSize:13,color:C.text,margin:"0 0 10px 0",lineHeight:1.5}}>{comp.summary}</p>}
           {(comp.improvements||[]).map((p,i)=><div key={i} style={{fontSize:13,color:C.acc,marginBottom:4}}><Icon name="up" size={13}/> {p}</div>)}
-          {(comp.attentionPoints||[]).map((p,i)=><div key={i} style={{fontSize:13,color:"#e8a23a",marginBottom:4}}><Icon name="alert" size={13}/> {p}</div>)}
+          {(comp.attentionPoints||[]).map((p,i)=><div key={i} style={{fontSize:13,color:"var(--m-ombros)",marginBottom:4}}><Icon name="alert" size={13}/> {p}</div>)}
         </section>
       )}
 
@@ -4702,7 +4693,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
               <div key={g} className="ab-score-row">
                 <span>
                   {ROTULO_GRUPO[g]}
-                  {delta !== 0 && <span style={{fontSize:11,fontWeight:700,marginLeft:6,color:delta>0?C.acc:"#e8a23a"}}>{delta>0?`▲${delta}`:`▼${Math.abs(delta)}`}</span>}
+                  {delta !== 0 && <span style={{fontSize:11,fontWeight:700,marginLeft:6,color:delta>0?C.acc:"var(--m-ombros)"}}>{delta>0?`▲${delta}`:`▼${Math.abs(delta)}`}</span>}
                 </span>
                 <div className="ab-score-track"><span style={{width:`${Math.min(100,Math.max(0,at*20))}%`}}/></div><b>{at}/5</b>
               </div>
@@ -4732,7 +4723,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
 
       {(a.restricoesMovimento||[]).length > 0 && (
         <div style={{...S.card,marginBottom:14,border:"1.5px solid #e8a23a"}}>
-          <div style={{fontSize:11,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>RESTRIÇÕES CONSIDERADAS NO TREINO</div>
+          <div style={{fontSize:11,color:"var(--m-ombros)",fontWeight:700,letterSpacing:"0.08em",marginBottom:8}}>RESTRIÇÕES CONSIDERADAS NO TREINO</div>
           {a.restricoesMovimento.map((r,i)=><div key={i} style={{fontSize:13,color:C.text,marginBottom:4}}><Icon name="alert" size={13}/> {r}</div>)}
           <p style={{fontSize:11,color:C.muted,margin:"8px 0 0 0",lineHeight:1.5}}>
             Exercícios com esses padrões de movimento ficam fora do seu plano. Isto não é diagnóstico — em caso de dor ou lesão, procure um profissional de saúde.
@@ -4781,7 +4772,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
           {(a.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}><Icon name="check" size={13}/> {p}</div>)}
         </div>
         <div style={{...S.card,flex:1}}>
-          <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
+          <div style={{fontSize:10,color:"var(--m-ombros)",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
           {(a.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:4}}><Icon name="arrow" size={13}/> {p}</div>)}
         </div>
       </div>
@@ -4813,18 +4804,18 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
       <p style={S.sub}>Envie fotos atuais nas mesmas posições. A IA compara com sua avaliação anterior e mostra sua evolução.</p>
       <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#fff",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
           <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b> (dados sensíveis de saúde — LGPD).</span>
         </label>
       )}
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#fff",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={!!storeConsent} onChange={e=>setStoreConsent(e.target.checked)} style={{marginTop:2}}/>
           <span><b>Opcional:</b> autorizo o <b>armazenamento seguro e privado</b> das fotos para comparativos visuais da minha evolução. Posso excluí-las quando quiser.</span>
         </label>
       )}
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:10}}>{err}</div>}
+      {err && <div style={{background:"#fff",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"var(--ab-danger)",marginTop:10}}>{err}</div>}
       <button style={{...S.btn,marginTop:16,opacity:(hasAny&&!busy)?1:0.4}} disabled={!hasAny||busy} onClick={()=>{ if(!consent){alert("Marque a autorização de análise das fotos.");return;} onRun(); }}>
         {busy ? "Analisando…" : "Gerar comparativo "}
       </button>
@@ -4911,7 +4902,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
                 {trained ? (
                   done.map((s,j)=>(
                     <div key={j} style={{display:"flex",alignItems:"center",gap:8,marginBottom:j<done.length-1?4:0}}>
-                      <div style={{width:20,height:20,borderRadius:"50%",background:s.manual?"#f0a848":C.acc,color:s.manual?"#06140e":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{s.manual?<Icon name="edit" size={12}/>:<Icon name="check" size={12}/>}</div>
+                      <div style={{width:20,height:20,borderRadius:"50%",background:s.manual?"var(--m-ombros)":C.acc,color:s.manual?"#06140e":"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,flexShrink:0}}>{s.manual?<Icon name="edit" size={12}/>:<Icon name="check" size={12}/>}</div>
                       <span style={{fontSize:14,fontWeight:700,color:s.manual?"#80540f":C.text}}>{s.dayLabel || "Treino"}{s.manual?" · manual":""}</span>
                     </div>
                   ))
@@ -4930,7 +4921,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
           <span style={{fontSize:12,color:C.muted}}>Check-in automático ao finalizar o treino no app</span>
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <div style={{width:18,height:18,borderRadius:"50%",background:"#f0a848",color:"#f5f6f3",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}><Icon name="edit" size={12}/></div>
+          <div style={{width:18,height:18,borderRadius:"50%",background:"var(--m-ombros)",color:"#f5f6f3",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}><Icon name="edit" size={12}/></div>
           <span style={{fontSize:12,color:C.muted}}>Registro manual — toque em qualquer dia passado para adicionar ou corrigir</span>
         </div>
       </div>
@@ -5170,9 +5161,9 @@ function ABSilhueta({ regiao }) {
 
 function ABodyCard({ ex }) {
   return (
-    <article className="ab-library-card">
+    <article className="ab-library-card" data-m={TECIDO[ex.grupo_muscular]||"geral"}>
       <div className="ab-library-media">{ex.imagem_url?<img src={ex.imagem_url} alt={ex.nome} loading="lazy" onError={e=>{e.currentTarget.style.display="none";}}/>:<ABSilhueta regiao={ex.regiao_destaque}/>}</div>
-      <div className="ab-library-body"><div className="ab-library-number">EXERCÍCIO {ex.numero||"—"} · {ex.categoria}</div><h2>{ex.nome}</h2><div className="ab-library-meta"><span>{ex.grupo_muscular}</span>{ex.equipamento&&<span>{ex.equipamento}</span>}{ex.acessorio&&<span>{ex.acessorio}</span>}</div></div>
+      <div className="ab-library-body"><h2>{ex.nome}</h2><div className="ab-library-meta"><span>{ex.grupo_muscular}</span>{ex.equipamento&&<span>{ex.equipamento}</span>}{ex.acessorio&&<span>{ex.acessorio}</span>}</div></div>
     </article>
   );
 }
@@ -5239,7 +5230,7 @@ function EvolucaoScreen({ history, onBack }) {
         <div className="ab-muscle-groups" role="list" aria-label="Grupos musculares">
           {grupos.map(g=>{
             const qtd = nomes.filter(n=>grupoExercicio[n]===g).length;
-            return <button key={g} type="button" onClick={()=>{setGrupo(g);setSel(nomes.find(n=>grupoExercicio[n]===g)||null);}} className="ab-muscle-group" data-active={g===grupo} aria-pressed={g===grupo}><span>{g}</span><small>{qtd} exercício{qtd!==1?"s":""}</small></button>;
+            return <button key={g} type="button" onClick={()=>{setGrupo(g);setSel(nomes.find(n=>grupoExercicio[n]===g)||null);}} className="ab-muscle-group" data-m={{"Peito":"peito","Costas":"costas","Ombros":"ombros","Braços":"bracos","Pernas e glúteos":"pernas","Core":"core"}[g]||"geral"} data-active={g===grupo} aria-pressed={g===grupo}><span>{g}</span><small>{qtd} exercício{qtd!==1?"s":""}</small></button>;
           })}
         </div>
         <div className="ab-progress-browser__step"><span>2</span><div><strong>Exercício</strong><small>Em ordem alfabética</small></div></div>

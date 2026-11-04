@@ -14,22 +14,22 @@
     const button = document.createElement("button");
     button.dataset.abodyUpdateBanner = "1";
     button.type = "button";
-    button.textContent = "⬆️ Atualização disponível — toque para recarregar";
+    button.textContent = "Nova versão disponível. Toque para atualizar.";
     button.style.cssText = [
       "position:fixed",
       "top:max(10px, env(safe-area-inset-top))",
       "left:50%",
       "transform:translateX(-50%)",
       "z-index:10000",
-      "background:#e8a23a",
-      "color:#06140e",
+      "background:#1b1d1c",
+      "color:#f5f6f3",
       "border:none",
-      "border-radius:24px",
-      "padding:10px 18px",
+      "border-radius:2px",
+      "padding:14px 18px",
       "font-family:inherit",
-      "font-size:13px",
-      "font-weight:800",
-      "box-shadow:0 4px 16px rgba(0,0,0,.4)",
+      "font-size:14px",
+      "font-weight:700",
+      "box-shadow:none",
       "cursor:pointer",
       "max-width:calc(100vw - 24px)",
       "white-space:nowrap"
