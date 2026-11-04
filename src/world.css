@@ -350,7 +350,7 @@ a { text-underline-offset: .18em; }
   font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; color: var(--ab-text) !important;
 }
 .ab-stat-tile span, .ab-report-stat span, .ab-overview-metrics span, .ab-progress-stats span { color: var(--ab-muted) !important; }
-.ab-overview-number, .ab-day-number, .ab-mobility-number, .ab-library-number, .ab-exercise-index {
+.ab-overview-number, .ab-day-number, .ab-mobility-number, .ab-library-number {
   background: transparent !important; border-radius: 0 !important; color: var(--ab-text) !important;
   font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums;
 }
@@ -502,7 +502,7 @@ a { text-underline-offset: .18em; }
 .ab-progress-result-head small { font-size: 12px; color: var(--ab-muted); white-space: nowrap; }
 .ab-chart-card { background: transparent !important; border: 0 !important; padding: 12px 0 0 !important; }
 .ab-chart-card text { font-family: var(--ab-font); }
-.ab-stat-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 0 !important; border-top: 1px solid var(--ab-rule); border-bottom: 1px solid var(--ab-rule); margin-top: 12px; }
+.ab-stat-grid { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 0 !important; border-top: 1px solid var(--ab-rule); border-bottom: 1px solid var(--ab-rule); margin-top: 12px; }
 .ab-stat-tile { background: transparent !important; border: 0 !important; border-left: 1px solid var(--ab-rule) !important; padding: 10px 0 10px 10px !important; display: flex; flex-direction: column-reverse; }
 .ab-stat-tile:first-child { border-left: 0 !important; padding-left: 0 !important; }
 .ab-stat-tile strong { font-size: 24px; }
@@ -589,3 +589,29 @@ a { text-underline-offset: .18em; }
 .ab-settings-about { background: transparent !important; border: 0 !important; border-top: 1px solid var(--ab-rule) !important; padding: 12px 0 !important; color: var(--ab-muted) !important; }
 .ab-body-grid { gap: 0 !important; }
 .ab-measurement-entry { border-radius: 2px !important; }
+.ab-app-shell .ab-search input { border: 0 !important; background: transparent !important; padding: 0 !important; }
+.ab-score-row { --m: var(--ab-text); }
+.ab-score-row[data-m="costas"] { --m: var(--m-costas); } .ab-score-row[data-m="peito"] { --m: var(--m-peito); } .ab-score-row[data-m="ombros"] { --m: var(--m-ombros); }
+.ab-score-row[data-m="bracos"] { --m: var(--m-bracos); } .ab-score-row[data-m="pernas"] { --m: var(--m-pernas); } .ab-score-row[data-m="core"] { --m: var(--m-core); }
+.ab-score-row .ab-score-track span { background: var(--m) !important; }
+
+/* ── medidas (RFM) ───────────────────────────────────────── */
+.ab-rfm { width: min(640px, 100%) !important; }
+.rfm-hero { background: transparent !important; color: var(--ab-text) !important; border-radius: 0 !important; border-bottom: 2px solid var(--ab-text); padding: 0 0 14px !important; }
+.rfm-hero::before, .rfm-hero::after { display: none !important; }
+.rfm-hero h1 { color: var(--ab-text) !important; font-size: clamp(30px, 8vw, 44px) !important; margin: 0 0 8px; }
+.rfm-hero p { color: var(--ab-muted) !important; }
+.rfm-hero ul, .rfm-hero li, .rfm-hero span { color: var(--ab-muted) !important; }
+.rfm-hero li::before { background: var(--ab-text) !important; border-radius: 0 !important; }
+.rfm-eyebrow { display: none !important; }
+.rfm-topbar > span { display: none; }
+.rfm-back { color: var(--ab-text) !important; }
+.rfm-card, .rfm-result { border: 1px solid var(--ab-rule) !important; background: #fff !important; }
+.rfm-result-value { color: var(--ab-text) !important; font-stretch: 75%; letter-spacing: -.02em !important; }
+.rfm-guide summary { display: flex; justify-content: space-between; align-items: center; list-style: none; cursor: pointer; font-weight: 700; }
+.rfm-guide summary::-webkit-details-marker, .rfm-limits summary::-webkit-details-marker { display: none; }
+.rfm-card > summary::after { content: ""; width: 9px; height: 9px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); transition: transform .2s var(--ab-ease); flex: none; margin-left: 12px; }
+.rfm-card[open] > summary::after { transform: rotate(225deg); }
+.rfm-limits summary { display: flex; justify-content: space-between; align-items: center; list-style: none; cursor: pointer; font-weight: 700; }
+.rfm-divider > span { background: var(--ab-text) !important; color: var(--ab-bg) !important; }
+.rfm-guide-panel figcaption > span { border-radius: 0 !important; }

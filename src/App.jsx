@@ -4690,7 +4690,7 @@ function BodyReportScreen({ bodyHistory, onBack, onReassess, onFotosExcluidas })
             const at  = Number(notas[g]);
             const delta = Number.isFinite(ant) && Number.isFinite(at) ? at - ant : 0;
             return (
-              <div key={g} className="ab-score-row">
+              <div key={g} className="ab-score-row" data-m={{peito:"peito",costas:"costas",ombros:"ombros",bracos:"bracos",quadriceps:"pernas",posteriores:"pernas",gluteos:"pernas",panturrilhas:"pernas",core:"core"}[g]||"geral"}>
                 <span>
                   {ROTULO_GRUPO[g]}
                   {delta !== 0 && <span style={{fontSize:11,fontWeight:700,marginLeft:6,color:delta>0?C.acc:"var(--m-ombros)"}}>{delta>0?`▲${delta}`:`▼${Math.abs(delta)}`}</span>}
@@ -5018,12 +5018,15 @@ const AB = { verde:"#1B7A3C", verdeEsc:"#14602F", preto:"#0B0B0B", fundo:"#F4F4F
   fonte:"'Roboto Condensed','Archivo Narrow','Arial Narrow',Arial,sans-serif" };
 
 let _bibliotecaCache = null;
+export const urlDoCatalogo = (u, base = SUPA_URL) => String(u).replace(/^https?:\/\/[^/]+\/storage\/v1\//, `${base}/storage/v1/`);
 async function fetchBiblioteca() {
   if (_bibliotecaCache) return _bibliotecaCache;
   const r = await fetch(`${SUPA_URL}/rest/v1/exercicios?select=*&order=numero`,
     { headers:{ apikey:SUPA_KEY, Authorization:`Bearer ${SUPA_KEY}` } });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  _bibliotecaCache = await r.json();
+  // O catálogo migrado ainda aponta as imagens para o Storage antigo do Supabase;
+  // reescreve para o armazenamento do próprio app (mesmo caminho no R2).
+  _bibliotecaCache = (await r.json()).map(e => e.imagem_url ? { ...e, imagem_url: urlDoCatalogo(e.imagem_url) } : e);
   return _bibliotecaCache;
 }
 
