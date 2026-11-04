@@ -1484,6 +1484,7 @@ export default function App() {
   const workoutStartedAt = useRef(null);
 
   const seriesRef=useRef(null), isoRef=useRef(null), restRef=useRef(null);
+  const [, setResumeTick] = useState(0); // re-renderiza a home após descartar o rascunho do treino
   const finishingWorkout=useRef(false);
   useEffect(()=>{
     if(screen!=='workout'){setSeriesRunning(false);setIsoRunning(false);}
@@ -2075,6 +2076,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     setReBusy(false);
   };
 
+  const cancelWorkout=()=>{ clearInterval(seriesRef.current);clearInterval(isoRef.current);clearInterval(restRef.current); cancelarPushDescanso(); clearWorkoutDraft(); finishingWorkout.current=false; workoutStartedAt.current=null; setSeriesRunning(false);setIsoRunning(false); setQueue([]);setCompleted([]);setSetIdx(0);setCurrentDay(null);setReport(null); track("treino_cancelado"); setScreen("home"); };
   const goHome=()=>{if(ACTIVE_WORKOUT_SCREENS.has(screen)&&currentDay&&queue.length){try{localStorage.setItem(WORKOUT_DRAFT_KEY,JSON.stringify({version:1,updatedAt:Date.now(),screen,currentDay,queue,completed,setIdx,currentWeights,currentReps,currentRirs,currentSideDurations,weightInput,repsInput,rirInput,cardioChoice,seriesElapsed,isoSec,isoTotal,isoDone,unilateralSide,firstSideElapsed,restSec,restTotal,restEndsAt:screen==='rest'?Date.now()+restSec*1000:null,workoutStartedAt:workoutStartedAt.current}));}catch{}}setScreen('home');setReport(null);setSeriesRunning(false);setIsoRunning(false);};
   const current=queue[0]||null;
 
@@ -2115,7 +2117,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       )}
       {screen==="planPreview" && candidatePlan && <PlanPreviewScreen plan={candidatePlan} bodyAnalysis={bodyAnalysis} onStart={confirmCandidatePlan} onCancel={cancelPlanEdit} saving={confirmingPlan} error={planError}/>}
       {pro && screen==="home" && <button className="ab-back-link" style={{marginBottom:10}} onClick={()=>{ const u=new URL(window.location.href); u.searchParams.delete("view"); window.history.replaceState(null,"",u.pathname+u.search); setScreen("proHome"); }}><Icon name="back" size={16}/> Painel PRO</button>}
-      {screen==="home"         && plan && <HomeScreen onResumeWorkout={readWorkoutDraft()?()=>restoreWorkoutDraft():null} onMeasurements={()=>setScreen("measurements")} onResume={hasPlanDraft?resumePlanDraft:null} plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
+      {screen==="home"         && plan && <HomeScreen onResumeWorkout={readWorkoutDraft()?()=>restoreWorkoutDraft():null} onDiscardWorkout={readWorkoutDraft()?()=>{cancelWorkout();setResumeTick(t=>t+1);}:null} onMeasurements={()=>setScreen("measurements")} onResume={hasPlanDraft?resumePlanDraft:null} plan={plan} history={history} personal={personal} locked={!!plan.locked} onStart={startDay} onReset={resetPlan} onSettings={()=>setShowSettings(true)} onBodyReport={()=>setScreen("bodyReport")} onCalendar={()=>setScreen("calendar")} onLibrary={()=>{track("biblioteca_aberta");setScreen("library");}} onEvolucao={()=>{track("evolucao_aberta");setScreen("evolucao");}} hasBody={bodyHistory.length>0}/>}
       {showSettings && <SettingsModal onClose={()=>setShowSettings(false)} user={user} onLogout={()=>{setShowSettings(false); doLogout();}} linksService={linksService.current} onDetached={afterUnlink} currentLink={vinculo} onLogin={()=>{setShowSettings(false);setScreen('auth');}}/>}
       {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={()=>setScreen("workoutOverview")}/>}
@@ -2137,6 +2139,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {screen==="library"      && <LibraryScreen onBack={goHome}/>}
       {screen==="evolucao"     && <EvolucaoScreen history={history} onBack={goHome}/>}
       {screen==="postcardio"   && currentDay && <PostCardioScreen day={currentDay} onContinue={()=>setScreen("report")}/>}
+      {ACTIVE_WORKOUT_SCREENS.has(screen) && currentDay && <CancelWorkout dayLabel={currentDay.label} setsLogged={completed.reduce((n,e)=>n+(Number(e.sets)||0),0)+(screen==="workout"||screen==="rest"?setIdx:0)} onConfirm={cancelWorkout}/>}
       {screen==="report"       && report && <ReportScreen report={report} onHome={goHome} vinculo={vinculo} onFeedback={saveLatestFeedback}/>}
     </div>
   );
@@ -2684,6 +2687,42 @@ function TreinoDoDiaModal({ aula, onClose }) {
 // ─── B2B: GESTÃO DE ALUNOS E EDITOR DE TREINOS ───────────────────────────────
 
 const STATUS_ALUNO = { convidado:{rotulo:"Convidado",cor:"var(--m-ombros)"}, ativo:{rotulo:"Ativo",cor:C.acc}, inativo:{rotulo:"Inativo",cor:C.muted} };
+
+// Cancelar treino exige duas decisões separadas: abrir a janela e depois confirmar
+// num segundo passo cujo botão muda de lugar e só aceita toque após uma pausa,
+// para que um esbarrão ou toque duplo não descarte a sessão.
+export function CancelWorkout({ dayLabel, setsLogged = 0, onConfirm, label = "Cancelar treino" }) {
+  const [step, setStep] = useState(0);
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (step !== 2) { setArmed(false); return; }
+    const t = setTimeout(() => setArmed(true), 1200);
+    return () => clearTimeout(t);
+  }, [step]);
+  const fechar = () => setStep(0);
+  const perda = setsLogged > 0 ? `${setsLogged} ${setsLogged === 1 ? "série registrada será descartada" : "séries registradas serão descartadas"}` : "Nenhuma série foi registrada ainda";
+  return (
+    <>
+      <button type="button" className="ab-cancel-workout" onClick={() => setStep(1)}><Icon name="x" size={15}/> {label}</button>
+      {step === 1 && (
+        <ModalShell title={`Cancelar o treino${dayLabel ? ` ${dayLabel}` : ""}?`} onClose={fechar}>
+          <p className="ab-cancel-copy">{perda}. Nada desta sessão vai para o histórico. Para só fazer uma pausa, use Sair: o treino fica salvo para retomar.</p>
+          <div className="ab-cancel-actions">
+            <button type="button" className="ab-primary" onClick={fechar}>Continuar treinando</button>
+            <button type="button" className="ab-secondary-action ab-cancel-danger" onClick={() => setStep(2)}>Sim, quero cancelar</button>
+          </div>
+        </ModalShell>
+      )}
+      {step === 2 && (
+        <ModalShell title="Confirme o cancelamento" onClose={fechar}>
+          <button type="button" className="ab-cancel-danger ab-cancel-final" disabled={!armed} onClick={() => { setStep(0); onConfirm(); }}>{armed ? "Descartar treino definitivamente" : "Aguarde…"}</button>
+          <p className="ab-cancel-copy">Esta ação não pode ser desfeita. {perda}.</p>
+          <button type="button" className="ab-primary" onClick={fechar}>Voltar ao treino</button>
+        </ModalShell>
+      )}
+    </>
+  );
+}
 
 function ModalShell({ title, eyebrow, onClose, children, layer=70, wide=false, bodyClass="", closeDisabled=false }) {
   const panelRef = useRef(null);
@@ -4253,7 +4292,7 @@ function SettingsModal({ onClose, user, onLogout, linksService, onDetached, curr
   );
 }
 
-export function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, onEvolucao, hasBody, onMeasurements, onResume, onResumeWorkout }) {
+export function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, onEvolucao, hasBody, onMeasurements, onResume, onResumeWorkout, onDiscardWorkout }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
@@ -4287,7 +4326,7 @@ export function HomeScreen({ plan, history, personal, locked, onStart, onReset, 
         {onResumeWorkout
           ? <button className="ab-primary ab-h2-go" onClick={onResumeWorkout}><Icon name="play" size={16}/> Retomar treino em andamento</button>
           : <button className="ab-primary ab-h2-go" onClick={() => onStart(nextDay)}><Icon name="play" size={16}/> Começar treino {nextDay?.label}</button>}
-        {onResumeWorkout && <button className="ab-secondary-action ab-h2-alt" onClick={() => onStart(nextDay)}>Começar o treino {nextDay?.label} do zero</button>}
+        {onDiscardWorkout && <CancelWorkout dayLabel={readWorkoutDraft()?.currentDay?.label} setsLogged={(() => { const d = readWorkoutDraft(); return d ? (d.completed || []).reduce((n, e) => n + (Number(e.sets) || 0), 0) + (d.setIdx || 0) : 0; })()} onConfirm={onDiscardWorkout} label="Descartar treino em andamento"/>}
         <ol className="ab-week" aria-label="Esta semana">
           {semana.map((d, i) => <li key={i} data-on={treinouEm(d)} data-today={d.getTime() === hoje.getTime()}><span>{["S","T","Q","Q","S","S","D"][i]}</span><b className="ab-num">{d.getDate()}</b></li>)}
         </ol>
