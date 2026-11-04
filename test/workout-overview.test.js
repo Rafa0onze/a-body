@@ -11,7 +11,7 @@ test("treino começa pela visão geral antes do aquecimento",()=>{
 });
 
 test("visão geral informa exercícios, séries e repetições",()=>{
-  assert.match(source,/Saiba o que vem pela frente/);
+  assert.match(source,/<h1>Treino {day.label}/);
   assert.match(source,/séries totais/);
   assert.match(source,/Séries × repetições/);
   assert.match(source,/ex\.sets.*ex\.reps/);
