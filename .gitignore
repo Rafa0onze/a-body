@@ -5,3 +5,4 @@ android/
 *.local
 .codex-remote-attachments/
 .wrangler/
+dev/

@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useId } from "react";
+import "@fontsource-variable/archivo/wdth.css";
 import "./app.css";
+import "./world.css";
 import PasswordRecovery from './PasswordRecovery.jsx';
 import {parseRecoveryLink} from './password-recovery.js';
 import Measurements from "./Measurements.jsx";
@@ -178,13 +180,14 @@ const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).p
 const todayISO = () => new Date().toISOString();
 const uid = () => Math.random().toString(36).slice(2,9);
 
-const C={bg:"#f7f9f7",card:"#ffffff",border:"#cbd9d1",acc:"#116b45",text:"#102219",muted:"#4b5f54",fig:"#168557"};
+// Paleta da prancha (espelha os tokens de world.css): tinta, fios e chão branco-frio.
+const C={bg:"#f5f6f3",card:"#ffffff",border:"#c9ccc6",acc:"#1b1d1c",text:"#1b1d1c",muted:"#565b57",fig:"#3f7650"};
 const CSS=`*{box-sizing:border-box;}body{margin:0;}input::placeholder,textarea::placeholder{color:#52675b;}button{font-family:inherit;cursor:pointer;color:inherit;}textarea,select{font-family:inherit;}`;
 const S={
-  page:{minHeight:"100vh",background:C.bg,fontFamily:"'Helvetica Neue',Arial,sans-serif",display:"flex",justifyContent:"center",padding:"20px 14px"},
+  page:{minHeight:"100vh",background:C.bg,fontFamily:"var(--ab-font)",display:"flex",justifyContent:"center",padding:"20px 14px"},
   box:{width:"100%",maxWidth:480,color:C.text},
   brandRow:{display:"flex",alignItems:"center",gap:10,marginBottom:22},
-  logo:{width:30,height:30,borderRadius:8,background:C.acc,color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15},
+  logo:{width:30,height:30,borderRadius:2,background:C.acc,color:"#f5f6f3",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:15},
   brand:{fontSize:15,fontWeight:800,letterSpacing:"0.05em"},
   eyebrow:{fontSize:11,letterSpacing:"0.15em",color:C.acc,fontWeight:700,marginBottom:8},
   h1:{fontSize:26,fontWeight:800,margin:"0 0 6px 0",letterSpacing:"-0.01em"},
@@ -193,15 +196,15 @@ const S={
   back:{background:"none",border:"none",color:C.muted,fontSize:13,padding:0,minHeight:44},
   sectionLabel:{fontSize:11,color:C.muted,letterSpacing:"0.1em",marginBottom:8,display:"block"},
   fieldLabel:{fontSize:11,color:C.muted,letterSpacing:"0.08em",display:"block",marginBottom:6,marginTop:14},
-  field:{width:"100%",background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 14px",color:C.text,fontSize:15,outline:"none"},
-  card:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",display:"flex",flexDirection:"column",color:C.text},
-  dayCard:{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"16px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",color:C.text,textAlign:"left"},
-  figCard:{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"8px 4px 6px",textAlign:"center"},
+  field:{width:"100%",background:C.card,border:`1px solid ${C.border}`,borderRadius:2,padding:"13px 14px",color:C.text,fontSize:15,outline:"none"},
+  card:{background:C.card,border:`1px solid ${C.border}`,borderRadius:2,padding:"14px 16px",display:"flex",flexDirection:"column",color:C.text},
+  dayCard:{background:C.card,border:`1px solid ${C.border}`,borderRadius:2,padding:"16px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",color:C.text,textAlign:"left"},
+  figCard:{flex:1,background:C.card,border:`1px solid ${C.border}`,borderRadius:2,padding:"8px 4px 6px",textAlign:"center"},
   figLbl:{fontSize:10,color:C.muted,marginTop:2},
-  seriesTimer:{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,padding:"14px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:2},
-  input:{width:"100%",fontSize:30,fontWeight:700,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"14px 16px",color:C.text,marginTop:8,marginBottom:16,outline:"none"},
-  btn:{width:"100%",background:C.acc,border:"none",borderRadius:14,padding:"16px",fontSize:15,fontWeight:700,color:"#06140e"},
-  btnOutline:{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:14,padding:"14px",fontSize:14,color:C.muted},
+  seriesTimer:{background:C.card,border:`1px solid ${C.border}`,borderRadius:2,padding:"14px 18px",display:"flex",flexDirection:"column",alignItems:"center",gap:2},
+  input:{width:"100%",fontSize:30,fontWeight:700,background:C.card,border:`1px solid ${C.border}`,borderRadius:2,padding:"14px 16px",color:C.text,marginTop:8,marginBottom:16,outline:"none"},
+  btn:{width:"100%",background:C.acc,border:"none",borderRadius:2,padding:"16px",fontSize:15,fontWeight:700,color:"#f5f6f3"},
+  btnOutline:{width:"100%",background:"none",border:`1px solid ${C.border}`,borderRadius:2,padding:"14px",fontSize:14,color:C.muted},
 };
 
 const ICON_PATHS = {
@@ -222,7 +225,53 @@ const ICON_PATHS = {
   swap: <><path d="m16 3 4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16"/></>,
   zap: <path d="M13 2 3 14h8l-1 8 10-12h-8Z"/>,
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
+  check: <path d="m5 12.5 4.5 4.5L19 7.5"/>,
 };
+
+// Grupo muscular → tecido da prancha (cor). Só marca músculo; nunca enfeite.
+const TECIDO = { "Costas":"costas", "Peito":"peito", "Ombros":"ombros", "Bíceps":"bracos", "Tríceps":"bracos", "Antebraço":"bracos",
+  "Quadríceps":"pernas", "Posteriores de Coxa":"pernas", "Glúteos":"pernas", "Adutores":"pernas", "Panturrilhas":"pernas", "Abdômen":"core" };
+function useGrupos(exercicios) {
+  const [grupos, setGrupos] = useState({});
+  const chave = (exercicios || []).map(e => e?.libraryExerciseId || e?.name).join("|");
+  useEffect(() => {
+    let vivo = true;
+    fetchBiblioteca().then(lista => {
+      const out = {};
+      for (const e of exercicios || []) {
+        if (!e) continue;
+        const c = (e.libraryExerciseId && lista.find(x => x.id === e.libraryExerciseId)) || matchExercicio(e.name, lista);
+        if (c?.grupo_muscular) out[e.libraryExerciseId || e.name] = c.grupo_muscular;
+      }
+      if (vivo) setGrupos(out);
+    }).catch(() => {});
+    return () => { vivo = false; };
+  }, [chave]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (e) => grupos[e?.libraryExerciseId || e?.name] || null;
+}
+function MuscleKey({ n, grupo, state, size }) {
+  return <span className="ab-key" data-m={TECIDO[grupo] || "geral"} data-state={state} style={size ? { width: size, height: size } : undefined} aria-hidden="true">{n}</span>;
+}
+const minutosDe = (txt) => {
+  const t = String(txt || ""); let m = t.match(/(\d+)\s*h\s*(\d+)?/i);
+  if (m) return Number(m[1]) * 60 + Number(m[2] || 0);
+  m = t.match(/(\d+)\s*min/i); return m ? Number(m[1]) : null;
+};
+function DurationRuler({ startedAt, planned }) {
+  const alvo = minutosDe(planned);
+  const [agora, setAgora] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setAgora(Date.now()), 30000); return () => clearInterval(t); }, []);
+  if (!alvo || !startedAt) return null;
+  const decorrido = Math.max(0, Math.round((agora - startedAt) / 60000));
+  const frac = Math.min(1, decorrido / alvo);
+  return (
+    <div className="ab-ruler" role="img" aria-label={`Sessão: ${decorrido} de ${alvo} minutos previstos`}>
+      <div className="ab-ruler-head"><span>Sessão</span><span>{decorrido} / {alvo} min</span></div>
+      <div className="ab-ruler-track" data-over={decorrido > alvo}><span style={{ width: `${frac * 100}%` }}/></div>
+      <div className="ab-ruler-ticks">{Array.from({ length: 7 }, (_, i) => <i key={i}/>)}</div>
+    </div>
+  );
+}
 
 function Icon({ name, size = 20, className = "" }) {
   return <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>;
@@ -2036,7 +2085,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {syncWarning&&<div className="ab-sync-warning" role="status"><p>{syncWarning}</p><button className="ab-secondary-action" disabled={syncBusy} onClick={retrySync}>{syncBusy?"Sincronizando…":"Tentar sincronizar"}</button></div>}
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
-          style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#06140e",border:"none",borderRadius:24,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
+          style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#f5f6f3",border:"none",borderRadius:2,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
           💪 Seu personal atualizou seu treino — toque para dispensar
         </button>
       )}<style>{CSS}</style>
@@ -2074,7 +2123,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} unilateralSide={unilateralSide} firstSideElapsed={firstSideElapsed} onNextSide={advanceUnilateralSide} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
-      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1}/>}
+      {screen==="rest"         && <RestScreen seconds={restSec} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1} startedAt={workoutStartedAt.current} dayLabel={currentDay?`${currentDay.label} · ${currentDay.sub||""}`:null} lastLoad={pesoAnterior(queue[0],setIdx)} lastReps={repsAnterior(queue[0],setIdx)}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>({...resto,photoPaths:null})); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
@@ -2142,13 +2191,13 @@ function AuthScreen({ onDone, onSkip, onForgot }) {
       <section className="ab-auth-panel">
       <div className="ab-kicker">BEM-VINDO AO A-BODY</div>
       <div style={{display:"none"}}>
-        <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:16,marginBottom:14}}>A</div>
+        <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:2,marginBottom:14}}>A</div>
         <div style={S.brand}>A-BODY</div>
       </div>
 
       <h1>{mode==="login" ? "Entre para continuar" : "Crie sua conta"}</h1>
       {convitePendente ? (
-        <div style={{background:"#edf6f1",border:`1px solid ${C.acc}`,borderRadius:12,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
+        <div style={{background:"#edf6f1",border:`1px solid ${C.acc}`,borderRadius:2,padding:"12px 14px",fontSize:13,color:C.text,marginBottom:16}}>
           🎟️ <b>Você foi convidado pelo seu personal.</b> {mode==="signup" ? "Crie sua conta abaixo" : "Entre com sua conta"} e seu acesso será ativado automaticamente.
         </div>
       ) : (
@@ -2188,8 +2237,8 @@ function AuthScreen({ onDone, onSkip, onForgot }) {
       <input id="auth-password" aria-label="Senha da conta" className="ab-input" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="mínimo 6 caracteres" autoComplete={mode==="login"?"current-password":"new-password"}/>
 
       {mode==="login"&&<button type="button" className="ab-link" onClick={()=>onForgot(email)}>Esqueci minha senha</button>}
-      {err  && <div role="alert" style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
-      {info && <div role="status" style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:12,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
+      {err  && <div role="alert" style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {info && <div role="status" style={{background:"#0d2a18",border:`1px solid ${C.border}`,borderRadius:2,padding:"11px 14px",fontSize:13,color:C.acc,marginTop:12}}>{info}</div>}
 
       <button className="ab-primary" style={{marginTop:18}} disabled={!email||pass.length<6||busy||(mode==="signup"&&tipo==="pro"&&nome.trim().length<2)} onClick={submit}>
         {busy ? "Aguarde…" : (mode==="login" ? "Entrar" : "Criar conta")}
@@ -2569,7 +2618,7 @@ function AulaModal({ aula, alunos, aulas, onClose, onSaved }) {
         </select>
         {alunos.length===0 && <p style={{fontSize:11,color:C.muted,margin:"6px 2px 0"}}>O cadastro de alunos chega no próximo módulo — dá pra criar a aula e vincular depois.</p>}
 
-        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+        {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
 
         <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"Salvar aula"}</button>
         {form.id && <button style={{...S.btnOutline,marginTop:10,fontSize:13,color:"#ff8080",borderColor:"#8b2a2a"}} disabled={busy} onClick={remover}>Excluir aula</button>}
@@ -2900,7 +2949,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
         <button className="ab-primary ab-compact-button" disabled={!jsonPlano.trim()} onClick={importarPlano}>Validar e carregar</button>
       </section>}
       <input style={{...S.field,fontSize:17,fontWeight:800}} value={plano.planName} onChange={e=>setPlano(p=>({...p,planName:e.target.value}))} placeholder="nome do plano"/>
-      {(plano.missingIllustrations||[]).length>0 && <section role="status" style={{background:"#fff8e8",border:"1px solid #e2bd69",borderRadius:14,padding:"12px 14px",margin:"10px 0 14px",color:"#4b3510"}}>
+      {(plano.missingIllustrations||[]).length>0 && <section role="status" style={{background:"#fff8e8",border:"1px solid #e2bd69",borderRadius:2,padding:"12px 14px",margin:"10px 0 14px",color:"#4b3510"}}>
         <strong style={{display:"block",fontSize:13,marginBottom:5}}>Ilustrações a providenciar · {plano.missingIllustrations.length}</strong>
         <p style={{fontSize:11,lineHeight:1.45,margin:"0 0 7px"}}>Estes exercícios foram escolhidos pelo resultado esperado, sem influência da biblioteca visual, e já entraram na fila de produção:</p>
         <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>{plano.missingIllustrations.map(nome=><span key={nome} style={{background:"#fff",borderRadius:7,padding:"4px 7px",fontSize:11,fontWeight:700}}>{nome}</span>)}</div>
@@ -2909,7 +2958,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
       {plano.weekDays.map((d, di) => (
         <div key={di} style={{...S.card,marginTop:12,padding:"14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-            <div style={{width:34,height:34,borderRadius:10,background:C.bg,border:`1px solid ${C.acc}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:C.acc}}>{d.label}</div>
+            <div style={{width:34,height:34,borderRadius:2,background:C.bg,border:`1px solid ${C.acc}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:C.acc}}>{d.label}</div>
             <input style={{...S.field,margin:0,flex:1}} value={d.sub} onChange={e=>upDia(di,{sub:e.target.value})} placeholder="grupos do dia (ex.: Peito + Tríceps)"/>
             {plano.weekDays.length>1 && <button aria-label={`Remover dia ${d.label}`} style={{background:"none",border:"none",color:C.muted,fontSize:16}} onClick={()=>removerDia(di)}>🗑</button>}
           </div>
@@ -2937,7 +2986,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
                     <input style={{...S.field,margin:0,padding:"8px 10px"}} type="number" min="0" max="5" value={ex.rir} onChange={e=>upEx(di,ei,{rir:Math.max(0,Math.min(5,Number(e.target.value)||0))})}/></div>
                 </div>
                 {aberto && (
-                  <div style={{marginTop:10,background:C.bg,border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px"}}>
+                  <div style={{marginTop:10,background:C.bg,border:`1px solid ${C.border}`,borderRadius:2,padding:"10px 12px"}}>
                     <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:8}}>SUBSTITUIÇÕES QUE O ALUNO PODE USAR</div>
                     {(ex.subs||[]).map((sb,si)=>(
                       <div key={si} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
@@ -2961,7 +3010,7 @@ function ProTreinoEditor({ aluno, base, onCancel, onSaved }) {
       ))}
 
       <button style={{...S.btnOutline,marginTop:12,fontSize:13,padding:"11px"}} onClick={addDia}>+ Dia de treino</button>
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
       <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={salvar}>{busy?"Aguarde…":"💾 Salvar treino do aluno"}</button>
 
       {picker!==null && <ExercicioPickerModal onClose={()=>setPicker(null)} onPick={(ex)=>addEx(picker,ex)}/>}
@@ -3210,7 +3259,7 @@ REGRAS DE FORMATO: exatamente ${form.dias} dias. Max 5 exercícios/dia.\n\nMOBIL
       {(fotos.front||fotos.back||fotos.side) && <label className="ab-pain-check"><input type="checkbox" checked={consentFotos} onChange={e=>setConsentFotos(e.target.checked)}/><span>Confirmo que o aluno autorizou o processamento destas fotos pela IA para personalização do treino.</span></label>}
       <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={escolherFoto}/>
 
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
+      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:12}}>{err}</div>}
       <button style={{...S.btn,marginTop:16,opacity:busy?0.5:1}} disabled={busy} onClick={gerar}>{busy?"Gerando treino…":"✨ Gerar treino"}</button>
     </div>
   );
@@ -3272,7 +3321,7 @@ function ConviteModal({ aluno, onClose }) {
           <>
             <div style={{...S.card,padding:"12px 14px",marginBottom:10,wordBreak:"break-all",fontSize:12,color:C.acc}}>{link}</div>
             <div style={{fontSize:11,color:C.muted,marginBottom:12}}>Válido até {new Date(conv.expira_em).toLocaleDateString("pt-BR")} · uso único</div>
-            <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
+            <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:2,padding:"10px 12px",fontSize:11,color:C.muted,marginBottom:12}}>
               ℹ️ O envio sai do <b style={{color:C.text}}>seu</b> aparelho: os botões abaixo abrem o app escolhido com a mensagem pronta — é só confirmar o envio lá.
             </div>
             <button className="ab-primary" style={{marginBottom:10}} onClick={()=>{ track("convite_whatsapp"); window.open(`https://wa.me/?text=${corpoZap}`, "_blank", "noopener,noreferrer"); }}>Enviar por WhatsApp</button>
@@ -3327,7 +3376,7 @@ function MensagensModal({ aluno, onClose }) {
             const ctx = rotuloCtx(m.contexto);
             return (
               <div key={m.id} style={{display:"flex",justifyContent: minha ? "flex-end" : "flex-start",marginBottom:8}}>
-                <div style={{maxWidth:"82%",background: minha ? "#123526" : C.card,border:`1px solid ${minha ? C.acc : C.border}`,borderRadius:14,padding:"9px 12px"}}>
+                <div style={{maxWidth:"82%",background: minha ? "#123526" : C.card,border:`1px solid ${minha ? C.acc : C.border}`,borderRadius:2,padding:"9px 12px"}}>
                   {ctx && <div style={{fontSize:9,color:"#d9a441",fontWeight:800,letterSpacing:"0.05em",marginBottom:3}}>{ctx.toUpperCase()}</div>}
                   <div style={{fontSize:13,color:C.text,whiteSpace:"pre-wrap"}}>{m.texto}</div>
                   <div style={{fontSize:9,color:C.muted,marginTop:4,textAlign:"right"}}>{new Date(m.criado_em).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}</div>
@@ -3423,7 +3472,7 @@ function DocsSaude({ alunoId, selecionaveis, selecionados, setSelecionados }) {
       </div>
       {alunoId && <label className="ab-pain-check" style={{marginTop:10}}><input type="checkbox" checked={consentDoc} onChange={e=>setConsentDoc(e.target.checked)}/><span>Confirmo que o aluno autorizou o armazenamento deste dado sensível de saúde para prontuário e personalização do treino.</span></label>}
       {selecionaveis && <p style={{fontSize:10,color:C.muted,margin:"8px 0 0"}}>Marque até {MAX_DOCS_IA} documentos para a IA considerar na geração do treino. O conteúdo é tratado como dado não-confiável (proteção contra instruções embutidas).</p>}
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"9px 12px",fontSize:12,color:"#ff8080",marginTop:8}}>{err}</div>}
+      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"9px 12px",fontSize:12,color:"#ff8080",marginTop:8}}>{err}</div>}
     </div>
   );
 }
@@ -3502,16 +3551,16 @@ function ProAvaliacaoNova({ aluno, anterior, onCancel, onSalva }) {
       <p style={{fontSize:11,color:C.muted,margin:"0 0 8px 0"}}>Marque os documentos que a IA deve considerar nesta avaliação.</p>
       <DocsSaude alunoId={aluno.id} selecionaveis selecionados={docsAluno} setSelecionados={setDocsAluno}/>
 
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
         <span>Confirmo que o aluno <b>consentiu</b> com o envio das fotos para análise pela IA. São <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para esta avaliação.</span>
       </label>
-      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
+      <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${guardar?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginBottom:8,cursor:"pointer"}}>
         <input type="checkbox" checked={guardar} onChange={e=>setGuardar(e.target.checked)} style={{marginTop:2}}/>
         <span><b>Armazenar as fotos</b> em área privada para o <b>comparativo visual antes/depois</b> nas próximas avaliações. Podem ser excluídas a qualquer momento no relatório.</span>
       </label>
 
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{err}</div>}
+      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:8}}>{err}</div>}
       <button style={{...S.btn,marginTop:14,opacity:busy?0.5:1}} disabled={busy} onClick={analisar}>{busy ? "Analisando…" : "📊 Analisar por IA"}</button>
     </div>
   );
@@ -3536,7 +3585,7 @@ function ContaGlobal({ user, onLogout }) {
         <div style={{position:"fixed",inset:0,zIndex:54}} onClick={()=>setAberto(false)}>
           <div onClick={e=>e.stopPropagation()}
             style={{position:"fixed",top:56,right:14,zIndex:56,background:C.bg,border:`1px solid ${C.border}`,
-              borderRadius:14,padding:"12px 14px",minWidth:220,boxShadow:"0 6px 24px rgba(0,0,0,0.5)"}}>
+              borderRadius:2,padding:"12px 14px",minWidth:220,boxShadow:"0 6px 24px rgba(0,0,0,0.5)"}}>
             <div style={{fontSize:10,color:C.muted,fontWeight:800,letterSpacing:"0.08em",marginBottom:4}}>CONECTADO COMO</div>
             <div style={{fontSize:13,color:C.text,fontWeight:600,marginBottom:12,wordBreak:"break-all"}}>{user?.email || "—"}</div>
             <button style={{...S.btnOutline,fontSize:13,padding:"10px",color:"#ff8080",borderColor:"#8b2a2a"}}
@@ -3566,11 +3615,11 @@ function AguardandoTreinoScreen({ vinculo, personal, onAtualizar, onSettings }) 
   return (
     <div style={{...S.box, paddingTop: 60, textAlign:"center"}}>
       <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:24}}>
-        <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:16,marginBottom:14}}>A</div>
+        <div style={{...S.logo,width:56,height:56,fontSize:26,borderRadius:2,marginBottom:14}}>A</div>
         <div style={S.brand}>A-BODY</div>
       </div>
       {personal && (
-        <div style={{display:"inline-flex",alignItems:"center",gap:10,background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 16px",marginBottom:20}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:10,background:C.card,border:`1px solid ${C.border}`,borderRadius:2,padding:"10px 16px",marginBottom:20}}>
           <AvatarFoto url={personal.foto_url} nome={personal.nome} size={38}/>
           <div style={{textAlign:"left"}}>
             <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>SEU PERSONAL</div>
@@ -3714,17 +3763,17 @@ function AnamnesisScreen({ step, form, setForm, setStep, photos, setPhotos, onSu
         <h2 style={S.h1}>Análise corporal</h2>
         <p style={S.sub}>Envie fotos de roupa de banho para que a IA identifique seus pontos fortes e fracos e personalize seu plano. <b style={{color:C.acc}}>As fotos são processadas apenas pela IA e não são armazenadas.</b></p>
         <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
-        <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
+        <div style={{background:"#f1f6f3",border:`1px solid ${C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.muted,marginTop:8}}>
           ℹ️ As fotos são opcionais. Sem elas, o plano será gerado apenas com base na anamnese.
         </div>
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoConsent} onChange={e=>setForm({...form,photoConsent:e.target.checked})} style={{marginTop:2}}/>
             <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b>. Entendo que são <b>dados sensíveis de saúde</b> (LGPD), tratados exclusivamente para gerar minha análise corporal.</span>
           </label>
         )}
         {(photos.front||photos.back||photos.side)&&(
-          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+          <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${form.photoStoreConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
             <input type="checkbox" checked={!!form.photoStoreConsent} onChange={e=>setForm({...form,photoStoreConsent:e.target.checked})} style={{marginTop:2}}/>
             <span><b>Opcional:</b> autorizo o <b>armazenamento seguro</b> das minhas fotos em área privada, acessível somente por mim, com a finalidade exclusiva de gerar <b>comparativos visuais da minha evolução</b>. Posso excluí-las a qualquer momento no Relatório Corporal.</span>
           </label>
@@ -3881,7 +3930,7 @@ function PhotoUploadStep({ photos, setPhotos }) {
             <div
               onClick={() => { if (!photo) ref.current && ref.current.click(); }}
               style={{
-                width:"100%", aspectRatio:"3/4", borderRadius:14, overflow:"hidden",
+                width:"100%", aspectRatio:"3/4", borderRadius:2, overflow:"hidden",
                 border:`2px dashed ${photo ? C.acc : C.border}`, background:C.card,
                 display:"flex", flexDirection:"column", alignItems:"center",
                 justifyContent:"center", position:"relative",
@@ -3979,7 +4028,7 @@ function DayBuilderScreen({ error, onCancel, split, dayExercises, userName, setU
 
             {isEditing&&(<>
               {exs.map((ex,i)=>(
-                <div key={ex._key||i} style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px",marginBottom:6}}>
+                <div key={ex._key||i} style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px",marginBottom:6}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                     <div style={{fontSize:13,fontWeight:600,flex:1}}>{ex.name}</div>
                     <button style={{background:"none",border:"none",color:"#e87a3a",fontSize:16,padding:"0 4px"}} onClick={()=>onRemove(d.id,ex.id)}>✕</button>
@@ -4093,7 +4142,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
             return (
               <button key={ex.id} style={{...S.card,flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginBottom:8,opacity:already?0.5:1}} disabled={already} onClick={()=>{onAdd(ex);}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,textAlign:"left",flex:1}}>
-                  {ex.imagem_url && <div style={{background:"#F4F4F6",borderRadius:8,padding:3,flexShrink:0}}>
+                  {ex.imagem_url && <div style={{background:"#F4F4F6",borderRadius:2,padding:3,flexShrink:0}}>
                     <img src={ex.imagem_url} alt="" loading="lazy" onError={e=>{e.currentTarget.parentElement.style.display="none";}} style={{width:52,height:38,objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/>
                   </div>}
                   <div>
@@ -4107,7 +4156,7 @@ function ExercisePickerModal({ dayId, selectedIds, onAdd, onClose }) {
           })}
 
           {/* Caixa de sugestões */}
-          <div style={{border:`1.5px dashed ${C.border}`,borderRadius:12,padding:"12px 14px",marginTop:4,marginBottom:10}}>
+          <div style={{border:`1.5px dashed ${C.border}`,borderRadius:2,padding:"12px 14px",marginTop:4,marginBottom:10}}>
             {!sugerindo ? (
               <button style={{minHeight:44,background:"none",border:"none",color:C.acc,fontSize:13,fontWeight:700,width:"100%",textAlign:"center",cursor:"pointer"}} onClick={()=>setSugerindo(true)}>
                 Não encontrou? Sugerir e adicionar exercício +
@@ -4140,17 +4189,17 @@ function PlanPreviewScreen({ plan, bodyAnalysis, onStart, onCancel, saving, erro
           <h2>ANÁLISE CORPORAL IA</h2>
           {bodyAnalysis.overallAnalysis&&<p style={{fontSize:13,color:C.muted,margin:0,lineHeight:1.5}}>{bodyAnalysis.overallAnalysis}</p>}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.acc,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>PONTOS FORTES</div>
               {(bodyAnalysis.strongPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>✓ {p}</div>)}
             </div>
-            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:"#e8a23a",fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>FOCO DE MELHORA</div>
               {(bodyAnalysis.weakPoints||[]).map((p,i)=><div key={i} style={{fontSize:12,color:C.text,marginBottom:3}}>→ {p}</div>)}
             </div>
           </div>
           {(bodyAnalysis.postureNotes||[]).length>0&&(
-            <div style={{background:"#f1f6f3",borderRadius:10,padding:"10px 12px"}}>
+            <div style={{background:"#f1f6f3",borderRadius:2,padding:"10px 12px"}}>
               <div style={{fontSize:10,color:C.muted,fontWeight:700,letterSpacing:"0.08em",marginBottom:6}}>POSTURA</div>
               {bodyAnalysis.postureNotes.map((p,i)=><div key={i} style={{fontSize:12,color:C.muted,marginBottom:3}}>• {p}</div>)}
             </div>
@@ -4204,82 +4253,76 @@ function SettingsModal({ onClose, user, onLogout, linksService, onDetached, curr
   );
 }
 
-function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, onEvolucao, hasBody, onMeasurements, onResume, onResumeWorkout }) {
+export function HomeScreen({ plan, history, personal, locked, onStart, onReset, onSettings, onBodyReport, onCalendar, onLibrary, onEvolucao, hasBody, onMeasurements, onResume, onResumeWorkout }) {
   const lastByDay={}; history.forEach(s=>lastByDay[s.dayId]=s.date);
   const now = new Date();
   const ws = new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7));
   const weekCount = history.filter(s=>new Date(s.date)>=ws).length;
   const adaptive = adaptiveInsight(history);
   const nextDay = plan.weekDays[weekCount % plan.weekDays.length] || plan.weekDays[0];
+  const grupoDe = useGrupos(plan.weekDays.flatMap(d => d.exercises || []));
+  const series = (d) => (d?.exercises || []).reduce((n, e) => n + (Number(e.sets) || 0), 0);
+  const semana = Array.from({ length: 7 }, (_, i) => { const d = new Date(ws); d.setDate(ws.getDate() + i); return d; });
+  const treinouEm = (d) => history.some(s => { const x = new Date(s.date); return x.getFullYear() === d.getFullYear() && x.getMonth() === d.getMonth() && x.getDate() === d.getDate(); });
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const Keys = ({ day }) => <span className="ab-keys" aria-hidden="true">{(day?.exercises || []).map((e, i) => <MuscleKey key={i} n={i + 1} grupo={grupoDe(e)}/>)}</span>;
   return (
-    <div className="ab-dashboard">
-      <header className="ab-dashboard-header">
-        <div className="ab-logo-lockup"><BrandMark/><div className="ab-logo-copy"><strong>A-BODY</strong><span>MOVE SMARTER</span></div></div>
+    <div className="ab-dashboard ab-h2">
+      <header className="ab-h2-top">
+        <strong className="ab-wordmark">A-BODY</strong>
         <button onClick={onSettings} className="ab-icon-button" aria-label="Configurações"><Icon name="settings"/></button>
       </header>
-      <section className="ab-hero-card">
-      {personal && (
-        <div className="ab-personal-chip">
-          <AvatarFoto url={personal.foto_url} nome={personal.nome} size={38}/>
+      {personal && <p className="ab-h2-personal">Personal: <b>{personal.nome}</b></p>}
+
+      <section className="ab-h2-today" aria-labelledby="ab-hoje">
+        <div className="ab-h2-plan"><span>{plan.planName}</span><span className="ab-num">{weekCount}/{plan.weekDays.length} na semana</span></div>
+        <div className="ab-h2-next">
+          <b className="ab-h2-letter" aria-hidden="true">{nextDay?.label}</b>
           <div>
-            <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>SEU PERSONAL</div>
-            <div style={{fontSize:14,fontWeight:700,color:C.text}}>{personal.nome}</div>
+            <h1 id="ab-hoje">{nextDay?.sub || `Treino ${nextDay?.label}`}</h1>
+            <p className="ab-num">{(nextDay?.exercises || []).length} exercícios · {series(nextDay)} séries{plan.duracao ? ` · ~${plan.duracao}` : ""}</p>
           </div>
         </div>
-      )}
-      <div className="ab-kicker">{plan.planName}</div>
-      <h1>Vamos treinar,<br/>{plan.userName}?</h1>
-      <p className="ab-copy">{nextDay?.label} · {nextDay?.sub}</p>
-      <button className="ab-primary ab-hero-action" onClick={()=>onStart(nextDay)}><span className="ab-play-dot"><Icon name="play" size={16}/></span>Começar treino</button>
-      <div className="ab-week-progress">
-        <div className="ab-week-progress-label"><span>PROGRESSO SEMANAL</span><span>{weekCount} TREINO{weekCount!==1?"S":""}</span></div>
-        <div className="ab-progress-track"><span style={{width:`${Math.min(100, plan.weekDays.length ? (weekCount / plan.weekDays.length) * 100 : 0)}%`}}/></div>
-      </div>
+        <Keys day={nextDay}/>
+        {onResumeWorkout
+          ? <button className="ab-primary ab-h2-go" onClick={onResumeWorkout}><Icon name="play" size={16}/> Retomar treino em andamento</button>
+          : <button className="ab-primary ab-h2-go" onClick={() => onStart(nextDay)}><Icon name="play" size={16}/> Começar treino {nextDay?.label}</button>}
+        {onResumeWorkout && <button className="ab-secondary-action ab-h2-alt" onClick={() => onStart(nextDay)}>Começar o treino {nextDay?.label} do zero</button>}
+        <ol className="ab-week" aria-label="Esta semana">
+          {semana.map((d, i) => <li key={i} data-on={treinouEm(d)} data-today={d.getTime() === hoje.getTime()}><span>{["S","T","Q","Q","S","S","D"][i]}</span><b className="ab-num">{d.getDate()}</b></li>)}
+        </ol>
       </section>
 
-      {adaptive&&<div className="ab-adaptive-card" data-tone={adaptive.tone}><div className="ab-adaptive-icon"><Icon name="sparkles" size={18}/></div><div><span>AJUSTE ADAPTATIVO</span><strong>{adaptive.title}</strong><p>{adaptive.message}</p></div></div>}
+      {adaptive && <section className="ab-h2-note" data-tone={adaptive.tone}><h2>{adaptive.title}</h2><p>{adaptive.message}</p></section>}
+      {onResume && <button className="ab-secondary-action ab-h2-alt" onClick={onResume}>Continuar rascunho do plano</button>}
 
-      <div className="ab-section-title"><h2>Visão geral</h2><span>Esta semana</span></div>
-      <div className="ab-metric-grid">
-        <button className="ab-metric" onClick={onCalendar}>
-          <div className="ab-metric-icon"><Icon name="calendar"/></div>
-          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Frequência</div>
-          <div style={{fontSize:11,color:C.acc,marginTop:2}}>{weekCount} treino{weekCount!==1?"s":""} esta semana</div>
-        </button>
-        <button className="ab-metric" style={{opacity:hasBody?1:0.5}} onClick={onBodyReport} disabled={!hasBody}>
-          <div className="ab-metric-icon"><Icon name="chart"/></div>
-          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Avaliação corporal</div>
-          <div style={{fontSize:11,color:C.muted,marginTop:2}}>{hasBody?"ver relatório":"sem avaliação"}</div>
-        </button>
-        <button className="ab-metric" onClick={onLibrary}>
-          <div className="ab-metric-icon"><Icon name="book"/></div>
-          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Biblioteca</div>
-          <div style={{fontSize:11,color:C.muted,marginTop:2}}>146 exercícios</div>
-        </button>
-        <button className="ab-metric" onClick={onEvolucao}>
-          <div className="ab-metric-icon"><Icon name="sparkles"/></div>
-          <div style={{fontSize:12,fontWeight:700,color:C.text}}>Evolução</div>
-          <div style={{fontSize:11,color:C.muted,marginTop:2}}>cargas por exercício</div>
-        </button>
-      </div>
+      <section className="ab-h2-block" id="ab-workouts">
+        <div className="ab-h2-head"><h2>Treinos</h2><span className="ab-num">{plan.weekDays.length} sessões{plan.duracao ? ` · ~${plan.duracao}` : ""}</span></div>
+        <ul className="ab-h2-days">
+          {plan.weekDays.map((d, i) => { const last = lastByDay[d.id]; return (
+            <li key={i}><button onClick={() => onStart(d)} data-next={d === nextDay}>
+              <b className="ab-h2-letter" aria-hidden="true">{d.label}</b>
+              <span className="ab-h2-day"><strong>{d.sub || `Treino ${d.label}`}</strong><small className="ab-num">{series(d)} séries{last ? ` · último ${new Date(last).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}` : " · ainda não feito"}</small><Keys day={d}/></span>
+              <Icon name="arrow" size={18}/>
+            </button></li>
+          ); })}
+        </ul>
+      </section>
 
-      <button className="ab-measurement-entry" onClick={onMeasurements}><Icon name="chart" size={22}/><span><strong>Avaliação por medidas (RFM)</strong><small>Altura, cintura e evolução da estimativa</small></span><Icon name="arrow" size={18}/></button>
-      {onResume&&<button className="ab-secondary-action" onClick={onResume}>Continuar rascunho do plano</button>}
-      {onResumeWorkout&&<button className="ab-secondary-action" onClick={onResumeWorkout}>Retomar treino em andamento</button>}
-      <div id="ab-workouts" className="ab-section-title"><h2>Seus treinos</h2><span>{plan.weekDays.length} sessões</span></div>
-      <div className="ab-day-grid">
-        {plan.duracao && <div style={{gridColumn:"1 / -1",fontSize:11,color:C.muted,fontWeight:700,letterSpacing:"0.06em"}}>TEMPO PREVISTO POR TREINO: ~{plan.duracao.toString().toUpperCase()}</div>}
-        {plan.weekDays.map((d,i)=>{ const last=lastByDay[d.id]; return(
-          <button key={i} className="ab-day-card" onClick={()=>onStart(d)}>
-            <div className="ab-day-number">{String(i+1).padStart(2,"0")}</div>
-            <div className="ab-day-copy"><strong>{d.label}</strong><span>{d.sub}{plan.duracao?` · ~${plan.duracao}`:""}</span>{last&&<span>Último: {new Date(last).toLocaleDateString("pt-BR")}</span>}</div>
-            <Icon name="arrow" size={20}/>
-          </button>
-        );})}
-      </div>
+      <section className="ab-h2-block">
+        <div className="ab-h2-head"><h2>Acompanhamento</h2></div>
+        <ul className="ab-h2-tools">
+          <li><button onClick={onEvolucao}><Icon name="chart" size={20}/><span><strong>Evolução</strong><small>Cargas por exercício</small></span><Icon name="arrow" size={18}/></button></li>
+          <li><button onClick={onCalendar}><Icon name="calendar" size={20}/><span><strong>Calendário</strong><small>{weekCount} treino{weekCount !== 1 ? "s" : ""} esta semana</small></span><Icon name="arrow" size={18}/></button></li>
+          <li><button onClick={onMeasurements}><Icon name="user" size={20}/><span><strong>Medidas (RFM)</strong><small>Altura, cintura e estimativa de gordura</small></span><Icon name="arrow" size={18}/></button></li>
+          <li><button onClick={onBodyReport} disabled={!hasBody}><Icon name="sparkles" size={20}/><span><strong>Avaliação corporal</strong><small>{hasBody ? "Relatório por fotos" : "Nenhuma avaliação ainda"}</small></span><Icon name="arrow" size={18}/></button></li>
+          <li><button onClick={onLibrary}><Icon name="book" size={20}/><span><strong>Biblioteca</strong><small>146 exercícios ilustrados</small></span><Icon name="arrow" size={18}/></button></li>
+        </ul>
+      </section>
+
       {locked
-        ? <p style={{fontSize:11,color:C.muted,textAlign:"center"}}>🔒 Treino gerenciado pelo seu personal. Alterações e substituições só por ele — use o campo de mensagem no descanso ou ao final do treino.</p>
-        : <button style={{...S.btnOutline,fontSize:13,padding:"12px"}} onClick={onReset}>↺ Refazer anamnese / novo plano</button>}
+        ? <p className="ab-h2-foot">Treino gerenciado pelo seu personal. Alterações e substituições só por ele.</p>
+        : <button className="ab-h2-reset" onClick={onReset}><Icon name="repeat" size={15}/> Refazer anamnese e gerar novo plano</button>}
       <nav className="ab-bottom-nav" aria-label="Navegação principal">
         <button className="ab-nav-item" data-active="true"><Icon name="home" size={19}/><span>Hoje</span></button>
         <button className="ab-nav-item" onClick={()=>document.getElementById("ab-workouts")?.scrollIntoView({behavior:"smooth"})}><Icon name="dumbbell" size={19}/><span>Treinos</span></button>
@@ -4366,7 +4409,7 @@ function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, onBack }
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, onStartSeries, onPauseSeries, isoSec, isoTotal, isoRunning, isoDone, unilateralSide, firstSideElapsed, onNextSide, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+export function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, onStartSeries, onPauseSeries, isoSec, isoTotal, isoRunning, isoDone, unilateralSide, firstSideElapsed, onNextSide, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
@@ -4376,63 +4419,74 @@ function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weigh
   const isoCirc=2*Math.PI*52, isoOff=isoTotal>0?isoCirc*(isoSec/isoTotal):0;
   const sideReady=!unilateral||unilateralSide===1&&firstSideElapsed>0;
   const canComplete = sideReady && (isIso?isoDone:(elapsed>0&&weightInput.length>0)) && (exercise.iso || ((parseInt(repsInput)||0) > 0 && Number.isInteger(parseInt(rirInput)) && parseInt(rirInput)>=0 && parseInt(rirInput)<=5));
+  const grupoDe = useGrupos([exercise]);
+  const grupo = grupoDe(exercise);
+  const isoFrac = isoTotal > 0 ? isoSec / isoTotal : 0;
   return (
-    <div className="ab-workout-shell">
-      <div className="ab-workout-topbar">
-        <button className="ab-workout-exit" onClick={onBack}>← Sair</button>
-        <div className="ab-workout-progress"><div className="ab-workout-progress-copy"><span>{day.label}{duracao?` · ~${duracao}`:""}</span><span>{pct}% CONCLUÍDO</span></div><div className="ab-progress-track"><span style={{width:`${pct}%`}}/></div></div>
+    <div className="ab-workout-shell ab-w2">
+      <div className="ab-w2-bar">
+        <button className="ab-w2-exit" onClick={onBack}><Icon name="arrow" size={16} className="ab-flip"/> Sair</button>
+        <span>{day.label}{day.sub ? ` · ${day.sub}` : ""}</span>
+        <span className="ab-num">{doneSets}/{totalSets}</span>
       </div>
+      <div className="ab-w2-progress" aria-hidden="true"><span style={{ width: `${pct}%` }}/></div>
       <div className="ab-workout-grid">
-      <section className="ab-exercise-stage">
-      <div className="ab-figure-wrap"><FigureBlock exercise={exercise}/></div>
-      {exercise._substitutedFor&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>↔ Substituiu: {exercise._substitutedFor}</div>}
-      {exercise._skipped&&<div style={{fontSize:11,color:"#e8a23a",marginBottom:4}}>⏩ Reagendado</div>}
-      <div className="ab-exercise-count">EXERCÍCIO {completed.length+1} DE {completed.length+queue.length}</div>
-      <h1>{exercise.name}</h1>
-      <div className="ab-exercise-sub"><span>{exercise.reps} {isIso?"· isométrico":"repetições"}</span><span>·</span><span>{exercise.rest}s de descanso</span></div>
-      <div className="ab-set-dots">
-        {Array.from({length:exercise.sets}).map((_,i)=><div key={i} className="ab-set-dot" data-state={i<setIdx?"done":i===setIdx?"current":"pending"}/>)}
-      </div>
-      </section>
-      <aside className="ab-workout-panel">
-      <div className="ab-series-heading"><strong>Série {setIdx+1} de {exercise.sets}</strong><span>{totalSets-doneSets} restantes</span></div>
-      {unilateral&&<div className="ab-side-status"><span className={unilateralSide===0?"active":"done"}>1 · Esquerdo</span><span className={unilateralSide===1?"active":""}>2 · Direito</span></div>}
-      {isIso?(
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10,marginBottom:14}}>
-          <div style={{position:"relative",width:130,height:130,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <svg width="130" height="130" viewBox="0 0 130 130">
-              <circle cx="65" cy="65" r="52" stroke={C.border} strokeWidth="7" fill="none"/>
-              <circle cx="65" cy="65" r="52" stroke={isoDone?"#3ddc84":"#e8a23a"} strokeWidth="7" fill="none" strokeDasharray={isoCirc} strokeDashoffset={isoOff} strokeLinecap="round" transform="rotate(-90 65 65)" style={{transition:"stroke-dashoffset 1s linear"}}/>
-            </svg>
-            <div style={{position:"absolute",textAlign:"center"}}><div style={{fontSize:28,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{fmt(isoSec)}</div><div style={{fontSize:10,color:C.muted}}>{sideLabel||`/${fmt(isoTotal)}`}</div></div>
+      <section className="ab-w2-stage">
+        <div className="ab-w2-head">
+          <MuscleKey n={completed.length + 1} grupo={grupo} size={34}/>
+          <div>
+            <span className="ab-muscle">{grupo || "Exercício"} · {completed.length + 1} de {completed.length + queue.length}</span>
+            <h1>{exercise.name}</h1>
           </div>
-          {!isoDone&&<button style={{...S.btn,width:"auto",padding:"12px 32px",fontSize:14}} onClick={isoRunning?onPauseIso:onStartIso}>{isoRunning?"⏸ Pausar":(isoSec===isoTotal?"▶ Iniciar":"▶ Continuar")}</button>}
-          {isoDone&&unilateralSide===0&&<button className="ab-primary ab-next-side" onClick={onNextSide}>Iniciar lado direito <Icon name="arrow" size={17}/></button>}
-          {isoDone&&(!unilateral||unilateralSide===1)&&<div style={{fontSize:13,color:C.acc,fontWeight:700}}>✓ {unilateral?"Dois lados concluídos!":"Tempo concluído!"}</div>}
         </div>
-      ):(
+        {(exercise._substitutedFor || exercise._skipped) && <p className="ab-w2-note">{exercise._substitutedFor ? `Substituiu ${exercise._substitutedFor}` : "Reagendado para o fim"}</p>}
+        <dl className="ab-w2-spec">
+          <div><dt>Série</dt><dd className="ab-num">{setIdx + 1}<small>/{exercise.sets}</small></dd></div>
+          <div><dt>{isIso ? "Tempo" : "Reps"}</dt><dd className="ab-num">{isIso ? `${exercise.isoSec || isoTotal}s` : exercise.reps}</dd></div>
+          <div><dt>Descanso</dt><dd className="ab-num">{exercise.rest}<small>s</small></dd></div>
+          <div><dt>RIR alvo</dt><dd className="ab-num">{exercise.rir ?? 3}</dd></div>
+        </dl>
+        <div className="ab-w2-marks" aria-label={`Série ${setIdx + 1} de ${exercise.sets}`}>
+          {Array.from({ length: exercise.sets }).map((_, i) => <i key={i} data-state={i < setIdx ? "done" : i === setIdx ? "current" : "pending"}/>)}
+        </div>
+        <div className="ab-figure-wrap"><FigureBlock exercise={exercise}/></div>
+      </section>
+      <aside className="ab-w2-panel">
+      {unilateral && <div className="ab-w2-sides"><span data-on={unilateralSide === 0}>1 · Esquerdo</span><span data-on={unilateralSide === 1}>2 · Direito</span></div>}
+      {isIso ? (
+        <div className="ab-w2-clock" data-state={isoDone ? "done" : isoRunning ? "running" : "idle"}>
+          <small>{sideLabel || "Isometria"}</small>
+          <time className="ab-num">{fmt(isoSec)}</time>
+          <div className="ab-rest2-drain"><span style={{ transform: `scaleX(${isoFrac})` }}/></div>
+          {!isoDone && <button className="ab-secondary-action ab-w2-toggle" onClick={isoRunning ? onPauseIso : onStartIso}>{isoRunning ? "Pausar" : (isoSec === isoTotal ? "Iniciar" : "Continuar")}</button>}
+          {isoDone && unilateralSide === 0 && <button className="ab-primary ab-next-side" onClick={onNextSide}>Iniciar lado direito <Icon name="arrow" size={17}/></button>}
+          {isoDone && (!unilateral || unilateralSide === 1) && <p className="ab-w2-ok"><Icon name="check" size={16}/> {unilateral ? "Dois lados concluídos" : "Tempo concluído"}</p>}
+        </div>
+      ) : (
         <>
-          <div className="ab-series-clock"><div><span>{sideLabel?`TEMPO · ${sideLabel}`:"TEMPO DA SÉRIE"}</span><strong style={{display:"block"}}>{fmt(elapsed)}</strong></div><span>{running?"em execução":elapsed>0?"pausado":"pronto"}</span></div>
-          <button className="ab-secondary-action" style={{width:"100%",marginTop:10}} onClick={running?onPauseSeries:onStartSeries}>{running?"Pausar cronômetro":elapsed>0?"Continuar série":"Iniciar série"}</button>
-          {unilateral&&unilateralSide===0&&<button className="ab-primary ab-next-side" disabled={elapsed<=0} onClick={onNextSide}>Concluir esquerdo e iniciar direito <Icon name="arrow" size={17}/></button>}
-          <label style={{...S.sectionLabel,marginTop:12}}>Registre a série e o esforço percebido{ultimaCarga && <span style={{color:C.acc,fontWeight:700,textTransform:"none",letterSpacing:0}}> · última: {ultimaCarga}kg</span>}</label>
+          <div className="ab-w2-clock" data-state={running ? "running" : elapsed > 0 ? "paused" : "idle"}>
+            <small>{sideLabel ? `Tempo · ${sideLabel}` : "Tempo da série"}<em>{running ? "em execução" : elapsed > 0 ? "pausado" : "pronto"}</em></small>
+            <time className="ab-num">{fmt(elapsed)}</time>
+            <button className="ab-secondary-action ab-w2-toggle" onClick={running ? onPauseSeries : onStartSeries}>{running ? "Pausar" : elapsed > 0 ? "Continuar série" : "Iniciar série"}</button>
+          </div>
+          {unilateral && unilateralSide === 0 && <button className="ab-primary ab-next-side" disabled={elapsed <= 0} onClick={onNextSide}>Concluir esquerdo e iniciar direito <Icon name="arrow" size={17}/></button>}
           {sugestao && String(sugestao.sugerido) !== weightInput && (
-            <button onClick={()=>setWeightInput(String(sugestao.sugerido))} className="ab-suggestion">
-              <span>Você atingiu {sugestao.topo} reps com {sugestao.base}kg — tente {String(sugestao.sugerido).replace(".",",")}kg hoje</span>
-              <small>TOQUE PARA APLICAR A SUGESTÃO</small>
+            <button onClick={() => setWeightInput(String(sugestao.sugerido))} className="ab-w2-suggest">
+              <span>Você fez {sugestao.topo} reps com {sugestao.base} kg. Tente <b className="ab-num">{String(sugestao.sugerido).replace(".", ",")} kg</b> hoje.</span>
+              <small>Toque para aplicar</small>
             </button>
           )}
-          <div className="ab-load-grid">
-            <div className="ab-load-field"><label>PESO (KG)</label><input aria-label="Peso em quilogramas" type="number" inputMode="decimal" className="ab-load-input" value={weightInput} onChange={e=>setWeightInput(e.target.value)} placeholder="0"/></div>
-            <div className="ab-load-field"><label>REPETIÇÕES</label><input aria-label="Número de repetições" type="number" inputMode="numeric" className="ab-load-input" value={repsInput} onChange={e=>setRepsInput(e.target.value)} placeholder="0"/></div>
-            <div className="ab-load-field"><label>RIR · ALVO {exercise.rir??3}</label><input aria-label="Repetições em reserva" type="number" inputMode="numeric" min="0" max="5" className="ab-load-input" value={rirInput} onChange={e=>setRirInput(e.target.value)} placeholder="0–5"/></div>
+          <div className="ab-w2-load">
+            <label><span>Peso <small>kg{ultimaCarga ? ` · última ${ultimaCarga}` : ""}</small></span><input aria-label="Peso em quilogramas" type="number" inputMode="decimal" value={weightInput} onChange={e => setWeightInput(e.target.value)} placeholder="0"/></label>
+            <label><span>Reps</span><input aria-label="Número de repetições" type="number" inputMode="numeric" value={repsInput} onChange={e => setRepsInput(e.target.value)} placeholder="0"/></label>
+            <label><span>RIR</span><input aria-label="Repetições em reserva" type="number" inputMode="numeric" min="0" max="5" value={rirInput} onChange={e => setRirInput(e.target.value)} placeholder="0–5"/></label>
           </div>
-          <p className="ab-rir-help">RIR é quantas repetições você ainda conseguiria fazer com boa técnica. Use 0 apenas quando nenhuma repetição adicional seria possível.</p>
+          <p className="ab-rir-help">RIR: quantas repetições ainda daria para fazer com boa técnica. 0 só quando nenhuma a mais seria possível.</p>
         </>
       )}
-      {(!unilateral||unilateralSide===1)&&<button className="ab-primary" disabled={!canComplete} onClick={onComplete}>Concluir série <Icon name="arrow" size={18}/></button>}
-      <div className="ab-secondary-actions">
-        <button className="ab-secondary-action" disabled={!canSkip} onClick={onSkip}><Icon name="repeat" size={15}/> Ocupado</button>
+      {(!unilateral || unilateralSide === 1) && <button className="ab-primary ab-w2-done" disabled={!canComplete} onClick={onComplete}>Concluir série <Icon name="arrow" size={18}/></button>}
+      <div className="ab-w2-secondary">
+        <button className="ab-secondary-action" disabled={!canSkip} onClick={onSkip}><Icon name="repeat" size={15}/> Aparelho ocupado</button>
         <button className="ab-secondary-action" onClick={onShowSubs}><Icon name="swap" size={15}/> Substituir</button>
       </div>
       </aside>
@@ -4480,34 +4534,45 @@ function SubModal({ exercise, onSelect, onClose, locked }) {
 
 // ─── REST ─────────────────────────────────────────────────────────────────────
 
-function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao, nextSet }) {
-  const circ=2*Math.PI*52, off=circ*(1-seconds/(total||1));
-  const allItems=[...completed.map(e=>({...e,status:"done"})),...queue.map((e,i)=>({...e,status:i===0?"current":e._skipped?"skipped":"pending"}))];
+export function RestScreen({ seconds, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao, nextSet, startedAt, dayLabel, lastLoad, lastReps }) {
+  const grupoDe = useGrupos([...completed, ...queue]);
+  const prox = queue[0];
+  const serie = Math.min(nextSet || 1, prox?.sets || 1);
+  const totalSeries = [...completed, ...queue].reduce((n, e) => n + (Number(e.sets) || 0), 0);
+  const feitas = completed.reduce((n, e) => n + (Number(e.sets) || 0), 0) + (serie - 1);
+  const numProx = completed.length + 1;
+  const items = [...completed.map(e => ({ ...e, status: "done" })), ...queue.map((e, i) => ({ ...e, status: i === 0 ? "current" : e._skipped ? "skipped" : "pending" }))];
   return (
-    <div className="ab-rest">
-      <section className="ab-rest-hero">
-        <div className="ab-rest-timer">
-          <svg viewBox="0 0 130 130">
-            <circle cx="65" cy="65" r="52" stroke={C.border} strokeWidth="7" fill="none"/>
-            <circle cx="65" cy="65" r="52" stroke={C.acc} strokeWidth="7" fill="none" strokeDasharray={circ} strokeDashoffset={off} strokeLinecap="round" transform="rotate(-90 65 65)" style={{transition:"stroke-dashoffset 1s linear"}}/>
-          </svg>
-          <div className="ab-rest-time"><strong>{fmt(seconds)}</strong><span>DESCANSO</span></div>
-        </div>
-        <div className="ab-rest-copy"><div className="ab-kicker">RECUPERE E RESPIRE</div><h1>Boa série.</h1><p>Prepare-se para a próxima. {exercicioAtual?`Você continua em ${exercicioAtual}.`:"O próximo exercício começa em breve."}</p><button className="ab-primary" style={{width:"auto"}} onClick={onSkip}>Pular descanso <Icon name="arrow" size={17}/></button>{duracao&&<p>Tempo previsto do treino: ~{duracao}</p>}</div>
+    <div className="ab-rest2">
+      <div className="ab-rest2-bar"><span>{dayLabel || "Treino"}</span><span>{feitas}/{totalSeries} séries</span></div>
+      <section className="ab-rest2-clock" data-last={seconds <= 10} aria-live="off">
+        <small>Descanso</small>
+        <time aria-label={`${seconds} segundos de descanso`}>{fmt(seconds)}</time>
+        <div className="ab-rest2-drain"><span style={{ transform: `scaleX(${total ? seconds / total : 0})` }}/></div>
       </section>
+      {prox && (
+        <section className="ab-rest2-next" aria-label="Próxima série">
+          <MuscleKey n={numProx} grupo={grupoDe(prox)}/>
+          <span className="ab-muscle">{grupoDe(prox) || "Próxima"} · série {serie} de {prox.sets}</span>
+          <h2>{prox.name}</h2>
+          <dl className="ab-rest2-last">
+            <div><dt>Última carga</dt><dd>{lastLoad || "—"}{lastLoad && <small>kg</small>}</dd></div>
+            <div><dt>Reps</dt><dd>{lastReps || prox.reps}</dd></div>
+            <div><dt>RIR alvo</dt><dd>{prox.rir ?? "—"}</dd></div>
+          </dl>
+        </section>
+      )}
+      <DurationRuler startedAt={startedAt} planned={duracao}/>
       {vinculo && <ObsPersonalBox vinculo={vinculo} contexto={{tipo:"descanso",exercicio:exercicioAtual||null}} placeholder="observação para o personal (dúvida, dor, pedido de troca)…"/>}
-      <section className="ab-queue"><h2>Sequência do treino</h2>
-        {allItems.map((ex,i)=>{ const isDone=ex.status==="done",isCurrent=ex.status==="current",isSkipped=ex.status==="skipped"; return(
-          <div key={i} className="ab-queue-item" data-status={ex.status}>
-            <div className="ab-queue-state">
-              {isDone?"✓":isCurrent?"▶":isSkipped?"⏩":"○"}
-            </div>
-            <div className="ab-queue-copy">
-              <strong>{ex.name}{isSkipped&&<span> · reagendado</span>}</strong>
-              <span>{isDone?`${ex.sets}/${ex.sets} séries concluídas`:isCurrent?`em andamento · ${Math.min(nextSet||1,ex.sets)-1}/${ex.sets} séries · próxima: ${Math.min(nextSet||1,ex.sets)}ª`:`${ex.sets} séries · ${ex.reps}`}</span>
-            </div>
-          </div>
-        );})}
+      <div className="ab-rest2-actions"><button className="ab-primary" onClick={onSkip}>Pular descanso <Icon name="arrow" size={18}/></button></div>
+      <section className="ab-seq"><h2>Sequência</h2>
+        <ol>{items.map((ex, i) => (
+          <li key={i} data-status={ex.status}>
+            <MuscleKey n={i + 1} grupo={grupoDe(ex)} state={ex.status === "done" ? "done" : undefined}/>
+            <div><strong>{ex.name}</strong><span>{grupoDe(ex) || "—"}{ex.status === "skipped" ? " · reagendado" : ""}</span></div>
+            <em>{ex.status === "done" ? <Icon name="check" size={16}/> : ex.status === "current" ? `${serie - 1}/${ex.sets}` : `${ex.sets}×${ex.reps}`}</em>
+          </li>))}
+        </ol>
       </section>
     </div>
   );
@@ -4568,13 +4633,13 @@ function FotoComparativo({ bodyHistory, onFotosExcluidas }) {
             {(mesmaData ? ["antes"] : ["antes","depois"]).map(rot => urls[rot]?.[t] && (
               <div key={rot} style={{flex:1}}>
                 {!mesmaData && <div style={{fontSize:10,color:C.muted,marginBottom:2,textTransform:"uppercase"}}>{rot}</div>}
-                <img src={urls[rot][t]} alt={`${ROT[t]} ${rot}`} style={{width:"100%",borderRadius:10,border:`1px solid ${C.border}`}}/>
+                <img src={urls[rot][t]} alt={`${ROT[t]} ${rot}`} style={{width:"100%",borderRadius:2,border:`1px solid ${C.border}`}}/>
               </div>
             ))}
           </div>
         </div>
       ))}
-      <button onClick={excluirTudo} disabled={excluindo} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:10,color:"#ff8a8a",fontSize:12,fontWeight:600,padding:"8px 12px",width:"100%",cursor:"pointer",opacity:excluindo?0.5:1}}>
+      <button onClick={excluirTudo} disabled={excluindo} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:2,color:"#ff8a8a",fontSize:12,fontWeight:600,padding:"8px 12px",width:"100%",cursor:"pointer",opacity:excluindo?0.5:1}}>
         {excluindo?"Excluindo…":"🗑 Excluir minhas fotos armazenadas (LGPD)"}
       </button>
     </div>
@@ -4740,18 +4805,18 @@ function ReassessScreen({ photos, setPhotos, busy, err, onRun, storeConsent, set
       <p style={S.sub}>Envie fotos atuais nas mesmas posições. A IA compara com sua avaliação anterior e mostra sua evolução.</p>
       <PhotoUploadStep photos={photos} setPhotos={setPhotos}/>
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${consent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)} style={{marginTop:2}}/>
           <span>Autorizo o envio das minhas fotos para <b>análise pela IA</b> (dados sensíveis de saúde — LGPD).</span>
         </label>
       )}
       {(photos.front||photos.back||photos.side)&&(
-        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
+        <label style={{display:"flex",gap:10,alignItems:"flex-start",background:"#f1f6f3",border:`1px solid ${storeConsent?C.acc:C.border}`,borderRadius:2,padding:"12px 14px",fontSize:12,color:C.text,marginTop:8,cursor:"pointer"}}>
           <input type="checkbox" checked={!!storeConsent} onChange={e=>setStoreConsent(e.target.checked)} style={{marginTop:2}}/>
           <span><b>Opcional:</b> autorizo o <b>armazenamento seguro e privado</b> das fotos para comparativos visuais da minha evolução. Posso excluí-las quando quiser.</span>
         </label>
       )}
-      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:12,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:10}}>{err}</div>}
+      {err && <div style={{background:"#2a0a0a",border:"1px solid #8b2a2a",borderRadius:2,padding:"11px 14px",fontSize:13,color:"#ff8080",marginTop:10}}>{err}</div>}
       <button style={{...S.btn,marginTop:16,opacity:(hasAny&&!busy)?1:0.4}} disabled={!hasAny||busy} onClick={()=>{ if(!consent){alert("Marque a autorização de análise das fotos.");return;} onRun(); }}>
         {busy ? "Analisando…" : "Gerar comparativo ✨"}
       </button>
@@ -4857,7 +4922,7 @@ function CalendarScreen({ history, plan, onBack, onUpdateHistory }) {
           <span style={{fontSize:12,color:C.muted}}>Check-in automático ao finalizar o treino no app</span>
         </div>
         <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          <div style={{width:18,height:18,borderRadius:"50%",background:"#f0a848",color:"#06140e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✎</div>
+          <div style={{width:18,height:18,borderRadius:"50%",background:"#f0a848",color:"#f5f6f3",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}}>✎</div>
           <span style={{fontSize:12,color:C.muted}}>Registro manual — toque em qualquer dia passado para adicionar ou corrigir</span>
         </div>
       </div>
@@ -5051,16 +5116,14 @@ function FigureBlock({ exercise }) {
   },[exercise.name]);
   if (match && match.imagem_url) {
     return (
-      <div style={{background:"#F4F4F6",border:`1px solid ${C.border}`,borderRadius:14,padding:"10px 10px 4px",marginBottom:12}}>
-        <div style={{aspectRatio:"4/3",maxWidth:380,margin:"0 auto"}}>
+      <figure className="ab-plate">
+        <div className="ab-plate-img">
           <img src={match.imagem_url} alt={exercise.name} loading="lazy"
             onError={()=>setMatch(null)}
             style={{width:"100%",height:"100%",objectFit:"contain",display:"block",mixBlendMode:"multiply"}}/>
         </div>
-        <div style={{fontSize:10,color:"#7a7a80",textAlign:"center",padding:"2px 0 4px",fontWeight:700}}>
-          {match.grupo_muscular} · {match.equipamento}{match.acessorio!=="—"?` · ${match.acessorio}`:""}
-        </div>
-      </div>
+        <figcaption>{match.equipamento}{match.acessorio&&match.acessorio!=="—"?` · ${match.acessorio}`:""}</figcaption>
+      </figure>
     );
   }
   if (match === undefined) {

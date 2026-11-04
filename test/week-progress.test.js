@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const app=readFileSync(new URL("../src/App.jsx",import.meta.url),"utf8");
 
-test("barra semanal usa proporção concluídos sobre total do plano",()=>{
-  assert.match(app,/weekCount \/ plan\.weekDays\.length/);
+test("progresso semanal mostra concluídos sobre o total do plano",()=>{
+  assert.match(app,/\{weekCount\}\/\{plan\.weekDays\.length\} na semana/);
   assert.doesNotMatch(app,/weekCount\*25/);
 });
