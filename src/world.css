@@ -229,7 +229,7 @@ a { text-underline-offset: .18em; }
 .ab-h2-today { padding-top: 14px; }
 .ab-h2-plan { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ab-muted); }
 .ab-h2-next { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; margin-top: 14px; }
-.ab-h2-letter { display: grid; place-items: center; width: 1.1em; font-size: 96px; line-height: .82; font-weight: 850; font-stretch: 62%; }
+.ab-h2-letter { display: grid; place-items: center; min-width: 1.1em; white-space: nowrap; overflow: hidden; font-size: 96px; line-height: .82; font-weight: 850; font-stretch: 62%; }
 .ab-h2-next h1 { margin: 0; font-size: clamp(26px, 7.6vw, 40px); line-height: 1.05; font-weight: 750; letter-spacing: -.02em; text-wrap: balance; }
 .ab-h2-next p { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--ab-muted); }
 .ab-keys { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 14px; }
@@ -261,7 +261,7 @@ a { text-underline-offset: .18em; }
   transition: background .2s var(--ab-ease);
 }
 .ab-h2-days button { grid-template-columns: auto 1fr auto; padding: 14px 0; }
-.ab-h2-days .ab-h2-letter { font-size: 52px; width: 1em; }
+.ab-h2-days .ab-h2-letter { font-size: 52px; min-width: 1.25em; }
 .ab-h2-days button[data-next="true"] .ab-h2-letter { color: var(--ab-text); }
 .ab-h2-days button[data-next="false"] .ab-h2-letter { color: var(--ab-faint); }
 .ab-h2-day { display: flex; flex-direction: column; min-width: 0; }

@@ -261,6 +261,13 @@ function useGrupos(exercicios) {
 function MuscleKey({ n, grupo, state, size }) {
   return <span className="ab-key" data-m={TECIDO[grupo] || "geral"} data-state={state} style={size ? { width: size, height: size } : undefined} aria-hidden="true">{n}</span>;
 }
+// Sigla curta para o glifo grande do treino: "A" fica "A"; "Inferiores A" vira "IA".
+export const siglaTreino = (label) => {
+  const t = String(label || "").trim();
+  if (t.length <= 2) return t.toUpperCase();
+  const partes = t.split(/[\s\-·/]+/).filter(Boolean);
+  return (partes.length > 1 ? partes.slice(0, 2).map(p => p[0]) : [t[0]]).join("").toUpperCase();
+};
 const minutosDe = (txt) => {
   const t = String(txt || ""); let m = t.match(/(\d+)\s*h\s*(\d+)?/i);
   if (m) return Number(m[1]) * 60 + Number(m[2] || 0);
@@ -4316,10 +4323,10 @@ export function HomeScreen({ plan, history, personal, locked, onStart, onReset, 
       <section className="ab-h2-today" aria-labelledby="ab-hoje">
         <div className="ab-h2-plan"><span>{plan.planName}</span><span className="ab-num">{weekCount}/{plan.weekDays.length} na semana</span></div>
         <div className="ab-h2-next">
-          <b className="ab-h2-letter" aria-hidden="true">{nextDay?.label}</b>
+          <b className="ab-h2-letter" aria-hidden="true">{siglaTreino(nextDay?.label)}</b>
           <div>
             <h1 id="ab-hoje">{nextDay?.sub || `Treino ${nextDay?.label}`}</h1>
-            <p className="ab-num">{(nextDay?.exercises || []).length} exercícios · {series(nextDay)} séries{plan.duracao ? ` · ~${plan.duracao}` : ""}</p>
+            <p className="ab-num">{siglaTreino(nextDay?.label) !== String(nextDay?.label || "").toUpperCase() ? `${nextDay?.label} · ` : ""}{(nextDay?.exercises || []).length} exercícios · {series(nextDay)} séries{plan.duracao ? ` · ~${plan.duracao}` : ""}</p>
           </div>
         </div>
         <Keys day={nextDay}/>
@@ -4340,8 +4347,8 @@ export function HomeScreen({ plan, history, personal, locked, onStart, onReset, 
         <ul className="ab-h2-days">
           {plan.weekDays.map((d, i) => { const last = lastByDay[d.id]; return (
             <li key={i}><button onClick={() => onStart(d)} data-next={d === nextDay}>
-              <b className="ab-h2-letter" aria-hidden="true">{d.label}</b>
-              <span className="ab-h2-day"><strong>{d.sub || `Treino ${d.label}`}</strong><small className="ab-num">{series(d)} séries{last ? ` · último ${new Date(last).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}` : " · ainda não feito"}</small><Keys day={d}/></span>
+              <b className="ab-h2-letter" aria-hidden="true">{siglaTreino(d.label)}</b>
+              <span className="ab-h2-day"><strong>{d.sub || `Treino ${d.label}`}</strong><small className="ab-num">{siglaTreino(d.label) !== String(d.label || "").toUpperCase() ? `${d.label} · ` : ""}{series(d)} séries{last ? ` · último ${new Date(last).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}` : " · ainda não feito"}</small><Keys day={d}/></span>
               <Icon name="arrow" size={18}/>
             </button></li>
           ); })}
