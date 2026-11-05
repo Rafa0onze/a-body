@@ -1924,8 +1924,9 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
   const resetPlan = () => {if(readPlanDraft(localStorage)){resumePlanDraft();return;}const perfil=plan?.perfil||{};setForm({...ANAMNESIS_INIT,name:plan?.userName||'',age:perfil.idade||'',height:perfil.altura||'',weight:perfil.peso||'',injuries:perfil.lesoes||'',conditions:perfil.condicoes||''});setCandidatePlan(null);setPhotos(PHOTOS_INIT);setBodyAnalysis(null);setStep(1);setSelectedSplit(null);setDayExercises({});setScreen('modeSelect');};
 
   // Peso da última execução do exercício, para pré-preencher e guiar a progressão
-  const pesoAnterior = (ex, sIdx) => {
-    if (!ex || ex.iso) return "";
+  const pesoAnterior = (ex, sIdx) => ex?.iso ? "" : registroAnterior(ex, sIdx);
+  const registroAnterior = (ex, sIdx) => {
+    if (!ex) return "";
     for (let i = history.length - 1; i >= 0; i--) {
       const s = history[i];
       if (s.manual) continue;
@@ -1987,7 +1988,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
 
   // A primeira série de cada exercício aguarda o aluno montar o equipamento.
   // As seguintes começam automaticamente ao terminar ou pular o descanso.
-  const initTimer=(ex,autoStart=false)=>{ setSeriesElapsed(0);setSeriesRunning(autoStart&&!ex.iso);setUnilateralSide(0);setFirstSideElapsed(0); if(ex.iso){setIsoTotal(ex.isoSec||45);setIsoSec(ex.isoSec||45);setIsoRunning(autoStart);setIsoDone(false);}else{setIsoRunning(false);setIsoDone(false);}};
+  const initTimer=(ex,autoStart=false,sIdx=0)=>{ setSeriesElapsed(0);setSeriesRunning(autoStart&&!ex.iso);setUnilateralSide(0);setFirstSideElapsed(0); if(ex.iso){const alvo=Number(cargaReferencia(ex,sIdx))||ex.isoSec||45;setIsoTotal(alvo);setIsoSec(alvo);setIsoRunning(autoStart);setIsoDone(false);}else{setIsoRunning(false);setIsoDone(false);}};
   const ultimoPeso = (ex, sIdx) => {
     // varre o histórico do mais recente ao mais antigo procurando o exercício (por id, depois por nome)
     for (let i = history.length - 1; i >= 0; i--) {
@@ -2015,10 +2016,11 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
   const skipExercise=()=>{ if(queue.length<=1)return; const[cur,next,...rest]=queue; setQueue([next,{...cur,_skipped:true},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(next,0));setRepsInput(repsAnterior(next,0));setRirInput("");initTimer(next); };
   const substituteExercise=(newEx)=>{ const[cur,...rest]=queue; setQueue([{...newEx,_key:uid(),_skipped:cur._skipped,_substitutedFor:cur.name},...rest]); setSetIdx(0);setWeightInput(pesoAnterior(newEx,0));setRepsInput(repsAnterior(newEx,0));setRirInput("");initTimer(newEx);setShowSubs(false); };
 
+  const ajustarTempoIso=(d)=>{ if(isoRunning||isoSec!==isoTotal||unilateralSide!==0)return; const t=Math.max(5,Math.min(600,isoTotal+d)); setIsoTotal(t);setIsoSec(t); };
   const advanceUnilateralSide=()=>{
     const cur=queue[0]; if(!cur||!isUnilateralExercise(cur)||unilateralSide!==0)return;
     const elapsed=cur.iso?(isoTotal-isoSec):seriesElapsed;
-    if(elapsed<=0||cur.iso&&!isoDone)return;
+    if(cur.iso&&elapsed<=0)return;
     setFirstSideElapsed(elapsed);setUnilateralSide(1);setSeriesElapsed(0);setSeriesRunning(!cur.iso);
     if(cur.iso){setIsoSec(isoTotal);setIsoRunning(true);setIsoDone(false);}
   };
@@ -2027,8 +2029,8 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     const cur=queue[0]; if(!cur)return;
     const unilateral=isUnilateralExercise(cur);
     const currentElapsed=cur.iso?(isoTotal-isoSec):seriesElapsed;
-    if(unilateral&&(unilateralSide!==1||firstSideElapsed<=0||currentElapsed<=0||cur.iso&&!isoDone))return;
-    let value=cur.iso?(unilateral?Math.round((firstSideElapsed+currentElapsed)/2):(isoTotal-isoSec||isoTotal)):parseFloat(weightInput.replace(",","."));
+    if(unilateral&&(unilateralSide!==1||currentElapsed<=0||cur.iso&&!isoDone))return;
+    let value=cur.iso?(unilateral?Math.round(firstSideElapsed>0?(firstSideElapsed+currentElapsed)/2:currentElapsed):(isoTotal-isoSec||isoTotal)):parseFloat(weightInput.replace(",","."));
     if(!cur.iso&&(isNaN(value)||value<=0))return;
     let reps=cur.iso?null:parseInt(repsInput);
     if(!cur.iso&&(isNaN(reps)||reps<=0))return;
@@ -2043,9 +2045,9 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     else { setRestTotal(cur.rest);setRestSec(cur.rest);setSetIdx(setIdx+1);setScreen("rest"); }
   };
 
-  // Carga para montar o equipamento: a da série anterior de hoje; no 1º set do exercício, a do último treino.
-  const cargaReferencia=(ex,sIdx)=>{ const hoje=ex&&!ex.iso?currentWeights[ex._key]?.[sIdx-1]:null; return hoje!=null?String(hoje):pesoAnterior(ex,sIdx); };
-  const advanceAfterRest=()=>{ setWeightInput(cargaReferencia(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0],shouldAutoStartSeries(setIdx));setScreen("workout"); };
+  // Carga (kg) ou tempo de isometria (s) de referência: a da série anterior de hoje; no 1º set do exercício, a do último treino.
+  const cargaReferencia=(ex,sIdx)=>{ const hoje=ex?currentWeights[ex._key]?.[sIdx-1]:null; return hoje!=null?String(hoje):registroAnterior(ex,sIdx); };
+  const advanceAfterRest=()=>{ setWeightInput(cargaReferencia(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0],shouldAutoStartSeries(setIdx),setIdx);setScreen("workout"); };
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
@@ -2137,7 +2139,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
       {screen==="workoutOverview" && currentDay && <WorkoutOverviewScreen day={currentDay} exercises={queue} duracao={plan?.duracao} onContinue={()=>{track("resumo_treino_confirmado",{exercicios:queue.length});setScreen("warmup");}} onBack={goHome}/>}
       {screen==="warmup"       && currentDay && <WarmupScreen day={currentDay} cardioChoice={cardioChoice} setCardioChoice={setCardioChoice} onContinue={beginWorkout} onBack={()=>setScreen("workoutOverview")}/>}
       {screen==="workout"      && currentDay && current && (<>
-        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} unilateralSide={unilateralSide} firstSideElapsed={firstSideElapsed} onNextSide={advanceUnilateralSide} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
+        <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} unilateralSide={unilateralSide} firstSideElapsed={firstSideElapsed} onNextSide={advanceUnilateralSide} onAdjustIso={ajustarTempoIso} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
       {screen==="rest"         && <RestScreen endsAt={restEndsAtRef.current||Date.now()+restSec*1000} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1} startedAt={workoutStartedAt.current} dayLabel={currentDay?`${currentDay.label} · ${currentDay.sub||""}`:null} lastLoad={cargaReferencia(queue[0],setIdx)} suggestedLoad={sugestaoCarga(queue[0])?.sugerido} lastReps={repsAnterior(queue[0],setIdx)}/>}
@@ -4462,7 +4464,7 @@ export function WarmupScreen({ day, cardioChoice, setCardioChoice, onContinue, o
 
 // ─── WORKOUT ─────────────────────────────────────────────────────────────────
 
-export function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, onStartSeries, onPauseSeries, isoSec, isoTotal, isoRunning, isoDone, unilateralSide, firstSideElapsed, onNextSide, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
+export function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed, weightInput, setWeightInput, repsInput, setRepsInput, rirInput, setRirInput, ultimaCarga, sugestao, elapsed, running, onStartSeries, onPauseSeries, isoSec, isoTotal, isoRunning, isoDone, unilateralSide, firstSideElapsed, onNextSide, onAdjustIso, onStartIso, onPauseIso, onComplete, onSkip, onShowSubs, canSkip, onBack }) {
   const totalSets=[...completed,...queue].reduce((a,e)=>a+e.sets,0);
   const doneSets=completed.reduce((a,e)=>a+e.sets,0)+setIdx;
   const pct=totalSets?Math.round((doneSets/totalSets)*100):0;
@@ -4470,7 +4472,7 @@ export function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed
   const unilateral=isUnilateralExercise(exercise);
   const sideLabel=unilateral?(unilateralSide===0?"Lado esquerdo":"Lado direito"):null;
   const isoCirc=2*Math.PI*52, isoOff=isoTotal>0?isoCirc*(isoSec/isoTotal):0;
-  const sideReady=!unilateral||unilateralSide===1&&firstSideElapsed>0;
+  const sideReady=!unilateral||unilateralSide===1;
   const canComplete = sideReady && (isIso?isoDone:(elapsed>0&&weightInput.length>0)) && (exercise.iso || ((parseInt(repsInput)||0) > 0 && Number.isInteger(parseInt(rirInput)) && parseInt(rirInput)>=0 && parseInt(rirInput)<=5));
   const grupoDe = useGrupos([exercise]);
   const grupo = grupoDe(exercise);
@@ -4495,7 +4497,7 @@ export function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed
         {(exercise._substitutedFor || exercise._skipped) && <p className="ab-w2-note">{exercise._substitutedFor ? `Substituiu ${exercise._substitutedFor}` : "Reagendado para o fim"}</p>}
         <dl className="ab-w2-spec">
           <div><dt>Série</dt><dd className="ab-num">{setIdx + 1}<small>/{exercise.sets}</small></dd></div>
-          <div><dt>{isIso ? "Tempo" : "Reps"}</dt><dd className="ab-num">{isIso ? `${exercise.isoSec || isoTotal}s` : exercise.reps}</dd></div>
+          <div><dt>{isIso ? "Tempo" : "Reps"}</dt><dd className="ab-num">{isIso ? `${isoTotal}s` : exercise.reps}</dd></div>
           <div><dt>Descanso</dt><dd className="ab-num">{exercise.rest}<small>s</small></dd></div>
           <div><dt>RIR alvo</dt><dd className="ab-num">{exercise.rir ?? 3}</dd></div>
         </dl>
@@ -4512,7 +4514,13 @@ export function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed
           <time className="ab-num">{fmt(isoSec)}</time>
           <div className="ab-rest2-drain"><span style={{ transform: `scaleX(${isoFrac})` }}/></div>
           {!isoDone && <button className="ab-secondary-action ab-w2-toggle" onClick={isoRunning ? onPauseIso : onStartIso}>{isoRunning ? "Pausar" : (isoSec === isoTotal ? "Iniciar" : "Continuar")}</button>}
-          {isoDone && unilateralSide === 0 && <button className="ab-primary ab-next-side" onClick={onNextSide}>Iniciar lado direito <Icon name="arrow" size={17}/></button>}
+          {!isoRunning && isoSec === isoTotal && unilateralSide === 0 && onAdjustIso && (
+            <div className="ab-w2-isoadj" role="group" aria-label="Ajustar tempo da isometria">
+              <button className="ab-secondary-action" disabled={isoTotal <= 5} onClick={() => onAdjustIso(-5)}>−5 s</button>
+              <button className="ab-secondary-action" onClick={() => onAdjustIso(5)}>+5 s</button>
+            </div>
+          )}
+          {unilateral && unilateralSide === 0 && (isoDone || isoSec < isoTotal) && <button className="ab-primary ab-next-side" onClick={onNextSide}>{isoDone ? "Iniciar lado direito" : "Trocar para o lado direito"} <Icon name="arrow" size={17}/></button>}
           {isoDone && (!unilateral || unilateralSide === 1) && <p className="ab-w2-ok"><Icon name="check" size={16}/> {unilateral ? "Dois lados concluídos" : "Tempo concluído"}</p>}
         </div>
       ) : (
@@ -4522,7 +4530,7 @@ export function WorkoutScreen({ day, duracao, exercise, setIdx, queue, completed
             <time className="ab-num">{fmt(elapsed)}</time>
             <button className="ab-secondary-action ab-w2-toggle" onClick={running ? onPauseSeries : onStartSeries}>{running ? "Pausar" : elapsed > 0 ? "Continuar série" : "Iniciar série"}</button>
           </div>
-          {unilateral && unilateralSide === 0 && <button className="ab-primary ab-next-side" disabled={elapsed <= 0} onClick={onNextSide}>Concluir esquerdo e iniciar direito <Icon name="arrow" size={17}/></button>}
+          {unilateral && unilateralSide === 0 && <button className="ab-primary ab-next-side" onClick={onNextSide}>Concluir esquerdo e iniciar direito <Icon name="arrow" size={17}/></button>}
           {sugestao && String(sugestao.sugerido) !== weightInput && (
             <button onClick={() => setWeightInput(String(sugestao.sugerido))} className="ab-w2-suggest">
               <span>Você fez {sugestao.topo} reps com {sugestao.base} kg. Tente <b className="ab-num">{String(sugestao.sugerido).replace(".", ",")} kg</b> hoje.</span>
@@ -4617,7 +4625,7 @@ export function RestScreen({ endsAt, total, onSkip, queue, completed, vinculo, e
           <span className="ab-muscle">{grupoDe(prox) || "Próxima"} · série {serie} de {prox.sets}</span>
           <h2>{prox.name}</h2>
           <dl className="ab-rest2-last">
-            <div><dt>Carga de referência</dt><dd>{lastLoad ? String(lastLoad).replace(".", ",") : "—"}{lastLoad && <small>kg</small>}</dd></div>
+            <div><dt>{prox.iso ? "Tempo de referência" : "Carga de referência"}</dt><dd>{lastLoad ? String(lastLoad).replace(".", ",") : "—"}{lastLoad && <small>{prox.iso ? "s" : "kg"}</small>}</dd></div>
             <div><dt>Reps</dt><dd>{lastReps || prox.reps}</dd></div>
             <div><dt>RIR alvo</dt><dd>{prox.rir ?? "—"}</dd></div>
           </dl>
