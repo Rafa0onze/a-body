@@ -319,6 +319,8 @@ async function loadStorage(key) {
       return null;
     }
 
+    // Gravação local que não chegou à nuvem (ex.: login vencido) tem prioridade: envia em vez de sobrescrever.
+    if (local !== null && lerPendentes().includes(key)) { await cloudSave(key, local); return local; }
     if (cloud !== null) {
       localStorage.setItem(key, JSON.stringify(cloud));
       return cloud;
@@ -499,6 +501,13 @@ async function authDeleteAccount() {
 // ─── SYNC DE DADOS (tabela user_data: user_id, key, value) ──────────────────
 const pendingSync=new Map();
 const syncOperations=new Map();
+// Chaves com gravação pendente sobrevivem ao recarregar (ex.: para refazer o login do Access).
+const PENDENTES='abody:pending-sync';
+const lerPendentes=()=>{try{return JSON.parse(localStorage.getItem(PENDENTES)||'[]');}catch{return [];}};
+const marcarPendente=(key,pendente)=>{const s=new Set(lerPendentes());if(pendente)s.add(key);else s.delete(key);try{localStorage.setItem(PENDENTES,JSON.stringify([...s]));}catch{}};
+export const ACESSO_EXPIRADO='Seu acesso expirou, por isso os registros ainda não foram enviados. Eles estão salvos neste aparelho e vão para a nuvem assim que você entrar de novo.';
+// Com o login do Cloudflare Access vencido, toda chamada a /sb vira redirecionamento para a tela de login.
+async function acessoExpirado(){ if(!SOLO_MODE)return false; try{const r=await fetch(`${SUPA_URL}/auth/v1/user`,{redirect:'manual',cache:'no-store'});return r.type==='opaqueredirect';}catch{return false;} }
 async function cloudSave(key,value,options={}) {
   const epoch=accountEpoch,operation=(syncOperations.get(key)||0)+1;syncOperations.set(key,operation);
   const session=await refreshIfNeeded();if(!session)return null;
@@ -511,13 +520,16 @@ async function cloudSave(key,value,options={}) {
       if(syncOperations.get(key)!==operation)return JSON.parse(localStorage.getItem(key)||'[]');
       const latest=options.baseline?merged:mergeCumulativeHistory(key,JSON.parse(localStorage.getItem(key)||'[]'),merged);
       localStorage.setItem(key,JSON.stringify(latest));
-      pendingSync.delete(key);window.dispatchEvent(new Event('abody:sync-restored'));return latest;
+      pendingSync.delete(key);marcarPendente(key,false);window.dispatchEvent(new Event('abody:sync-restored'));return latest;
     }
-    await supaFetch('/rest/v1/user_data',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,Prefer:'resolution=merge-duplicates'},body:JSON.stringify({key,value,updated_at:new Date().toISOString()})});return value;
+    await supaFetch('/rest/v1/user_data',{method:'POST',headers:{Authorization:'Bearer '+session.access_token,Prefer:'resolution=merge-duplicates'},body:JSON.stringify({key,value,updated_at:new Date().toISOString()})});
+    if(syncOperations.get(key)===operation){pendingSync.delete(key);marcarPendente(key,false);window.dispatchEvent(new Event('abody:sync-restored'));}
+    return value;
   }catch(error){
     if(!stillCurrent()||syncOperations.get(key)!==operation)return null;
-    pendingSync.set(key,{value,options});
-    window.dispatchEvent(new CustomEvent('abody:sync-error',{detail:error.code==='HISTORY_CONFLICT'?'Há uma edição mais recente na nuvem. Sua mudança ficou neste aparelho; revise o registro antes de tentar novamente.':'Os registros ficaram salvos neste aparelho. A sincronização está pendente; confira a conexão e tente novamente.'}));return null;
+    pendingSync.set(key,{value,options});marcarPendente(key,true);
+    const expirou=error.code!=='HISTORY_CONFLICT'&&await acessoExpirado();
+    window.dispatchEvent(new CustomEvent('abody:sync-error',{detail:expirou?ACESSO_EXPIRADO:error.code==='HISTORY_CONFLICT'?'Há uma edição mais recente na nuvem. Sua mudança ficou neste aparelho; revise o registro antes de tentar novamente.':'Os registros ficaram salvos neste aparelho. A sincronização está pendente; confira a conexão e tente novamente.'}));return null;
   }
 }
 
@@ -2101,7 +2113,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
 
   return (
     <main style={S.page} className="ab-app-shell">
-      {syncWarning&&<div className="ab-sync-warning" role="status"><p>{syncWarning}</p><button className="ab-secondary-action" disabled={syncBusy} onClick={retrySync}>{syncBusy?"Sincronizando…":"Tentar sincronizar"}</button></div>}
+      {syncWarning&&<div className="ab-sync-warning" role="status"><p>{syncWarning}</p>{syncWarning===ACESSO_EXPIRADO?<button className="ab-secondary-action" onClick={()=>location.reload()}>Entrar de novo</button>:<button className="ab-secondary-action" disabled={syncBusy} onClick={retrySync}>{syncBusy?"Sincronizando…":"Tentar sincronizar"}</button>}</div>}
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
           style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#f5f6f3",border:"none",borderRadius:2,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>
