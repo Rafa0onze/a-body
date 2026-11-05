@@ -132,6 +132,8 @@ a { text-underline-offset: .18em; }
 .ab-rest2-last div { display: flex; flex-direction: column; }
 .ab-rest2-last dt { font-size: 11px; font-weight: 600; color: var(--ab-muted); letter-spacing: .06em; text-transform: uppercase; }
 .ab-rest2-last dd { margin: 2px 0 0; font-size: 26px; font-weight: 700; font-stretch: 75%; font-variant-numeric: tabular-nums; }
+.ab-rest2-hint { grid-column: 2; margin: 8px 0 0; font-size: 14px; color: var(--ab-muted); }
+.ab-rest2-hint b { color: var(--ab-text); }
 .ab-rest2-last dd small { font-size: 14px; font-weight: 600; color: var(--ab-muted); margin-left: 2px; }
 
 .ab-ruler { margin-top: 20px; }

@@ -2043,7 +2043,9 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
     else { setRestTotal(cur.rest);setRestSec(cur.rest);setSetIdx(setIdx+1);setScreen("rest"); }
   };
 
-  const advanceAfterRest=()=>{ setWeightInput(pesoAnterior(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0],shouldAutoStartSeries(setIdx));setScreen("workout"); };
+  // Carga para montar o equipamento: a da série anterior de hoje; no 1º set do exercício, a do último treino.
+  const cargaReferencia=(ex,sIdx)=>{ const hoje=ex&&!ex.iso?currentWeights[ex._key]?.[sIdx-1]:null; return hoje!=null?String(hoje):pesoAnterior(ex,sIdx); };
+  const advanceAfterRest=()=>{ setWeightInput(cargaReferencia(queue[0], setIdx));setRepsInput(repsAnterior(queue[0], setIdx));setRirInput("");initTimer(queue[0],shouldAutoStartSeries(setIdx));setScreen("workout"); };
   useEffect(()=>{ if(!["workout","rest","warmup","postcardio"].includes(screen)) manterTelaAcesa(false); },[screen]);
   const skipRest=()=>{ clearInterval(restRef.current);advanceAfterRest(); };
 
@@ -2138,7 +2140,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
         <WorkoutScreen day={currentDay} duracao={plan?.duracao} exercise={current} setIdx={setIdx} queue={queue} completed={completed} weightInput={weightInput} setWeightInput={setWeightInput} repsInput={repsInput} setRepsInput={setRepsInput} rirInput={rirInput} setRirInput={setRirInput} ultimaCarga={current?ultimoPeso(current,setIdx):null} sugestao={current?sugestaoCarga(current):null} elapsed={seriesElapsed} running={seriesRunning} onStartSeries={()=>setSeriesRunning(true)} onPauseSeries={()=>setSeriesRunning(false)} isoSec={isoSec} isoTotal={isoTotal} isoRunning={isoRunning} isoDone={isoDone} unilateralSide={unilateralSide} firstSideElapsed={firstSideElapsed} onNextSide={advanceUnilateralSide} onStartIso={()=>{setIsoRunning(true);setIsoDone(false);}} onPauseIso={()=>setIsoRunning(false)} onComplete={completeSet} onSkip={skipExercise} onShowSubs={()=>setShowSubs(true)} canSkip={queue.length>1} onBack={()=>{setSeriesRunning(false);setIsoRunning(false);goHome();}}/>
         {showSubs&&<SubModal exercise={current} locked={!!plan?.locked} onSelect={substituteExercise} onClose={()=>setShowSubs(false)}/>}
       </>)}
-      {screen==="rest"         && <RestScreen endsAt={restEndsAtRef.current||Date.now()+restSec*1000} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1} startedAt={workoutStartedAt.current} dayLabel={currentDay?`${currentDay.label} · ${currentDay.sub||""}`:null} lastLoad={pesoAnterior(queue[0],setIdx)} lastReps={repsAnterior(queue[0],setIdx)}/>}
+      {screen==="rest"         && <RestScreen endsAt={restEndsAtRef.current||Date.now()+restSec*1000} total={restTotal} onSkip={skipRest} queue={queue} completed={completed} vinculo={vinculo} exercicioAtual={queue[0]?.name} duracao={plan?.duracao} nextSet={setIdx+1} startedAt={workoutStartedAt.current} dayLabel={currentDay?`${currentDay.label} · ${currentDay.sub||""}`:null} lastLoad={cargaReferencia(queue[0],setIdx)} suggestedLoad={sugestaoCarga(queue[0])?.sugerido} lastReps={repsAnterior(queue[0],setIdx)}/>}
       {screen==="bodyReport"   && <BodyReportScreen bodyHistory={bodyHistory} onBack={goHome} onReassess={()=>{setRePhotos(PHOTOS_INIT);setReErr(null);setScreen("reassess");}} onFotosExcluidas={async()=>{ const limpo = bodyHistory.map(({photoPaths, ...resto})=>({...resto,photoPaths:null})); setBodyHistory(limpo); await saveStorage("abody:bodyhistory", limpo); }}/>}
       {screen==="reassess"     && <ReassessScreen photos={rePhotos} setPhotos={setRePhotos} busy={reBusy} err={reErr} onRun={runReassessment} storeConsent={reStoreConsent} setStoreConsent={setReStoreConsent} onBack={()=>setScreen("bodyReport")}/>}
       {screen==="calendar"     && <CalendarScreen history={history} plan={plan} onBack={goHome} onUpdateHistory={async(dia,registro)=>{
@@ -4585,7 +4587,7 @@ function SubModal({ exercise, onSelect, onClose, locked }) {
 
 // ─── REST ─────────────────────────────────────────────────────────────────────
 
-export function RestScreen({ endsAt, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao, nextSet, startedAt, dayLabel, lastLoad, lastReps }) {
+export function RestScreen({ endsAt, total, onSkip, queue, completed, vinculo, exercicioAtual, duracao, nextSet, startedAt, dayLabel, lastLoad, suggestedLoad, lastReps }) {
   const grupoDe = useGrupos([...completed, ...queue]);
   const restante = () => Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
   const [seconds, setSeconds] = useState(restante);
@@ -4615,10 +4617,11 @@ export function RestScreen({ endsAt, total, onSkip, queue, completed, vinculo, e
           <span className="ab-muscle">{grupoDe(prox) || "Próxima"} · série {serie} de {prox.sets}</span>
           <h2>{prox.name}</h2>
           <dl className="ab-rest2-last">
-            <div><dt>Última carga</dt><dd>{lastLoad || "—"}{lastLoad && <small>kg</small>}</dd></div>
+            <div><dt>Carga de referência</dt><dd>{lastLoad ? String(lastLoad).replace(".", ",") : "—"}{lastLoad && <small>kg</small>}</dd></div>
             <div><dt>Reps</dt><dd>{lastReps || prox.reps}</dd></div>
             <div><dt>RIR alvo</dt><dd>{prox.rir ?? "—"}</dd></div>
           </dl>
+          {suggestedLoad && String(suggestedLoad) !== String(lastLoad) && <p className="ab-rest2-hint">Progressão sugerida: <b className="ab-num">{String(suggestedLoad).replace(".", ",")} kg</b></p>}
         </section>
       )}
       <DurationRuler startedAt={startedAt} planned={duracao}/>
