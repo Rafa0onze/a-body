@@ -505,9 +505,11 @@ const syncOperations=new Map();
 const PENDENTES='abody:pending-sync';
 const lerPendentes=()=>{try{return JSON.parse(localStorage.getItem(PENDENTES)||'[]');}catch{return [];}};
 const marcarPendente=(key,pendente)=>{const s=new Set(lerPendentes());if(pendente)s.add(key);else s.delete(key);try{localStorage.setItem(PENDENTES,JSON.stringify([...s]));}catch{}};
-export const ACESSO_EXPIRADO='Seu acesso expirou, por isso os registros ainda não foram enviados. Eles estão salvos neste aparelho e vão para a nuvem assim que você entrar de novo.';
-// Com o login do Cloudflare Access vencido, toda chamada a /sb vira redirecionamento para a tela de login.
-async function acessoExpirado(){ if(!SOLO_MODE)return false; try{const r=await fetch(`${SUPA_URL}/auth/v1/user`,{redirect:'manual',cache:'no-store'});return r.type==='opaqueredirect';}catch{return false;} }
+export const ACESSO_EXPIRADO='Este celular não está liberado para a nuvem, por isso os registros ainda não foram enviados. Eles estão salvos aqui e vão assim que você parear o celular (uma vez só).';
+// Sem a chave do aparelho, /sb responde 401 (ou redireciona ao login do Access, enquanto ele cobre tudo).
+async function acessoExpirado(){ if(!SOLO_MODE)return false; try{const r=await fetch(`${SUPA_URL}/auth/v1/user`,{redirect:'manual',cache:'no-store'});return r.type==='opaqueredirect'||r.status===401;}catch{return false;} }
+// Pareamento automático: enquanto o login do Access estiver válido, /parear grava a chave do aparelho.
+async function parearSeNecessario(){ if(!SOLO_MODE||localStorage.getItem('abody:pareado'))return; try{const r=await fetch('/parear',{method:'POST',redirect:'manual',cache:'no-store'});if(r.status===204)localStorage.setItem('abody:pareado','1');}catch{} }
 async function cloudSave(key,value,options={}) {
   const epoch=accountEpoch,operation=(syncOperations.get(key)||0)+1;syncOperations.set(key,operation);
   const session=await refreshIfNeeded();if(!session)return null;
@@ -1412,6 +1414,7 @@ export default function App() {
     }
   };
   const [syncWarning,setSyncWarning]=useState(''),[syncBusy,setSyncBusy]=useState(false);
+  useEffect(()=>{parearSeNecessario().then(acessoExpirado).then(x=>{if(x)setSyncWarning(ACESSO_EXPIRADO);});},[]);
   useEffect(()=>{const warn=e=>setSyncWarning(e.detail),restored=()=>{if(!pendingSync.size)setSyncWarning('');};window.addEventListener('abody:sync-error',warn);window.addEventListener('abody:sync-restored',restored);return()=>{window.removeEventListener('abody:sync-error',warn);window.removeEventListener('abody:sync-restored',restored);};},[]);
   const retrySync=async()=>{setSyncBusy(true);try{for(const [key,entry] of pendingSync)await cloudSave(key,entry.value,entry.options);const h=await loadStorage('abody:history'),bh=await loadStorage('abody:bodyhistory');if(h)setHistory(h);if(bh)setBodyHistory(bh);}finally{setSyncBusy(false);}};
   const [recoveryLink,setRecoveryLink]=useState(()=>parseRecoveryLink(window.location.href)),[recoveryEmail,setRecoveryEmail]=useState('');
@@ -2113,7 +2116,7 @@ REGRAS DE FORMATO: exatamente ${form.daysPerWeek} dias. Max 5 exercícios/dia.\n
 
   return (
     <main style={S.page} className="ab-app-shell">
-      {syncWarning&&<div className="ab-sync-warning" role="status"><p>{syncWarning}</p>{syncWarning===ACESSO_EXPIRADO?<button className="ab-secondary-action" onClick={()=>location.reload()}>Entrar de novo</button>:<button className="ab-secondary-action" disabled={syncBusy} onClick={retrySync}>{syncBusy?"Sincronizando…":"Tentar sincronizar"}</button>}</div>}
+      {syncWarning&&<div className="ab-sync-warning" role="status"><p>{syncWarning}</p>{syncWarning===ACESSO_EXPIRADO?<button className="ab-secondary-action" onClick={()=>{localStorage.removeItem('abody:pareado');location.href='/parear';}}>Parear este celular</button>:<button className="ab-secondary-action" disabled={syncBusy} onClick={retrySync}>{syncBusy?"Sincronizando…":"Tentar sincronizar"}</button>}</div>}
       {treinoNovo && screen==="home" && (
         <button onClick={()=>{ localStorage.setItem("abody:treino_visto", treinoNovo); setTreinoNovo(null); }}
           style={{position:"fixed",bottom:18,left:"50%",transform:"translateX(-50%)",zIndex:9998,background:C.acc,color:"#f5f6f3",border:"none",borderRadius:2,padding:"10px 18px",fontSize:13,fontWeight:800,boxShadow:"0 4px 16px rgba(0,0,0,.4)",cursor:"pointer",maxWidth:"92%"}}>

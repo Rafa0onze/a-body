@@ -1,5 +1,6 @@
-// Autenticação via Cloudflare Access: valida a assinatura do JWT que o Access
-// injeta em cada requisição. Falha fechada: sem configuração, ninguém entra.
+// Autenticação: chave do aparelho (cookie HttpOnly emitido em /parear) ou, no próprio
+// /parear, o JWT do Cloudflare Access. Falha fechada: sem configuração, ninguém entra.
+import { ensureSchema } from "./schema.js";
 const b64u = (s) => Uint8Array.from(
   atob(s.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(s.length / 4) * 4, "=")),
   (c) => c.charCodeAt(0));
@@ -33,11 +34,38 @@ async function emailDoAccess(request, env) {
   } catch { return null; }
 }
 
+export const COOKIE_APARELHO = "abody_dev";
+export async function hashChave(chave) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(chave));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function chaveDoCookie(request) {
+  for (const parte of (request.headers.get("cookie") || "").split(";")) {
+    const [k, ...v] = parte.trim().split("=");
+    if (k === COOKIE_APARELHO) return v.join("=");
+  }
+  return null;
+}
+async function aparelhoPareado(request, env) {
+  const chave = chaveDoCookie(request);
+  if (!chave || !/^[A-Za-z0-9_-]{40,}$/.test(chave) || !env.DB) return false;
+  await ensureSchema(env.DB);
+  return !!(await env.DB.prepare("SELECT 1 FROM aparelhos WHERE hash = ?").bind(await hashChave(chave)).first());
+}
+
+// Só o login do Access (usado por /parear para emitir a chave do aparelho).
+export async function ownerPeloAccess(request, env) {
+  const id = env.OWNER_ID, esperado = String(env.OWNER_EMAIL || "").toLowerCase();
+  if (!id || !esperado) return null;
+  const email = await emailDoAccess(request, env);
+  return email && email === esperado ? { id, email } : null;
+}
+
 // Retorna { id, email } do dono ou null. DEV_BYPASS_ACCESS=1 só para testes locais.
 export async function getOwner(request, env) {
   const id = env.OWNER_ID, esperado = String(env.OWNER_EMAIL || "").toLowerCase();
   if (!id || !esperado) return null;
   if (env.DEV_BYPASS_ACCESS === "1") return { id, email: esperado };
-  const email = await emailDoAccess(request, env);
-  return email && email === esperado ? { id, email } : null;
+  if (await aparelhoPareado(request, env)) return { id, email: esperado };
+  return ownerPeloAccess(request, env);
 }

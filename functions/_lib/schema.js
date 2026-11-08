@@ -10,6 +10,7 @@ export async function ensureSchema(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS exercicios (numero INTEGER PRIMARY KEY, data TEXT NOT NULL)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS ia_quota (
       id TEXT PRIMARY KEY, day TEXT NOT NULL, state TEXT NOT NULL, created TEXT NOT NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS aparelhos (hash TEXT PRIMARY KEY, criado TEXT NOT NULL)`),
   ]);
   prontos.add(db);
 }
